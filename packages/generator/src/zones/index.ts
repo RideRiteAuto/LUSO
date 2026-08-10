@@ -6,7 +6,7 @@
 // snapping them to ridgelines/rivers is a documented follow-up (docs/01 §6).
 
 import type { ClimateFields } from "../climate/index.js";
-import type { ContinentId, ResolvedZone, Vec2, ZoneDesign } from "../types/index.js";
+import type { ContinentId, HeightField, ResolvedZone, Vec2, ZoneDesign } from "../types/index.js";
 import type { Rng } from "../seed/index.js";
 
 export function convexHull(points: Vec2[]): Vec2[] {
@@ -36,13 +36,27 @@ export interface ZoneAssignment {
   gridResolution: number;
 }
 
-export function assignZones(zones: ZoneDesign[], continent: ContinentId, resolution: number): ZoneAssignment {
+/**
+ * Assigns every LAND cell to its nearest zone anchor (radius-weighted).
+ * Ocean cells are left unclaimed (-1) -- this used to assign the *entire*
+ * rectangular continent tile to some zone regardless of whether that cell
+ * was actual land, since the loop below had no elevation check at all. A
+ * zone's territory (and therefore resolveZones' convex-hull boundary, which
+ * traces wherever this grid's assignment changes) extended straight out
+ * into open ocean and along the tile's own corners, rendering as a visible
+ * rectangular box around the continent instead of a boundary that follows
+ * the coastline (Kevin: "there are two separate continents... with their
+ * own boxes around them" -- not a rendering bug, the underlying zone data
+ * genuinely claimed that rectangle).
+ */
+export function assignZones(zones: ZoneDesign[], continent: ContinentId, resolution: number, height: HeightField): ZoneAssignment {
   const continentZones = zones.filter((z) => z.continent === continent);
   const grid = new Int16Array(resolution * resolution).fill(-1);
 
   for (let y = 0; y < resolution; y++) {
     const v = y / (resolution - 1);
     for (let x = 0; x < resolution; x++) {
+      if (height.data[y * resolution + x] <= 0) continue; // ocean cell -- leave unclaimed
       const u = x / (resolution - 1);
       let best = -1;
       let bestScore = Infinity;

@@ -66,7 +66,7 @@ export function generateWorld(opts: GenerateOptions): WorldOutput {
     const climateRng = seeds.rngFor("climate", continent);
     const climate = generateClimateFields(climateRng, height, riverCellMask);
 
-    const zoneAssignment = assignZones(zoneDesigns, continent, resolution);
+    const zoneAssignment = assignZones(zoneDesigns, continent, resolution, height);
     const zoneRng = seeds.rngFor("resources", `${continent}:zones`);
     const resolvedZones = resolveZones(zoneDesigns, continent, zoneAssignment, climate, zoneRng);
     allZones.push(...resolvedZones);
