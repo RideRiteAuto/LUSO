@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import type { ContinentData, Manifest, WorldHeightData } from "./worldData.js";
+import type { ContinentData, Manifest, WorldData, WorldHeightData } from "./worldData.js";
 import { continentOriginX, continentOriginZ } from "./layout.js";
 
 // World units ARE meters now (docs/01 §5, data/design/continents.json) --
@@ -8,117 +8,173 @@ import { continentOriginX, continentOriginZ } from "./layout.js";
 // stop lying about the scale (see docs/01 §5's "corrected 2nd pass" note).
 const ELEVATION_SCALE = 1;
 
-/** Builds a displaced terrain mesh from a continent's raw heightfield, textured with its biome map. */
-export function buildTerrainMesh(continent: ContinentData, manifest: Manifest): THREE.Mesh {
-  const tileSize = manifest.worldScale.continentTileSize;
-  const res = continent.resolution;
-  // Downsample the geometry grid for performance; the biome texture still
-  // samples the full-resolution PNG, so visual detail isn't lost, only the
-  // mesh's vertex-level displacement fidelity (a minor, deliberate tradeoff).
-  const gridRes = Math.min(res, 256);
-  const step = res / gridRes;
+// Matches elevation/index.ts's deep-ocean asymptote (-(50 + depthFactor*3500)
+// as depthFactor -> 1), so the skirt below settles at the same depth the real
+// generated bathymetry itself levels out to -- no visible "floor changes"
+// where the real data hands off to the synthetic skirt.
+const ABYSS_DEPTH = -3550;
 
-  const geometry = new THREE.PlaneGeometry(tileSize, tileSize, gridRes - 1, gridRes - 1);
-  geometry.rotateX(-Math.PI / 2);
+// How far past the real generated world bounds the synthetic ocean skirt
+// extends before it's fully at ABYSS_DEPTH. Chosen well beyond the scene's
+// fog-far distance (main.ts sets fog far at 160000) so the skirt's own outer
+// edge is never actually visible -- it's fully fogged out first, which is
+// what makes the ocean read as boundless instead of ending in a wall
+// (Kevin: "I should be able to swim off the beach on any edge of the world
+// ... right now our game world ends in a flat blank wall").
+export const SKIRT_REACH = 220000;
+const SKIRT_STEP_FRACTIONS = [0.05, 0.12, 0.22, 0.38, 0.62, 1.0];
 
-  const position = geometry.attributes.position as THREE.BufferAttribute;
-  for (let gy = 0; gy < gridRes; gy++) {
-    for (let gx = 0; gx < gridRes; gx++) {
-      const sx = Math.min(res - 1, Math.round(gx * step));
-      const sy = Math.min(res - 1, Math.round(gy * step));
-      const h = continent.heightData[sy * res + sx];
-      const vertIndex = gy * gridRes + gx;
-      // PlaneGeometry is centered at origin; shift so the mesh's local
-      // (0,0) corresponds to UV (0,0), matching layout.ts's uvToWorld.
-      // Clamped shallow so this stays a coastal apron -- the separate
-      // seabed mesh (below) carries full ocean depth between continents.
-      position.setY(vertIndex, Math.max(h, -40) * ELEVATION_SCALE);
-    }
-  }
-  position.needsUpdate = true;
-  geometry.computeVertexNormals();
+const SHALLOW_WATER = new THREE.Color(0x1c5a78);
+const DEEP_WATER = new THREE.Color(0x081c33);
+const BEACH_SAND = new THREE.Color(0xe3d6a8);
+const LAND_FALLBACK = new THREE.Color(0x4c8c4a);
 
-  const texture = new THREE.Texture(continent.biomeImage);
-  texture.needsUpdate = true;
-  texture.colorSpace = THREE.SRGBColorSpace;
-  texture.wrapS = THREE.ClampToEdgeWrapping;
-  texture.wrapT = THREE.ClampToEdgeWrapping;
-  // The biome PNG is authored with (0,0) at the top-left in image space but
-  // (0,0)=south in our v-down grid convention (docs/01 §3 stage 3 walks y
-  // from 0..resolution as "north" increasing) -- flip V so the texture
-  // aligns with the displaced geometry instead of appearing mirrored.
-  texture.center.set(0.5, 0.5);
-  texture.repeat.set(1, -1);
+function smoothstep(edge0: number, edge1: number, x: number): number {
+  const t = Math.max(0, Math.min(1, (x - edge0) / (edge1 - edge0)));
+  return t * t * (3 - 2 * t);
+}
 
-  const material = new THREE.MeshStandardMaterial({ map: texture, roughness: 0.95, metalness: 0.0 });
-  const mesh = new THREE.Mesh(geometry, material);
-  mesh.position.set(
-    continentOriginX(continent.id, manifest) + tileSize / 2,
-    0,
-    continentOriginZ(continent.id, manifest) + tileSize / 2
-  );
-  mesh.receiveShadow = true;
-  return mesh;
+function waterColor(h: number): THREE.Color {
+  const depthT = Math.max(0, Math.min(1, -h / 3500));
+  return SHALLOW_WATER.clone().lerp(DEEP_WATER, depthT);
 }
 
 /**
- * The connecting ocean floor between (and around) both continents, built
- * from the unified world heightfield (elevation/index.ts's
- * generateWorldHeightField). Land cells are clamped to just-underwater so
- * this stays a continuous, hidden-beneath-the-coast surface rather than
- * z-fighting with the higher-detail continent meshes above -- this is the
- * fix for the "the ocean is just blank, it doesn't feel like one piece of
- * land under it all" gap: there is now real generated bathymetry out there,
- * not a flat placeholder plane.
+ * Per-continent blurred biome-color field, sampled from the (otherwise
+ * hard-edged, one-flat-color-per-pixel) indexed biome PNG. The classifier
+ * assigns one discrete biome per grid cell with no blending between
+ * neighbors, which is what reads as "blocky jagged paintings" up close
+ * (Kevin's report) rather than a coastline that gradually shifts from wet
+ * sand to dry grass. A small box blur softens those hard cell boundaries
+ * before they're baked into the mesh's vertex colors -- purely a rendering
+ * smoothing pass, the underlying biome *data* (used for spawns/resources)
+ * is untouched.
  */
-export function buildSeabedMesh(worldHeight: WorldHeightData): THREE.Mesh {
-  const { width, height: gridH, data, bounds } = worldHeight;
-  const worldW = bounds.maxX - bounds.minX;
-  const worldD = bounds.maxZ - bounds.minZ;
-
-  // Downsample for performance -- the seabed doesn't need per-continent mesh
-  // fidelity, just a believable connecting surface.
-  const gridRes = 400;
-  const aspect = worldD / worldW;
-  const segX = gridRes - 1;
-  const segY = Math.max(2, Math.round(gridRes * aspect)) - 1;
-
-  const geometry = new THREE.PlaneGeometry(worldW, worldD, segX, segY);
-  geometry.rotateX(-Math.PI / 2);
-
-  const position = geometry.attributes.position as THREE.BufferAttribute;
-  const colors = new Float32Array((segX + 1) * (segY + 1) * 3);
-  const deep = new THREE.Color(0x081c33);
-  const shallow = new THREE.Color(0x1c5a78);
-
-  for (let gy = 0; gy <= segY; gy++) {
-    const sampleY = Math.min(gridH - 1, Math.round((gy / segY) * (gridH - 1)));
-    for (let gx = 0; gx <= segX; gx++) {
-      const sampleX = Math.min(width - 1, Math.round((gx / segX) * (width - 1)));
-      const h = data[sampleY * width + sampleX];
-      const clamped = Math.min(h, -5);
-      const vertIndex = gy * (segX + 1) + gx;
-      position.setY(vertIndex, clamped);
-
-      const depthT = Math.max(0, Math.min(1, -clamped / 3500));
-      const c = shallow.clone().lerp(deep, depthT);
-      colors[vertIndex * 3] = c.r;
-      colors[vertIndex * 3 + 1] = c.g;
-      colors[vertIndex * 3 + 2] = c.b;
-    }
-  }
-  position.needsUpdate = true;
-  geometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
-  geometry.computeVertexNormals();
-
-  const material = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85, metalness: 0.05 });
-  const mesh = new THREE.Mesh(geometry, material);
-  mesh.position.set(bounds.minX + worldW / 2, 0, bounds.minZ + worldD / 2);
-  return mesh;
+interface BlurredBiomeField {
+  width: number;
+  height: number;
+  rgb: Float32Array; // 3 floats per pixel, 0..1
 }
 
-/** Samples the unified world heightfield at an arbitrary world position -- used by walk mode to stay grounded across both continents and the seabed between them. */
-export function sampleWorldHeight(worldHeight: WorldHeightData, worldX: number, worldZ: number): number {
+function buildBlurredBiomeField(image: HTMLImageElement): BlurredBiomeField {
+  const w = image.naturalWidth;
+  const h = image.naturalHeight;
+  const canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext("2d")!;
+  ctx.drawImage(image, 0, 0);
+  const src = ctx.getImageData(0, 0, w, h).data;
+
+  const RADIUS = 2;
+  const rgb = new Float32Array(w * h * 3);
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      let r = 0, g = 0, b = 0, count = 0;
+      for (let dy = -RADIUS; dy <= RADIUS; dy++) {
+        const sy = y + dy;
+        if (sy < 0 || sy >= h) continue;
+        for (let dx = -RADIUS; dx <= RADIUS; dx++) {
+          const sx = x + dx;
+          if (sx < 0 || sx >= w) continue;
+          const i = (sy * w + sx) * 4;
+          r += src[i];
+          g += src[i + 1];
+          b += src[i + 2];
+          count++;
+        }
+      }
+      const outIdx = (y * w + x) * 3;
+      rgb[outIdx] = r / count / 255;
+      rgb[outIdx + 1] = g / count / 255;
+      rgb[outIdx + 2] = b / count / 255;
+    }
+  }
+  return { width: w, height: h, rgb };
+}
+
+function sampleBlurredBiome(field: BlurredBiomeField, u: number, v: number, out: THREE.Color): void {
+  // Biome PNG is authored (0,0)=top-left in image space but (0,0)=south in
+  // our v-down grid convention (docs/01 §3 stage 3) -- flip v to match, same
+  // convention the old texture-mapped mesh applied via texture.repeat.set(1,-1).
+  const px = Math.min(field.width - 1, Math.max(0, Math.round(u * (field.width - 1))));
+  const py = Math.min(field.height - 1, Math.max(0, Math.round((1 - v) * (field.height - 1))));
+  const i = (py * field.width + px) * 3;
+  out.setRGB(field.rgb[i], field.rgb[i + 1], field.rgb[i + 2]);
+}
+
+/** Nearest-sample lookup into a continent's own local heightfield. Used for overlay placement (rivers, settlement markers, etc). */
+export function sampleHeight(continent: ContinentData, u: number, v: number): number {
+  const res = continent.resolution;
+  const x = Math.min(res - 1, Math.max(0, Math.round(u * (res - 1))));
+  const y = Math.min(res - 1, Math.max(0, Math.round(v * (res - 1))));
+  return continent.heightData[y * res + x];
+}
+
+/**
+ * A softened copy of the unified heightfield, used ONLY for building the
+ * visual mesh below -- never for gameplay-facing height queries (walk-mode
+ * grounding, lake surface elevation, etc. all keep reading the raw,
+ * authoritative worldHeight.data via nearestUnifiedHeight/sampleWorldHeight/
+ * sampleHeightWithSkirt).
+ *
+ * The coastline read as "jagged, not an actual beach" even after softening
+ * how quickly the ocean floor drops (elevation/index.ts) and after adding a
+ * flat water plane on top (buildOceanSurface) -- because neither of those
+ * touches the actual land/water boundary LINE, which is wherever the
+ * terrain mesh's own triangulation crosses sea level. That line is exactly
+ * as jagged as the underlying grid's small-scale height variation, at any
+ * resolution. A small blur on the height values feeding the visual mesh
+ * removes that small-scale bumpiness -- mountains (which vary over
+ * kilometers) are essentially untouched by a ~200m-radius blur, but the
+ * coastline crossing, sensitive to every small local bump, comes out
+ * visibly smoother.
+ */
+function buildSoftenedHeights(worldHeight: WorldHeightData, radiusCells: number): Float32Array {
+  const { width, height: gridH, data } = worldHeight;
+  // Separable box blur (horizontal pass then vertical pass) instead of a
+  // full 2D kernel per cell -- O(n*r) each pass instead of O(n*r^2), which
+  // matters at this grid's ~1M-cell size (a naive 7x7 kernel over a
+  // 2048x512 field was slow enough to stall the page during mesh build).
+  const tmp = new Float32Array(width * gridH);
+  for (let y = 0; y < gridH; y++) {
+    const row = y * width;
+    for (let x = 0; x < width; x++) {
+      let sum = 0, count = 0;
+      for (let dx = -radiusCells; dx <= radiusCells; dx++) {
+        const sx = x + dx;
+        if (sx < 0 || sx >= width) continue;
+        sum += data[row + sx];
+        count++;
+      }
+      tmp[row + x] = sum / count;
+    }
+  }
+  const out = new Float32Array(width * gridH);
+  for (let x = 0; x < width; x++) {
+    for (let y = 0; y < gridH; y++) {
+      let sum = 0, count = 0;
+      for (let dy = -radiusCells; dy <= radiusCells; dy++) {
+        const sy = y + dy;
+        if (sy < 0 || sy >= gridH) continue;
+        sum += tmp[sy * width + x];
+        count++;
+      }
+      out[y * width + x] = sum / count;
+    }
+  }
+  return out;
+}
+
+function sampleField(field: Float32Array, width: number, gridH: number, bounds: WorldHeightData["bounds"], worldX: number, worldZ: number): number {
+  const u = (worldX - bounds.minX) / (bounds.maxX - bounds.minX);
+  const v = (worldZ - bounds.minZ) / (bounds.maxZ - bounds.minZ);
+  const gx = Math.min(width - 1, Math.max(0, Math.round(u * (width - 1))));
+  const gy = Math.min(gridH - 1, Math.max(0, Math.round(v * (gridH - 1))));
+  return field[gy * width + gx];
+}
+
+function nearestUnifiedHeight(worldHeight: WorldHeightData, worldX: number, worldZ: number): number {
   const { width, height: gridH, data, bounds } = worldHeight;
   const u = (worldX - bounds.minX) / (bounds.maxX - bounds.minX);
   const v = (worldZ - bounds.minZ) / (bounds.maxZ - bounds.minZ);
@@ -127,10 +183,203 @@ export function sampleWorldHeight(worldHeight: WorldHeightData, worldX: number, 
   return data[gy * width + gx];
 }
 
-/** Samples the (undownsampled) heightfield for overlay placement (rivers, settlement markers, etc). */
-export function sampleHeight(continent: ContinentData, u: number, v: number): number {
-  const res = continent.resolution;
-  const x = Math.min(res - 1, Math.max(0, Math.round(u * (res - 1))));
-  const y = Math.min(res - 1, Math.max(0, Math.round(v * (res - 1))));
-  return continent.heightData[y * res + x];
+/**
+ * Ground/seabed height at an arbitrary world (x,z), including the synthetic
+ * ocean skirt beyond the real generated bounds -- shared by the mesh builder
+ * below and by the walk/fly camera's grounding, so a flown or walked path
+ * out past the coast sees the exact same seabed the mesh actually renders,
+ * not a flat clamp at the boundary's edge value.
+ */
+export function sampleHeightWithSkirt(worldHeight: WorldHeightData, worldX: number, worldZ: number): number {
+  const { bounds } = worldHeight;
+  const cx = Math.max(bounds.minX, Math.min(bounds.maxX, worldX));
+  const cz = Math.max(bounds.minZ, Math.min(bounds.maxZ, worldZ));
+  const real = nearestUnifiedHeight(worldHeight, cx, cz);
+
+  const dx = Math.max(0, bounds.minX - worldX, worldX - bounds.maxX);
+  const dz = Math.max(0, bounds.minZ - worldZ, worldZ - bounds.maxZ);
+  const distPastEdge = Math.max(dx, dz);
+  if (distPastEdge <= 0) return real;
+
+  const t = smoothstep(0, SKIRT_REACH, distPastEdge);
+  return real + (ABYSS_DEPTH - real) * t;
+}
+
+function findOwningContinent(
+  worldX: number,
+  worldZ: number,
+  continentIds: string[],
+  manifest: Manifest
+): { id: string; u: number; v: number } | null {
+  const tileSize = manifest.worldScale.continentTileSize;
+  let best: { id: string; u: number; v: number; dist: number } | null = null;
+  for (const id of continentIds) {
+    const ox = continentOriginX(id, manifest);
+    const oz = continentOriginZ(id, manifest);
+    const u = (worldX - ox) / tileSize;
+    const v = (worldZ - oz) / tileSize;
+    if (u >= 0 && u <= 1 && v >= 0 && v <= 1) return { id, u, v };
+    // Distance outside [0,1]^2, for the fallback below (a sliver of land
+    // just outside its own nominal tile square, at the continent mask's
+    // outer edge -- rare, but real elevation/index.ts math does allow it).
+    const du = Math.max(0, -u, u - 1);
+    const dv = Math.max(0, -v, v - 1);
+    const dist = Math.hypot(du, dv);
+    if (!best || dist < best.dist) best = { id, u: Math.max(0, Math.min(1, u)), v: Math.max(0, Math.min(1, v)), dist };
+  }
+  return best;
+}
+
+function buildAxis(coreCount: number, min: number, max: number, reach: number): number[] {
+  const core: number[] = [];
+  for (let i = 0; i < coreCount; i++) core.push(min + (i / (coreCount - 1)) * (max - min));
+  const leftSkirt = [...SKIRT_STEP_FRACTIONS].reverse().map((f) => min - f * reach);
+  const rightSkirt = SKIRT_STEP_FRACTIONS.map((f) => max + f * reach);
+  return [...leftSkirt, ...core, ...rightSkirt];
+}
+
+/**
+ * The single, seamless world mesh: both continents, the connecting seabed
+ * between them, AND a smoothly-blended synthetic skirt beyond the real
+ * generated bounds so the ocean reads as boundless instead of ending at a
+ * wall. Replaces the old buildTerrainMesh (per-continent) + buildSeabedMesh
+ * (separate, differently-resolved, differently-colored) pair -- those were
+ * two independently built, independently sampled meshes that only
+ * approximately lined up at the coast, which is exactly what read as "two
+ * separate models stitched together" with the seabed "peeking through" at
+ * the seams (Kevin's report after the previous pass). One continuous
+ * BufferGeometry, one height source, one color function: there is no seam
+ * left to peek through.
+ */
+export function buildWorldMesh(world: WorldData): THREE.Mesh {
+  const { manifest, worldHeight, continents } = world;
+  const { bounds } = worldHeight;
+  const continentIds = manifest.continents;
+
+  const biomeFields = new Map<string, BlurredBiomeField>();
+  for (const id of continentIds) biomeFields.set(id, buildBlurredBiomeField(continents[id].biomeImage));
+
+  const softHeights = buildSoftenedHeights(worldHeight, 3);
+
+  // Core resolution: half the unified field's native resolution (which is
+  // already a downsample of the per-continent 64m/cell data) -- detailed
+  // enough for a coastline to read as a coastline, not so dense that the
+  // per-vertex color pass (continent lookup + blurred-biome sample) becomes
+  // the load bottleneck.
+  const coreW = Math.min(1024, worldHeight.width);
+  const coreD = Math.max(2, Math.round(coreW * ((bounds.maxZ - bounds.minZ) / (bounds.maxX - bounds.minX))));
+
+  const xs = buildAxis(coreW, bounds.minX, bounds.maxX, SKIRT_REACH);
+  const zs = buildAxis(coreD, bounds.minZ, bounds.maxZ, SKIRT_REACH);
+  const gridW = xs.length;
+  const gridD = zs.length;
+
+  const positions = new Float32Array(gridW * gridD * 3);
+  const colors = new Float32Array(gridW * gridD * 3);
+  const tmpColor = new THREE.Color();
+  const biomeSample = new THREE.Color();
+
+  for (let iz = 0; iz < gridD; iz++) {
+    const z = zs[iz];
+    const dz = Math.max(0, bounds.minZ - z, z - bounds.maxZ);
+    for (let ix = 0; ix < gridW; ix++) {
+      const x = xs[ix];
+      const dx = Math.max(0, bounds.minX - x, x - bounds.maxX);
+      const distPastEdge = Math.max(dx, dz);
+      const skirtT = distPastEdge > 0 ? smoothstep(0, SKIRT_REACH, distPastEdge) : 0;
+
+      const cx = Math.max(bounds.minX, Math.min(bounds.maxX, x));
+      const cz = Math.max(bounds.minZ, Math.min(bounds.maxZ, z));
+      const realH = sampleField(softHeights, worldHeight.width, worldHeight.height, bounds, cx, cz);
+      const h = realH + (ABYSS_DEPTH - realH) * skirtT;
+
+      // Color follows height, not "which mesh this used to be": pure
+      // depth-shaded water at/under sea level, a smooth sand blend just
+      // above it, and only clearly-dry land samples the biome image --
+      // this is what makes the shoreline itself the transition instead of
+      // two flatly-colored surfaces butting up against each other.
+      if (realH <= 0) {
+        tmpColor.copy(waterColor(realH));
+      } else if (realH <= 8) {
+        tmpColor.copy(waterColor(0)).lerp(BEACH_SAND, smoothstep(0, 8, realH));
+      } else {
+        const owner = findOwningContinent(cx, cz, continentIds, manifest);
+        if (owner) {
+          const field = biomeFields.get(owner.id)!;
+          sampleBlurredBiome(field, owner.u, owner.v, biomeSample);
+          tmpColor.copy(biomeSample);
+        } else {
+          tmpColor.copy(LAND_FALLBACK);
+        }
+      }
+      if (skirtT > 0) tmpColor.lerp(DEEP_WATER, skirtT);
+
+      const vi = iz * gridW + ix;
+      positions[vi * 3] = x;
+      positions[vi * 3 + 1] = h * ELEVATION_SCALE;
+      positions[vi * 3 + 2] = z;
+      colors[vi * 3] = tmpColor.r;
+      colors[vi * 3 + 1] = tmpColor.g;
+      colors[vi * 3 + 2] = tmpColor.b;
+    }
+  }
+
+  const indices: number[] = [];
+  for (let iz = 0; iz < gridD - 1; iz++) {
+    for (let ix = 0; ix < gridW - 1; ix++) {
+      const a = iz * gridW + ix;
+      const b = iz * gridW + ix + 1;
+      const c = (iz + 1) * gridW + ix;
+      const d = (iz + 1) * gridW + ix + 1;
+      indices.push(a, c, b, b, c, d);
+    }
+  }
+
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+  geometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
+  geometry.setIndex(indices);
+  geometry.computeVertexNormals();
+
+  const material = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.92, metalness: 0.02 });
+  const mesh = new THREE.Mesh(geometry, material);
+  mesh.receiveShadow = true;
+  return mesh;
+}
+
+/**
+ * A single flat plane at sea level, covering the same footprint as the
+ * world mesh (real bounds + skirt), semi-transparent so the terrain's own
+ * depth-shaded color still reads through it. This is what actually hides
+ * the coastline's stair-stepped underwater geometry: at any given mesh
+ * resolution, a heightfield's own underwater slope shows faceted normals as
+ * it steps down toward the seabed, which is what read as "jagged edges,
+ * not an actual beach" -- softening the depth falloff (elevation/index.ts)
+ * helped only marginally, because the faceting is inherent to rendering a
+ * *sloped* surface at a grazing angle, not primarily a function of how
+ * steep the slope is. A flat plane has no facets at all: wherever land
+ * rises above sea level it naturally occludes this plane (ordinary depth
+ * testing), and wherever terrain dips below sea level, this smooth, flat
+ * surface is what you actually see instead of the jagged seabed beneath
+ * it -- the coastline reads as clean because the visible water edge no
+ * longer depends on the terrain mesh's own triangulation at all.
+ */
+export function buildOceanSurface(worldHeight: WorldHeightData): THREE.Mesh {
+  const { bounds } = worldHeight;
+  const pad = SKIRT_REACH * 0.95;
+  const width = bounds.maxX - bounds.minX + pad * 2;
+  const depth = bounds.maxZ - bounds.minZ + pad * 2;
+  const geometry = new THREE.PlaneGeometry(width, depth, 1, 1);
+  geometry.rotateX(-Math.PI / 2);
+  const material = new THREE.MeshStandardMaterial({
+    color: 0x1c5a78, transparent: true, opacity: 0.82, roughness: 0.25, metalness: 0.05,
+  });
+  const mesh = new THREE.Mesh(geometry, material);
+  mesh.position.set((bounds.minX + bounds.maxX) / 2, 0.3, (bounds.minZ + bounds.maxZ) / 2);
+  return mesh;
+}
+
+/** Samples the unified world heightfield at an arbitrary world position, clamped to the real generated bounds -- used where the skirt's synthetic falloff isn't relevant (e.g. deciding whether a point is under water for gameplay logic). For camera grounding use sampleHeightWithSkirt instead. */
+export function sampleWorldHeight(worldHeight: WorldHeightData, worldX: number, worldZ: number): number {
+  return nearestUnifiedHeight(worldHeight, worldX, worldZ);
 }

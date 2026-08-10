@@ -1,8 +1,8 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { loadWorld, loadEmbeddedWorld } from "./worldData.js";
-import { buildTerrainMesh, buildSeabedMesh, sampleWorldHeight } from "./terrain.js";
-import { buildZoneBoundaries, buildRivers, buildRoads, buildSettlements, buildSeaRegions } from "./overlays.js";
+import { buildWorldMesh, buildOceanSurface, sampleHeightWithSkirt, SKIRT_REACH } from "./terrain.js";
+import { buildZoneBoundaries, buildRivers, buildLakes, buildRoads, buildSettlements, buildSeaRegions } from "./overlays.js";
 import { uvToWorld } from "./layout.js";
 import { FlightController } from "./flightControls.js";
 
@@ -73,18 +73,28 @@ async function boot() {
     : await loadWorld(seed, (msg) => (statusEl.textContent = `loading ${msg}`));
   const manifest = world.manifest;
 
-  statusEl.textContent = "building ocean floor…";
-  scene.add(buildSeabedMesh(world.worldHeight));
+  statusEl.textContent = "building world mesh…";
+  // One continuous mesh -- both continents, the connecting seabed, and a
+  // smoothly-blended skirt beyond the real bounds -- replaces the old
+  // separately-built terrain + seabed meshes, which only approximately
+  // lined up at the coast and read as "two models stitched together" with
+  // the seabed visibly peeking through the seams (see terrain.ts).
+  scene.add(buildWorldMesh(world));
+  scene.add(buildOceanSurface(world.worldHeight));
 
-  for (const continent of Object.values(world.continents)) {
-    statusEl.textContent = `building terrain (${continent.id})…`;
-    const mesh = buildTerrainMesh(continent, manifest);
-    scene.add(mesh);
-  }
-
+  // Let fly/walk roam well past the real generated coastline into the
+  // synthetic ocean skirt (terrain.ts) -- the skirt itself reaches full
+  // abyssal depth at SKIRT_REACH, so clamping camera travel to most of that
+  // distance means "swim off the beach on any edge" actually holds, instead
+  // of hitting a wall right at the data's own boundary.
+  const worldBoundsRaw = world.worldHeight.bounds;
+  const expandedBounds = {
+    minX: worldBoundsRaw.minX - SKIRT_REACH * 0.85, maxX: worldBoundsRaw.maxX + SKIRT_REACH * 0.85,
+    minZ: worldBoundsRaw.minZ - SKIRT_REACH * 0.85, maxZ: worldBoundsRaw.maxZ + SKIRT_REACH * 0.85,
+  };
   flight = new FlightController(camera, renderer.domElement, {
-    getGroundHeight: (x, z) => sampleWorldHeight(world.worldHeight, x, z),
-    worldBounds: world.worldHeight.bounds,
+    getGroundHeight: (x, z) => sampleHeightWithSkirt(world.worldHeight, x, z),
+    worldBounds: expandedBounds,
   });
 
   const zonesById = new Map(world.zones.map((z) => [z.id, z]));
@@ -93,6 +103,7 @@ async function boot() {
   scene.add(zoneOverlay);
 
   riverOverlay = buildRivers(world.continents, manifest);
+  riverOverlay.add(buildLakes(world.continents, manifest)); // same toggle as rivers -- both are "water"
   scene.add(riverOverlay);
 
   roadOverlay = buildRoads(world.continents, manifest);

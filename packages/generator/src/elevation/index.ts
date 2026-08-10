@@ -120,7 +120,15 @@ function buildContinentSampler(rng: Rng, zones: ZoneDesign[]): ContinentSampler 
       // Ocean branch: depthFactor -> 1 as mask -> 0 (or below, once UV is far
       // outside this continent's own tile), so this naturally reaches full
       // abyssal depth far from the continent instead of only near its coast.
-      const depthFactor = Math.min(1, (0.5 - mask) * 2.2);
+      // Multiplier softened 2.2 -> 1.1 (docs/01 §5 coastline pass): the old
+      // rate hit full depthFactor (and thus near-abyssal depth) within
+      // ~2km of the shore, which combined with any renderable mesh
+      // resolution reads as a stair-stepped cliff at the waterline rather
+      // than a beach -- there's no grid fine enough to make a near-vertical
+      // drop look smooth. Spreading the same drop over roughly 2x the
+      // distance gives an actual shelf a coastline mesh can resolve, and
+      // matches most real coastlines better than an offshore cliff anyway.
+      const depthFactor = Math.min(1, (0.5 - mask) * 1.1);
       return -(50 + depthFactor * 3500) + detail * 40;
     }
   };

@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import type { ContinentData, Manifest, RiverRecord, RoadRecord, SeaRegionRecord, SettlementRecord, ZoneRecord } from "./worldData.js";
+import type { ContinentData, LakeRecord, Manifest, RiverRecord, RoadRecord, SeaRegionRecord, SettlementRecord, ZoneRecord } from "./worldData.js";
 import { sampleHeight } from "./terrain.js";
 import { uvToWorld } from "./layout.js";
 
@@ -56,6 +56,61 @@ export function buildZoneBoundaries(zones: ZoneRecord[], continents: Record<stri
   return group;
 }
 
+const RIVER_SOURCE_WIDTH = 5;
+const RIVER_MOUTH_WIDTH = 26;
+
+/**
+ * Builds a flat ribbon (a real strip of triangles with actual width) instead
+ * of a THREE.Line -- WebGL ignores CSS-style line-width on essentially every
+ * platform (a long-standing spec limitation, not a bug in this code), so a
+ * Line's `linewidth` renders as a constant ~1px hairline regardless of the
+ * value set, which is why rivers read as "so skinny" no matter how the
+ * material was configured. Width tapers from source to mouth, since the
+ * path is already ordered source->mouth (hydrology/index.ts).
+ */
+function buildRiverRibbon(path3D: THREE.Vector3[]): THREE.Mesh {
+  const n = path3D.length;
+  const positions = new Float32Array(n * 2 * 3);
+  const up = new THREE.Vector3(0, 1, 0);
+
+  for (let i = 0; i < n; i++) {
+    const prev = path3D[Math.max(0, i - 1)];
+    const next = path3D[Math.min(n - 1, i + 1)];
+    const tangent = next.clone().sub(prev);
+    if (tangent.lengthSq() < 1e-6) tangent.set(1, 0, 0);
+    tangent.normalize();
+    const side = tangent.clone().cross(up).normalize();
+
+    const width = RIVER_SOURCE_WIDTH + (RIVER_MOUTH_WIDTH - RIVER_SOURCE_WIDTH) * (i / Math.max(1, n - 1));
+    const p = path3D[i];
+    const left = p.clone().addScaledVector(side, -width / 2);
+    const right = p.clone().addScaledVector(side, width / 2);
+
+    positions[i * 6] = left.x;
+    positions[i * 6 + 1] = left.y;
+    positions[i * 6 + 2] = left.z;
+    positions[i * 6 + 3] = right.x;
+    positions[i * 6 + 4] = right.y;
+    positions[i * 6 + 5] = right.z;
+  }
+
+  const indices: number[] = [];
+  for (let i = 0; i < n - 1; i++) {
+    const a = i * 2, b = i * 2 + 1, c = (i + 1) * 2, d = (i + 1) * 2 + 1;
+    indices.push(a, c, b, b, c, d);
+  }
+
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+  geometry.setIndex(indices);
+  geometry.computeVertexNormals();
+
+  const material = new THREE.MeshStandardMaterial({
+    color: 0x5ec8ff, transparent: true, opacity: 0.88, roughness: 0.35, metalness: 0.05, side: THREE.DoubleSide,
+  });
+  return new THREE.Mesh(geometry, material);
+}
+
 export function buildRivers(continents: Record<string, ContinentData>, manifest: Manifest): THREE.Group {
   const group = new THREE.Group();
   group.name = "rivers";
@@ -71,9 +126,67 @@ export function buildRivers(continents: Record<string, ContinentData>, manifest:
         const [x, z] = uvToWorld(u, v, continent.id, manifest);
         return new THREE.Vector3(x, heightAtWorld(continent, u, v) + 0.5, z);
       });
-      const geometry = new THREE.BufferGeometry().setFromPoints(points);
-      const material = new THREE.LineBasicMaterial({ color: 0x5ec8ff, transparent: true, opacity: 0.85 });
-      group.add(new THREE.Line(geometry, material));
+      group.add(buildRiverRibbon(points));
+    }
+  }
+
+  return group;
+}
+
+/**
+ * Real lake water surfaces. hydrology/index.ts has generated closed-basin
+ * pit lakes since Phase 2, but nothing ever read continent.lakes in the
+ * viewer -- so a lake basin rendered as bare terrain, colored by whatever
+ * the biome classifier assigned a sub-sea-level cell (flatly "ocean" blue
+ * regardless of whether that cell is actually inland), with no water plane
+ * on top. That mismatch is exactly what read as "random blue patches...
+ * not sure if it's water or a lake." This renders an actual flat water
+ * surface at each lake's rim height, filled by a fan triangulation from the
+ * polygon's centroid (lake basins are small and close enough to convex that
+ * a fan doesn't produce visible artifacts).
+ */
+export function buildLakes(continents: Record<string, ContinentData>, manifest: Manifest): THREE.Group {
+  const group = new THREE.Group();
+  group.name = "lakes";
+
+  for (const continent of Object.values(continents)) {
+    for (const lake of continent.lakes as LakeRecord[]) {
+      if (lake.polygon.length < 3) continue;
+
+      // Water sits at the rim, not the bed: average the boundary vertices'
+      // terrain height rather than using depthM (that's basin depth below
+      // the rim, not an absolute elevation).
+      let surfaceH = 0;
+      for (const [u, v] of lake.polygon) surfaceH += heightAtWorld(continent, u, v);
+      surfaceH /= lake.polygon.length;
+
+      const centroidUV: [number, number] = [0, 0];
+      for (const [u, v] of lake.polygon) { centroidUV[0] += u; centroidUV[1] += v; }
+      centroidUV[0] /= lake.polygon.length;
+      centroidUV[1] /= lake.polygon.length;
+      const [ccx, ccz] = uvToWorld(centroidUV[0], centroidUV[1], continent.id, manifest);
+
+      const positions: number[] = [ccx, surfaceH, ccz];
+      for (const [u, v] of lake.polygon) {
+        const [x, z] = uvToWorld(u, v, continent.id, manifest);
+        positions.push(x, surfaceH, z);
+      }
+      const indices: number[] = [];
+      for (let i = 1; i <= lake.polygon.length; i++) {
+        const next = i === lake.polygon.length ? 1 : i + 1;
+        indices.push(0, i, next);
+      }
+
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute("position", new THREE.BufferAttribute(new Float32Array(positions), 3));
+      geometry.setIndex(indices);
+      geometry.computeVertexNormals();
+      const material = new THREE.MeshStandardMaterial({
+        color: 0x3f86a8, transparent: true, opacity: 0.82, roughness: 0.25, metalness: 0.05, side: THREE.DoubleSide,
+      });
+      const mesh = new THREE.Mesh(geometry, material);
+      mesh.userData = { kind: "lake", lakeId: lake.id };
+      group.add(mesh);
     }
   }
 

@@ -50,6 +50,13 @@ export interface RiverRecord {
   path: [number, number][];
 }
 
+/** A closed-basin pit lake (hydrology/index.ts) -- generated since Phase 2 but never wired into the viewer until now, which is why low inland basins rendered as flat "ocean" biome color with no actual water surface (Kevin: "not sure if it's water or a lake"). */
+export interface LakeRecord {
+  id: string;
+  polygon: [number, number][];
+  depthM: number;
+}
+
 export interface BridgePointRecord {
   id: string;
   start: [number, number];
@@ -69,6 +76,7 @@ export interface ContinentData {
   resolution: number;
   biomeImage: HTMLImageElement;
   rivers: RiverRecord[];
+  lakes: LakeRecord[];
   roads: RoadRecord[];
 }
 
@@ -118,7 +126,7 @@ export interface EmbeddedWorld {
   settlements: SettlementRecord[];
   seaRegions: SeaRegionRecord[];
   roads: RoadRecord[];
-  waterways: { continents: Record<string, { rivers: RiverRecord[] }> };
+  waterways: { continents: Record<string, { rivers: RiverRecord[]; lakes: LakeRecord[] }> };
   continents: Record<string, { heightDataBase64: string; biomeImageDataUri: string }>;
   worldHeightBase64: string;
 }
@@ -146,6 +154,7 @@ export async function loadEmbeddedWorld(onProgress?: (msg: string) => void): Pro
       resolution: embedded.manifest.worldScale.heightmapResolution,
       biomeImage,
       rivers: embedded.waterways.continents[id]?.rivers ?? [],
+      lakes: embedded.waterways.continents[id]?.lakes ?? [],
       roads: embedded.roads.filter((r) => r.id.startsWith(id)),
     };
   }
@@ -189,7 +198,7 @@ export async function loadWorld(seed: number, onProgress?: (msg: string) => void
   const poi = await fetchJson<{ settlements: SettlementRecord[] }>(`${b}/poi.json`);
 
   onProgress?.("waterways…");
-  const waterways = await fetchJson<{ continents: Record<string, { rivers: RiverRecord[]; lakes: unknown[] }> }>(
+  const waterways = await fetchJson<{ continents: Record<string, { rivers: RiverRecord[]; lakes: LakeRecord[] }> }>(
     `${b}/waterways.json`
   );
 
@@ -210,6 +219,7 @@ export async function loadWorld(seed: number, onProgress?: (msg: string) => void
       resolution: manifest.worldScale.heightmapResolution,
       biomeImage,
       rivers: waterways.continents[continent]?.rivers ?? [],
+      lakes: waterways.continents[continent]?.lakes ?? [],
       roads: roadsData.roads.filter((r) => r.id.startsWith(continent)),
     };
   }

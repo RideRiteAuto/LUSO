@@ -170,7 +170,7 @@ const htmlBody = `<meta charset="UTF-8">
     <div class="group">
       <span class="group-label">Layers</span>
       <button id="toggleZones" class="active">Zone bounds</button>
-      <button id="toggleWater" class="active">Rivers</button>
+      <button id="toggleWater" class="active">Water</button>
       <button id="toggleSettlements" class="active">Settlements</button>
     </div>
     <div class="legend" id="legend"></div>
