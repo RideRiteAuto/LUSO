@@ -34,7 +34,15 @@ npm run viewer
 # open http://localhost:5183/?seed=48291
 ```
 
-Orbit/top-down camera toggle, zone-boundary/river/settlement overlay toggles. The viewer only reads files under `output/<seed>/` — it never talks to the generator directly, per the engine-independence contract in `docs/01_Nevora_World_Generation_Architecture.md`.
+Orbit / top-down / "World" (frames both continents + the Bruma) camera presets, a free-fly mode (drag to look, WASD to move, Space/Ctrl for up-down, hold Shift to go fast, scroll to change speed — click **Fly** in the HUD), and zone-boundary/river/settlement overlay toggles. The viewer only reads files under `output/<seed>/` — it never talks to the generator directly, per the engine-independence contract in `docs/01_Nevora_World_Generation_Architecture.md`.
+
+## Sharing it as a link (no server required)
+
+```bash
+npm run build:artifact -w @nevora/viewer-threejs -- --seed 48291
+```
+
+Bundles the viewer (three.js included) and inlines that seed's `output/48291/*` data directly into one HTML file at `packages/viewer-threejs/dist-artifact/nevora-inspector-48291.html` — no dev server, no fetch calls, works from a plain `file://` open or as a published claude.ai artifact. Flight controls here deliberately use drag-to-look rather than the Pointer Lock API, since Pointer Lock is commonly blocked inside sandboxed iframes.
 
 ## Current status (see `docs/00` for the full audit)
 

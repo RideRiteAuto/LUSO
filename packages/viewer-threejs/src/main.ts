@@ -1,9 +1,10 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
-import { loadWorld } from "./worldData.js";
+import { loadWorld, loadEmbeddedWorld } from "./worldData.js";
 import { buildTerrainMesh } from "./terrain.js";
 import { buildZoneBoundaries, buildRivers, buildRoads, buildSettlements, buildOceanPlane, buildSeaRegions } from "./overlays.js";
 import { uvToWorld } from "./layout.js";
+import { FlightController } from "./flightControls.js";
 
 const params = new URLSearchParams(location.search);
 const seed = Number(params.get("seed") ?? 48291);
@@ -39,6 +40,10 @@ controls.minDistance = 200;
 controls.maxDistance = 70000;
 controls.update();
 
+const flight = new FlightController(camera, renderer.domElement);
+let flying = false;
+const clock = new THREE.Clock();
+
 const hemi = new THREE.HemisphereLight(0xbcd4ff, 0x1a2a1a, 0.9);
 scene.add(hemi);
 const sun = new THREE.DirectionalLight(0xfff2d8, 1.6);
@@ -59,7 +64,10 @@ let worldFrame: { center: THREE.Vector3; distance: number } | null = null;
 
 async function boot() {
   statusEl.textContent = "loading manifest…";
-  const world = await loadWorld(seed, (msg) => (statusEl.textContent = `loading ${msg}`));
+  const isEmbedded = Boolean((globalThis as unknown as { __NEVORA_WORLD__?: unknown }).__NEVORA_WORLD__);
+  const world = isEmbedded
+    ? await loadEmbeddedWorld((msg) => (statusEl.textContent = `loading ${msg}`))
+    : await loadWorld(seed, (msg) => (statusEl.textContent = `loading ${msg}`));
   const manifest = world.manifest;
   const tileSize = manifest.worldScale.continentTileSize;
 
@@ -88,6 +96,7 @@ async function boot() {
 
   scene.add(buildSeaRegions(world.seaRegions));
 
+  seedValEl.textContent = String(manifest.seed);
   zoneCountEl.textContent = String(world.zones.length);
   settleCountEl.textContent = String(world.settlements.length);
   const brumaNote = world.seaRegions[0] ? ` · ${world.seaRegions[0].name} marked mid-sea (purple ring).` : "";
@@ -126,7 +135,12 @@ boot().catch((err) => {
 
 function animate() {
   requestAnimationFrame(animate);
-  controls.update();
+  const delta = Math.min(0.1, clock.getDelta()); // clamp so a stalled tab doesn't teleport the camera on resume
+  if (flying) {
+    flight.update(delta);
+  } else {
+    controls.update();
+  }
   renderer.render(scene, camera);
 }
 animate();
@@ -135,17 +149,37 @@ animate();
 const viewOrbitBtn = document.getElementById("viewOrbit")!;
 const viewTopBtn = document.getElementById("viewTop")!;
 const viewWorldBtn = document.getElementById("viewWorld")!;
+const viewFlyBtn = document.getElementById("viewFly")!;
+const flyHintEl = document.getElementById("flyHint")!;
+const crosshairEl = document.getElementById("crosshair")!;
 
 function setActiveView(active: HTMLElement) {
-  for (const btn of [viewOrbitBtn, viewTopBtn, viewWorldBtn]) btn.classList.remove("active");
+  for (const btn of [viewOrbitBtn, viewTopBtn, viewWorldBtn, viewFlyBtn]) btn.classList.remove("active");
   active.classList.add("active");
 }
 
+function exitFlight() {
+  flying = false;
+  flyHintEl.classList.remove("visible");
+  crosshairEl.classList.remove("visible");
+  if (!viewOrbitBtn.classList.contains("active") && !viewTopBtn.classList.contains("active") && !viewWorldBtn.classList.contains("active")) {
+    setActiveView(viewOrbitBtn);
+  }
+  // Point the orbit target at where the camera was looking so re-entering
+  // orbit mode doesn't snap the view somewhere unrelated to the flyover.
+  const forward = new THREE.Vector3();
+  camera.getWorldDirection(forward);
+  controls.target.copy(camera.position).addScaledVector(forward, 2000);
+  controls.update();
+}
+
 viewOrbitBtn.addEventListener("click", () => {
+  flight.disable();
   setActiveView(viewOrbitBtn);
   controls.maxPolarAngle = Math.PI * 0.49;
 });
 viewTopBtn.addEventListener("click", () => {
+  flight.disable();
   setActiveView(viewTopBtn);
   const target = controls.target.clone();
   // Preserve the current zoom distance rather than a fixed height, so
@@ -157,12 +191,20 @@ viewTopBtn.addEventListener("click", () => {
   controls.update();
 });
 viewWorldBtn.addEventListener("click", () => {
+  flight.disable();
   setActiveView(viewWorldBtn);
   if (!worldFrame) return;
   controls.maxPolarAngle = Math.PI * 0.49;
   controls.target.copy(worldFrame.center);
   camera.position.set(worldFrame.center.x, worldFrame.distance * 0.55, worldFrame.center.z + worldFrame.distance * 0.75);
   controls.update();
+});
+viewFlyBtn.addEventListener("click", () => {
+  setActiveView(viewFlyBtn);
+  flying = true;
+  flyHintEl.classList.add("visible");
+  crosshairEl.classList.add("visible");
+  flight.enable(exitFlight);
 });
 
 function wireToggle(id: string, group: () => THREE.Group | null) {

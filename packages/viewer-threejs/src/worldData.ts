@@ -89,6 +89,58 @@ async function fetchFloat32(url: string): Promise<Float32Array> {
   return new Float32Array(buf);
 }
 
+// --- Embedded-data loading path -------------------------------------------
+// Used by the self-contained claude.ai artifact build (scripts/build-artifact.mjs),
+// which has no dev server to fetch /world-data/* from and instead inlines
+// everything into window.__NEVORA_WORLD__ at publish time. The fetch-based
+// loadWorld() above stays the path for local `npm run viewer` dev.
+
+export interface EmbeddedWorld {
+  manifest: Manifest;
+  zones: ZoneRecord[];
+  settlements: SettlementRecord[];
+  seaRegions: SeaRegionRecord[];
+  roads: RoadRecord[];
+  waterways: { continents: Record<string, { rivers: RiverRecord[] }> };
+  continents: Record<string, { heightDataBase64: string; biomeImageDataUri: string }>;
+}
+
+function base64ToFloat32Array(b64: string): Float32Array {
+  const binary = atob(b64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return new Float32Array(bytes.buffer);
+}
+
+export async function loadEmbeddedWorld(onProgress?: (msg: string) => void): Promise<WorldData> {
+  const embedded = (globalThis as unknown as { __NEVORA_WORLD__?: EmbeddedWorld }).__NEVORA_WORLD__;
+  if (!embedded) throw new Error("window.__NEVORA_WORLD__ was not found -- this build was expected to have embedded world data.");
+
+  const continents: Record<string, ContinentData> = {};
+  for (const id of embedded.manifest.continents) {
+    onProgress?.(`decoding ${id}…`);
+    const src = embedded.continents[id];
+    const heightData = base64ToFloat32Array(src.heightDataBase64);
+    const biomeImage = await loadImage(src.biomeImageDataUri);
+    continents[id] = {
+      id,
+      heightData,
+      resolution: embedded.manifest.worldScale.heightmapResolution,
+      biomeImage,
+      rivers: embedded.waterways.continents[id]?.rivers ?? [],
+      roads: embedded.roads.filter((r) => r.id.startsWith(id)),
+    };
+  }
+
+  return {
+    manifest: embedded.manifest,
+    zones: embedded.zones,
+    settlements: embedded.settlements,
+    seaRegions: embedded.seaRegions,
+    continents,
+  };
+}
+
 function loadImage(url: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const img = new Image();
