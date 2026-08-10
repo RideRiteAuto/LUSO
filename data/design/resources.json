@@ -1,0 +1,24 @@
+{
+  "_comment": "Mining entries transcribed exactly from mining_progression.csv (verified byte-accurate before the file was removed per the audit doc). Woodcutting entries use unlock levels stated explicitly in the world bible (Section 24-25: 'Woodcutting places Pine at 1, Birch at 5, Oak at 15, and Ash at 20') with zone assignments inferred from the same overlapping-progression pattern mining uses; flagged for verification against the actual woodcutting CSVs once a proper data sync exists. Scoped to what the Alvora-Valedouro-Serravela validation corridor needs (through Band 3, ~level 35) plus their Seradia counterparts.",
+  "resources": [
+    { "resourceId": "COPPER_ORE", "displayName": "Copper Ore", "profession": "mining", "unlockLevel": 1, "category": "ore",
+      "allowedZones": ["alvora", "fonteira", "valedouro", "riveira"], "elevationRangeM": [0, 500], "density": "medium" },
+    { "resourceId": "STONE", "displayName": "Stone", "profession": "mining", "unlockLevel": 1, "category": "stone",
+      "allowedZones": ["alvora", "fonteira", "valedouro", "riveira", "serravela", "vermara"], "elevationRangeM": [0, 1200], "density": "dense" },
+    { "resourceId": "TIN_ORE", "displayName": "Tin Ore", "profession": "mining", "unlockLevel": 5, "category": "ore",
+      "allowedZones": ["alvora", "fonteira", "valedouro", "riveira"], "elevationRangeM": [50, 600], "density": "medium" },
+    { "resourceId": "IRON_ORE", "displayName": "Iron Ore", "profession": "mining", "unlockLevel": 15, "category": "ore",
+      "allowedZones": ["valedouro", "riveira", "serravela", "vermara"], "elevationRangeM": [150, 1100], "density": "medium" },
+    { "resourceId": "COAL", "displayName": "Coal", "profession": "mining", "unlockLevel": 25, "category": "fuel_mineral",
+      "allowedZones": ["serravela", "vermara"], "elevationRangeM": [300, 1100], "density": "sparse" },
+
+    { "resourceId": "PINE_LOGS", "displayName": "Pine Tree", "profession": "woodcutting", "unlockLevel": 1, "category": "tree",
+      "allowedZones": ["alvora", "fonteira", "valedouro", "riveira"], "biomeAffinity": ["coastal-plain", "temperate-woodland", "floodplain"], "density": "dense" },
+    { "resourceId": "BIRCH_LOGS", "displayName": "Birch Tree", "profession": "woodcutting", "unlockLevel": 5, "category": "tree",
+      "allowedZones": ["alvora", "fonteira", "valedouro", "riveira"], "biomeAffinity": ["temperate-woodland", "river-valley-forest"], "density": "medium" },
+    { "resourceId": "OAK_LOGS", "displayName": "Oak Tree", "profession": "woodcutting", "unlockLevel": 15, "category": "tree",
+      "allowedZones": ["valedouro", "riveira", "serravela", "vermara"], "biomeAffinity": ["river-valley-forest", "mountain-forest"], "density": "medium" },
+    { "resourceId": "ASH_LOGS", "displayName": "Ash Tree", "profession": "woodcutting", "unlockLevel": 20, "category": "tree",
+      "allowedZones": ["valedouro", "riveira", "serravela", "vermara"], "biomeAffinity": ["river-valley-forest", "wetland-marsh"], "density": "sparse" }
+  ]
+}

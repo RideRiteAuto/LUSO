@@ -1,0 +1,17 @@
+{
+  "name": "nevora-world-compiler",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Engine-independent procedural world generator for Navora, plus a Three.js inspection viewer.",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "generate": "npm run generate -w @nevora/generator --",
+    "viewer": "npm run dev -w @nevora/viewer-threejs",
+    "build": "npm run build -w @nevora/generator"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "_comment": "Transcribed directly from the world bible's own prose ('Zone-by-Zone Skinning Ecosystem', Bands 1-4), extracted via the reliable script-based docx parse -- not from the CSVs. Elevation ranges and settlement-distance are working defaults derived from each zone's elevationTargetM in zones.json and band-scaled danger, not stated explicitly in the source.",
+  "creatures": [
+    { "creatureId": "crown_deer", "displayName": "Crown Deer", "family": "CERVID", "zoneId": "alvora", "skinningLevel": 1, "primaryDrop": "LIGHT_HIDE", "elevationRangeM": [0, 100], "minDistanceFromSettlementM": 80 },
+    { "creatureId": "bravio_boar", "displayName": "Bravio Boar", "family": "BOAR", "zoneId": "alvora", "skinningLevel": 10, "primaryDrop": "COARSE_HIDE", "elevationRangeM": [0, 120], "minDistanceFromSettlementM": 120 },
+    { "creatureId": "firstwater_caiman", "displayName": "Firstwater Caiman", "family": "CROCODILIAN", "zoneId": "fonteira", "skinningLevel": 10, "primaryDrop": "COARSE_HIDE", "elevationRangeM": [0, 20], "minDistanceFromSettlementM": 120 },
+    { "creatureId": "river_deer", "displayName": "River Deer", "family": "CERVID", "zoneId": "fonteira", "skinningLevel": 1, "primaryDrop": "LIGHT_HIDE", "elevationRangeM": [0, 40], "minDistanceFromSettlementM": 80 },
+
+    { "creatureId": "douran_stag", "displayName": "Douran Stag", "family": "CERVID", "zoneId": "valedouro", "skinningLevel": 20, "primaryDrop": "SUPPLE_HIDE", "rareDrop": "HEAVY_HIDE", "elevationRangeM": [100, 400], "minDistanceFromSettlementM": 150 },
+    { "creatureId": "vale_wolf", "displayName": "Vale Wolf", "family": "CANID", "zoneId": "valedouro", "skinningLevel": 20, "primaryDrop": "SUPPLE_HIDE", "elevationRangeM": [150, 450], "minDistanceFromSettlementM": 200 },
+    { "creatureId": "reed_caiman", "displayName": "Reed Caiman", "family": "CROCODILIAN", "zoneId": "riveira", "skinningLevel": 20, "primaryDrop": "SUPPLE_HIDE", "rareDrop": "HEAVY_HIDE", "elevationRangeM": [0, 50], "minDistanceFromSettlementM": 150 },
+    { "creatureId": "marsh_boar", "displayName": "Marsh Boar", "family": "BOAR", "zoneId": "riveira", "skinningLevel": 10, "primaryDrop": "COARSE_HIDE", "rareDrop": "SUPPLE_HIDE", "elevationRangeM": [0, 100], "minDistanceFromSettlementM": 120 },
+
+    { "creatureId": "greyspine_elk", "displayName": "Greyspine Elk", "family": "CERVID", "zoneId": "serravela", "skinningLevel": 30, "primaryDrop": "HEAVY_HIDE", "elevationRangeM": [400, 900], "minDistanceFromSettlementM": 200 },
+    { "creatureId": "serra_bear", "displayName": "Serra Bear", "family": "BEAR", "zoneId": "serravela", "skinningLevel": 40, "primaryDrop": "THICK_HIDE", "elevationRangeM": [500, 1100], "minDistanceFromSettlementM": 300 },
+    { "creatureId": "redwater_grazer", "displayName": "Redwater Grazer", "family": "GRAZER", "zoneId": "vermara", "skinningLevel": 30, "primaryDrop": "HEAVY_HIDE", "elevationRangeM": [100, 350], "minDistanceFromSettlementM": 200 },
+    { "creatureId": "vermara_panther", "displayName": "Vermara Panther", "family": "FELINE", "zoneId": "vermara", "skinningLevel": 20, "primaryDrop": "SUPPLE_HIDE", "rareDrop": "HEAVY_HIDE", "elevationRangeM": [150, 400], "minDistanceFromSettlementM": 250 },
+
+    { "creatureId": "storm_bear", "displayName": "Storm Bear", "family": "BEAR", "zoneId": "cavora", "skinningLevel": 40, "primaryDrop": "THICK_HIDE", "rareDrop": "RUGGED_HIDE", "elevationRangeM": [50, 300], "minDistanceFromSettlementM": 300 },
+    { "creatureId": "cliff_boar", "displayName": "Cliff Boar", "family": "BOAR", "zoneId": "cavora", "skinningLevel": 30, "primaryDrop": "HEAVY_HIDE", "rareDrop": "THICK_HIDE", "elevationRangeM": [0, 250], "minDistanceFromSettlementM": 200 },
+    { "creatureId": "sunreach_caiman", "displayName": "Sunreach Caiman", "family": "CROCODILIAN", "zoneId": "solmara", "skinningLevel": 40, "primaryDrop": "THICK_HIDE", "rareDrop": "RUGGED_HIDE", "elevationRangeM": [0, 30], "minDistanceFromSettlementM": 300 },
+    { "creatureId": "delta_cat", "displayName": "Delta Cat", "family": "FELINE", "zoneId": "solmara", "skinningLevel": 30, "primaryDrop": "HEAVY_HIDE", "rareDrop": "THICK_HIDE", "elevationRangeM": [0, 40], "minDistanceFromSettlementM": 250 }
+  ]
+}

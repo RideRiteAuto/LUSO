@@ -1,0 +1,23 @@
+{
+  "name": "@nevora/generator",
+  "version": "0.1.0",
+  "description": "Engine-independent procedural world generator for Navora (Nevora World Compiler).",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "generate": "tsx src/cli.ts",
+    "test": "tsx --test src/**/*.test.ts"
+  },
+  "dependencies": {
+    "simplex-noise": "^4.0.3",
+    "pngjs": "^7.0.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3",
+    "tsx": "^4.19.1",
+    "@types/node": "^22.7.5",
+    "@types/pngjs": "^6.0.5"
+  }
+}

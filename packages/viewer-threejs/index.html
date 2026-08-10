@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Nevora World Compiler — Inspector</title>
+    <style>
+      html, body { margin: 0; height: 100%; background: #05070d; overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+      #app { position: relative; width: 100%; height: 100%; }
+      canvas { display: block; }
+      #hud {
+        position: absolute; top: 12px; left: 12px; z-index: 10;
+        color: #dfe6f2; background: rgba(10, 14, 24, 0.72); border: 1px solid rgba(255,255,255,0.08);
+        border-radius: 10px; padding: 12px 16px; font-size: 13px; line-height: 1.5; max-width: 340px;
+        backdrop-filter: blur(6px);
+      }
+      #hud h1 { font-size: 14px; margin: 0 0 6px; letter-spacing: 0.02em; color: #fff; }
+      #hud .row { display: flex; justify-content: space-between; gap: 12px; }
+      #hud .muted { color: #93a0b8; }
+      #hud button { background: #2a3550; color: #dfe6f2; border: 1px solid rgba(255,255,255,0.12); border-radius: 6px; padding: 4px 8px; cursor: pointer; font-size: 12px; margin-right: 6px; margin-top: 4px; }
+      #hud button:hover { background: #37456a; }
+      #hud button.active { background: #4a63a6; }
+      #legend { margin-top: 8px; font-size: 11px; color: #93a0b8; }
+      #status { position: absolute; bottom: 12px; left: 12px; z-index: 10; color: #93a0b8; font-size: 12px; }
+    </style>
+  </head>
+  <body>
+    <div id="app">
+      <div id="hud">
+        <h1>Nevora World Compiler — Inspector</h1>
+        <div class="row"><span>Seed</span><span id="seedVal" class="muted">—</span></div>
+        <div class="row"><span>Zones</span><span id="zoneCount" class="muted">—</span></div>
+        <div class="row"><span>Settlements</span><span id="settleCount" class="muted">—</span></div>
+        <div>
+          <button id="viewOrbit" class="active">Orbit</button>
+          <button id="viewTop">Top-down</button>
+        </div>
+        <div>
+          <button id="toggleZones" class="active">Zone bounds</button>
+          <button id="toggleWater" class="active">Rivers</button>
+          <button id="toggleSettlements" class="active">Settlements</button>
+        </div>
+        <div class="legend" id="legend"></div>
+      </div>
+      <div id="status">loading…</div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

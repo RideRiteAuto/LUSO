@@ -19,6 +19,8 @@ Defines the exact output contract of `packages/generator` — the interface betw
 
 All coordinates are in **world units** (see doc 01 §5), origin at the southwest corner of the combined world bounds, `+x` east, `+y` north. Elevation is meters above/below sea level (float).
 
+> **v1 implementation note:** the current generator emits positions as **continent-local normalized `[0,1]×[0,1]` UV coordinates** rather than unified world-unit coordinates — every position-bearing record also carries (or is reachable from) a `continent`/`zoneId` field that disambiguates which continent's UV space it's in. Converting to a single unified world-unit frame (continents placed side-by-side per doc 01 §5, with the Luna Sea gap between them) is straightforward follow-up work once the two-tile world layout is visually locked in the viewer, and is a pure export-layer change — it does not touch any generation logic above stage 14.
+
 ## 2. `manifest.json`
 
 ```jsonc

@@ -1,0 +1,180 @@
+{
+  "_comment": "Hand-authored from the Navora Worldbuilding Bible v11 (data/lore). Anchors/radii are working placeholders for continent-local normalized [0,1]x[0,1] space, not final map design. Bands 1-4 carry full settlement/lore detail because the bible specifies it; Bands 5-8 are ecology-only until a future design pass (see docs/03 §6).",
+  "zones": [
+    {
+      "id": "alvora", "properName": "Alvora", "descriptor": "The Crownlands",
+      "continent": "valora", "band": 1, "approxLevelRange": [1, 15],
+      "anchor": [0.85, 0.5], "radius": 0.18,
+      "biomeHints": ["coastal-plain", "temperate-woodland", "beach"],
+      "elevationTargetM": [0, 150],
+      "housingDistricts": [
+        { "name": "Agricultural heartland district", "kind": "farmland" },
+        { "name": "Woodland district", "kind": "rustic" },
+        { "name": "Coastal district", "kind": "maritime" }
+      ],
+      "loreBreadcrumb": { "type": "lusaran-lighthouse", "notes": "ancient stone lighthouse, inexplicably inland" },
+      "signatureTradeGood": "Crownlands Provision Pack",
+      "threats": ["wolves", "boars", "bandits", "highwaymen"]
+    },
+    {
+      "id": "valedouro", "properName": "Valedouro", "descriptor": "Greenvale",
+      "continent": "valora", "band": 2, "approxLevelRange": [10, 25],
+      "anchor": [0.65, 0.55], "radius": 0.16,
+      "biomeHints": ["river-valley-forest", "wooded-highland"],
+      "elevationTargetM": [100, 450],
+      "housingDistricts": [
+        { "name": "River-valley farming district", "kind": "farmland" },
+        { "name": "Woodland homestead district", "kind": "rustic" },
+        { "name": "Mining settlement district", "kind": "mining" },
+        { "name": "River-road junction district", "kind": "merchant" }
+      ],
+      "loreBreadcrumb": { "type": "lusaran-waymarkers", "notes": "ancient stone waymarkers pointing at nonsensical destinations" },
+      "threats": ["boars", "wolves"]
+    },
+    {
+      "id": "serravela", "properName": "Serravela", "descriptor": "The Greyspines",
+      "continent": "valora", "band": 3, "approxLevelRange": [20, 35],
+      "anchor": [0.5, 0.65], "radius": 0.16,
+      "biomeHints": ["rugged-foothill", "mountain-forest"],
+      "elevationTargetM": [400, 1100],
+      "housingDistricts": [
+        { "name": "Lower-valley farms", "kind": "farmland" },
+        { "name": "Mountain woodland homesteads", "kind": "rustic" },
+        { "name": "Mining-town properties", "kind": "mining" },
+        { "name": "Strategic pass settlements", "kind": "fortified-merchant" }
+      ],
+      "loreBreadcrumb": { "type": "lusaran-chamber", "notes": "miners expose an engineered chamber; a passage continues deeper than the mine" },
+      "threats": ["mountain predators", "bandits"]
+    },
+    {
+      "id": "cavora", "properName": "Cavora", "descriptor": "Stormbreak Coast",
+      "continent": "valora", "band": 4, "approxLevelRange": [30, 50],
+      "anchor": [0.8, 0.25], "radius": 0.17,
+      "biomeHints": ["sea-cliff-coastal", "mountain-forest"],
+      "elevationTargetM": [0, 300],
+      "housingDistricts": [
+        { "name": "Sheltered coastal-valley farms", "kind": "farmland" },
+        { "name": "Clifftop homesteads", "kind": "rustic" },
+        { "name": "Harbor-edge merchant district", "kind": "merchant" },
+        { "name": "Inland shipwright/lumber district", "kind": "industry" }
+      ],
+      "loreBreadcrumb": { "type": "lusaran-beacon", "notes": "ruined beacon still responds during storms, oriented toward the Bruma" },
+      "signatureTradeGood": "maritime preservation / coastal production pack",
+      "threats": ["smugglers", "raiders", "wreckers", "rough seas"]
+    },
+    {
+      "id": "azurama", "properName": "Azurama", "descriptor": "Azurewood Reach",
+      "continent": "valora", "band": 5, "approxLevelRange": [45, 60],
+      "anchor": [0.35, 0.4], "radius": 0.15,
+      "biomeHints": ["deep-forest-mineral"],
+      "elevationTargetM": [300, 900]
+    },
+    {
+      "id": "montemoura", "properName": "Montemoura", "descriptor": "Elderwall Highlands",
+      "continent": "valora", "band": 6, "approxLevelRange": [55, 75],
+      "anchor": [0.2, 0.6], "radius": 0.15,
+      "biomeHints": ["ancient-highland-tableland"],
+      "elevationTargetM": [800, 1500]
+    },
+    {
+      "id": "corvento", "properName": "Corvento", "descriptor": "The Tempest Crown",
+      "continent": "valora", "band": 7, "approxLevelRange": [70, 90],
+      "anchor": [0.15, 0.3], "radius": 0.14,
+      "biomeHints": ["alpine-extreme", "alpine-snow-rock"],
+      "elevationTargetM": [1600, 2400]
+    },
+    {
+      "id": "lumevara", "properName": "Lumevara", "descriptor": "Verdelume Vale",
+      "continent": "valora", "band": 8, "approxLevelRange": [85, 100],
+      "anchor": [0.05, 0.45], "radius": 0.12,
+      "biomeHints": ["luminous-basin"],
+      "elevationTargetM": [200, 650]
+    },
+    {
+      "id": "fonteira", "properName": "Fonteira", "descriptor": "Firstwater Basin",
+      "continent": "seradia", "band": 1, "approxLevelRange": [1, 15],
+      "anchor": [0.15, 0.5], "radius": 0.18,
+      "biomeHints": ["floodplain", "temperate-woodland"],
+      "elevationTargetM": [0, 60],
+      "housingDistricts": [
+        { "name": "Floodplain agricultural district", "kind": "farmland" },
+        { "name": "Wooded upland district", "kind": "rustic" },
+        { "name": "Riverfront district", "kind": "merchant" }
+      ],
+      "loreBreadcrumb": { "type": "lusaran-well", "notes": "an ancient well/spring-house that never runs dry, shares a symbol with Alvora's lighthouse" },
+      "signatureTradeGood": "Firstwater Harvest Pack",
+      "threats": ["boars", "bandits", "river/marsh predators"]
+    },
+    {
+      "id": "riveira", "properName": "Riveira", "descriptor": "Reedwater",
+      "continent": "seradia", "band": 2, "approxLevelRange": [10, 25],
+      "anchor": [0.32, 0.45], "radius": 0.17,
+      "biomeHints": ["wetland-marsh", "wooded-highland"],
+      "elevationTargetM": [0, 150],
+      "housingDistricts": [
+        { "name": "Floodplain farming district", "kind": "farmland" },
+        { "name": "Forested-island homestead district", "kind": "rustic" },
+        { "name": "Dry ridge settlement", "kind": "mining" },
+        { "name": "Canal-front district", "kind": "merchant" }
+      ],
+      "loreBreadcrumb": { "type": "lusaran-worked-stone", "notes": "precisely-worked ancient stone periodically dredged from deep channels" }
+    },
+    {
+      "id": "vermara", "properName": "Vermara", "descriptor": "The Redwater Steppe",
+      "continent": "seradia", "band": 3, "approxLevelRange": [20, 35],
+      "anchor": [0.5, 0.55], "radius": 0.18,
+      "biomeHints": ["grassland-steppe"],
+      "elevationTargetM": [100, 400],
+      "housingDistricts": [
+        { "name": "Large steppe farmsteads", "kind": "farmland" },
+        { "name": "River-gully properties", "kind": "rustic" },
+        { "name": "Mining settlements near escarpments", "kind": "mining" },
+        { "name": "Crossroads / river-crossing merchant properties", "kind": "merchant" }
+      ],
+      "loreBreadcrumb": { "type": "lusaran-buried-structure", "notes": "erosion exposes part of an enormous buried structure in a canyon wall" }
+    },
+    {
+      "id": "solmara", "properName": "Solmara", "descriptor": "Sunreach Delta",
+      "continent": "seradia", "band": 4, "approxLevelRange": [30, 50],
+      "anchor": [0.2, 0.75], "radius": 0.18,
+      "biomeHints": ["floodplain", "wetland-marsh"],
+      "elevationTargetM": [0, 40],
+      "housingDistricts": [
+        { "name": "Levee and island farms", "kind": "farmland" },
+        { "name": "Canal homesteads", "kind": "rustic" },
+        { "name": "Upland merchant district", "kind": "merchant" },
+        { "name": "Estuary waterfront district", "kind": "merchant" }
+      ],
+      "loreBreadcrumb": { "type": "lusaran-stone-ring", "notes": "dredging exposes the upper portion of an enormous Lusaran stone ring beneath the delta" },
+      "threats": ["river pirates", "smugglers", "aggressive estuary wildlife"]
+    },
+    {
+      "id": "vidrala", "properName": "Vidrala", "descriptor": "Glassmere Expanse",
+      "continent": "seradia", "band": 5, "approxLevelRange": [45, 60],
+      "anchor": [0.55, 0.3], "radius": 0.16,
+      "biomeHints": ["great-lakes-country"],
+      "elevationTargetM": [100, 500]
+    },
+    {
+      "id": "altavera", "properName": "Altavera", "descriptor": "The Skyplain",
+      "continent": "seradia", "band": 6, "approxLevelRange": [55, 75],
+      "anchor": [0.7, 0.5], "radius": 0.16,
+      "biomeHints": ["high-plateau-grassland"],
+      "elevationTargetM": [900, 1600]
+    },
+    {
+      "id": "fendoura", "properName": "Fendoura", "descriptor": "The Shattered Reach",
+      "continent": "seradia", "band": 7, "approxLevelRange": [70, 90],
+      "anchor": [0.8, 0.7], "radius": 0.15,
+      "biomeHints": ["canyon-mesa-frontier"],
+      "elevationTargetM": [400, 1200]
+    },
+    {
+      "id": "lumeira", "properName": "Lumeira", "descriptor": "The Luminous Hollow",
+      "continent": "seradia", "band": 8, "approxLevelRange": [85, 100],
+      "anchor": [0.9, 0.4], "radius": 0.12,
+      "biomeHints": ["luminous-basin"],
+      "elevationTargetM": [150, 600]
+    }
+  ]
+}
