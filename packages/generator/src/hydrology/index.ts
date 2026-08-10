@@ -64,11 +64,16 @@ export function generateWaterData(height: HeightField, riverIdPrefix: string): H
     if (j >= 0) accumulation[j] += accumulation[i];
   }
 
-  // Threshold: top ~1.5% of accumulation among land cells marks a river cell.
+  // Threshold: top ~0.4% of accumulation among land cells marks a river
+  // cell. A looser threshold (previously 1.5%) produced a lot of very short
+  // parallel tributaries that read as visual noise rather than a legible
+  // drainage network -- this keeps only the trunks with real accumulated
+  // watershed behind them, which is also just a more honest picture of
+  // where a river would actually exist.
   const landAcc: number[] = [];
   for (let i = 0; i < n; i++) if (data[i] > 0) landAcc.push(accumulation[i]);
   landAcc.sort((a, b) => a - b);
-  const thresholdIdx = Math.floor(landAcc.length * 0.985);
+  const thresholdIdx = Math.floor(landAcc.length * 0.996);
   const threshold = landAcc[Math.min(thresholdIdx, landAcc.length - 1)] ?? Infinity;
 
   const visited = new Uint8Array(n);
@@ -130,7 +135,7 @@ export function generateWaterData(height: HeightField, riverIdPrefix: string): H
       steps++;
     }
 
-    if (path.length > 3) {
+    if (path.length > 10) {
       rivers.push({
         id: `${riverIdPrefix}-river-${riverCount++}`,
         path,

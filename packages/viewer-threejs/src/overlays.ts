@@ -3,10 +3,35 @@ import type { ContinentData, Manifest, RiverRecord, RoadRecord, SeaRegionRecord,
 import { sampleHeight } from "./terrain.js";
 import { uvToWorld } from "./layout.js";
 
-const OVERLAY_LIFT = 2.5; // scene units above terrain so lines/markers don't z-fight with the mesh
+const OVERLAY_LIFT = 3; // scene units above terrain so lines/markers don't z-fight with the mesh
 
 function heightAtWorld(continent: ContinentData, u: number, v: number): number {
-  return Math.max(sampleHeight(continent, u, v), -40) * 0.35 + OVERLAY_LIFT;
+  return Math.max(sampleHeight(continent, u, v), -40) + OVERLAY_LIFT;
+}
+
+/**
+ * Subdivides a polyline (in continent-local UV) into many short steps and
+ * samples terrain height at each one, so the resulting line hugs the
+ * ground instead of cutting through hills as a straight chord between two
+ * sparse vertices. This is the fix for zone-boundary lines looking like
+ * "wires that run through the land" -- they were only ever elevated at
+ * their original (few, far-apart) vertices before.
+ */
+function drapeOnTerrain(points: [number, number][], continent: ContinentData, manifest: Manifest, stepsPerSegment = 24): THREE.Vector3[] {
+  const draped: THREE.Vector3[] = [];
+  for (let i = 0; i < points.length - 1; i++) {
+    const [u0, v0] = points[i];
+    const [u1, v1] = points[i + 1];
+    const steps = i === points.length - 2 ? stepsPerSegment + 1 : stepsPerSegment; // include the final endpoint once
+    for (let s = 0; s < steps; s++) {
+      const t = s / stepsPerSegment;
+      const u = u0 + (u1 - u0) * t;
+      const v = v0 + (v1 - v0) * t;
+      const [x, z] = uvToWorld(u, v, continent.id, manifest);
+      draped.push(new THREE.Vector3(x, heightAtWorld(continent, u, v), z));
+    }
+  }
+  return draped;
 }
 
 export function buildZoneBoundaries(zones: ZoneRecord[], continents: Record<string, ContinentData>, manifest: Manifest): THREE.Group {
@@ -20,11 +45,7 @@ export function buildZoneBoundaries(zones: ZoneRecord[], continents: Record<stri
     if (!continent || zone.boundary.length < 3) continue;
     const color = bandColors[(zone.band - 1) % bandColors.length];
 
-    const points: THREE.Vector3[] = [];
-    for (const [u, v] of [...zone.boundary, zone.boundary[0]]) {
-      const [x, z] = uvToWorld(u, v, zone.continent, manifest);
-      points.push(new THREE.Vector3(x, heightAtWorld(continent, u, v), z));
-    }
+    const points = drapeOnTerrain([...zone.boundary, zone.boundary[0]], continent, manifest);
     const geometry = new THREE.BufferGeometry().setFromPoints(points);
     const material = new THREE.LineBasicMaterial({ color, linewidth: 2, transparent: true, opacity: 0.85 });
     const line = new THREE.Line(geometry, material);
@@ -42,6 +63,10 @@ export function buildRivers(continents: Record<string, ContinentData>, manifest:
   for (const continent of Object.values(continents)) {
     for (const river of continent.rivers as RiverRecord[]) {
       if (river.path.length < 2) continue;
+      // River paths already carry one point per grid cell traversed (from
+      // the flow-accumulation trace in hydrology/index.ts), which is
+      // already dense enough to hug terrain without further subdivision --
+      // unlike the zone-boundary hull, these aren't sparse chords.
       const points = river.path.map(([u, v]) => {
         const [x, z] = uvToWorld(u, v, continent.id, manifest);
         return new THREE.Vector3(x, heightAtWorld(continent, u, v) + 0.5, z);
@@ -61,14 +86,31 @@ export function buildRoads(continents: Record<string, ContinentData>, manifest: 
 
   for (const continent of Object.values(continents)) {
     for (const road of continent.roads as RoadRecord[]) {
-      const points = road.path.map(([u, v]) => {
-        const [x, z] = uvToWorld(u, v, continent.id, manifest);
-        return new THREE.Vector3(x, heightAtWorld(continent, u, v) + 0.2, z);
-      });
+      const points = drapeOnTerrain(road.path as [number, number][], continent, manifest, 40);
       const geometry = new THREE.BufferGeometry().setFromPoints(points);
       const color = road.kind === "road" ? 0xd8c48a : 0x9a8a6a;
       const material = new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.6 });
       group.add(new THREE.Line(geometry, material));
+
+      // Bridge points: where this road's terrain-aware route actually
+      // crosses water (roads/index.ts) -- a flat plank spanning the
+      // crossing, sitting right at the waterline, so it reads as "a bridge
+      // goes here" rather than the road just silently walking on water.
+      for (const bridge of road.bridges) {
+        const [sx, sz] = uvToWorld(bridge.start[0], bridge.start[1], continent.id, manifest);
+        const [ex, ez] = uvToWorld(bridge.end[0], bridge.end[1], continent.id, manifest);
+        const mid = new THREE.Vector3((sx + ex) / 2, OVERLAY_LIFT + 1, (sz + ez) / 2);
+        const length = Math.hypot(ex - sx, ez - sz);
+        const angle = Math.atan2(ez - sz, ex - sx);
+
+        const deckGeometry = new THREE.BoxGeometry(Math.max(length, 8), 1.5, 10);
+        const deckMaterial = new THREE.MeshStandardMaterial({ color: 0xd9a75c, roughness: 0.7 });
+        const deck = new THREE.Mesh(deckGeometry, deckMaterial);
+        deck.position.copy(mid);
+        deck.rotation.y = -angle;
+        deck.userData = { kind: "bridge", roadId: road.id };
+        group.add(deck);
+      }
     }
   }
 
@@ -76,9 +118,10 @@ export function buildRoads(continents: Record<string, ContinentData>, manifest: 
 }
 
 const TIER_COLORS: Record<number, number> = { 1: 0xffd24a, 2: 0xf0f0f0, 3: 0xa8a8a8, 4: 0x707070 };
-// Sized to stay legible against an 8192-unit continent tile, not to scale
-// realistically against terrain features -- these are debug markers.
-const TIER_SIZE: Record<number, number> = { 1: 45, 2: 32, 3: 22, 4: 16 };
+// Sized to stay legible at true 1:1 scale against a 32768m continent tile,
+// not to scale realistically against terrain features -- these are debug
+// markers (a settlement isn't literally a 60m-wide cone).
+const TIER_SIZE: Record<number, number> = { 1: 180, 2: 130, 3: 90, 4: 65 };
 
 export function buildSettlements(settlements: SettlementRecord[], zonesById: Map<string, ZoneRecord>, continents: Record<string, ContinentData>, manifest: Manifest): THREE.Group {
   const group = new THREE.Group();
@@ -92,7 +135,7 @@ export function buildSettlements(settlements: SettlementRecord[], zonesById: Map
     const [x, z] = uvToWorld(s.position[0], s.position[1], zone.continent, manifest);
     const y = heightAtWorld(continent, s.position[0], s.position[1]) + 3;
 
-    const geometry = new THREE.ConeGeometry(TIER_SIZE[s.tier] ?? 3, (TIER_SIZE[s.tier] ?? 3) * 2, 6);
+    const geometry = new THREE.ConeGeometry(TIER_SIZE[s.tier] ?? 60, (TIER_SIZE[s.tier] ?? 60) * 2, 6);
     const material = new THREE.MeshStandardMaterial({ color: TIER_COLORS[s.tier] ?? 0x888888, emissive: 0x221100, emissiveIntensity: 0.2 });
     const marker = new THREE.Mesh(geometry, material);
     marker.position.set(x, y, z);
@@ -101,28 +144,6 @@ export function buildSettlements(settlements: SettlementRecord[], zonesById: Map
   }
 
   return group;
-}
-
-/**
- * A flat ocean plane spanning the whole world (both continent tiles plus the
- * Luna Sea gap between them). Without this, the open water between Valora
- * and Seradia was just empty space rendering as the scene background color
- * -- it happened to be a similar navy blue, which is exactly why the gap
- * being too narrow read as "one continent" rather than "two continents and
- * a big sea" (the bug this file's Bruma marker and this plane both fix).
- */
-export function buildOceanPlane(manifest: Manifest): THREE.Mesh {
-  const tileSize = manifest.worldScale.continentTileSize;
-  const offsets = Object.values(manifest.continentLayout).map((c) => c.worldOffset[0]);
-  const minX = Math.min(...offsets);
-  const maxX = Math.max(...offsets) + tileSize;
-  const width = maxX - minX + tileSize; // padding so the plane extends past the outer coastlines
-  const geometry = new THREE.PlaneGeometry(width, tileSize * 1.6);
-  geometry.rotateX(-Math.PI / 2);
-  const material = new THREE.MeshStandardMaterial({ color: 0x123a5e, roughness: 0.6, metalness: 0.1, transparent: true, opacity: 0.92 });
-  const mesh = new THREE.Mesh(geometry, material);
-  mesh.position.set((minX + maxX) / 2, -6, tileSize / 2);
-  return mesh;
 }
 
 /** The Bruma: a glowing marker + ring in the middle of the Luna Sea, per docs/01 §5 / docs/03 §1. */
@@ -143,7 +164,7 @@ export function buildSeaRegions(seaRegions: SeaRegionRecord[]): THREE.Group {
     const coreGeometry = new THREE.SphereGeometry(region.radiusUnits * 0.08, 16, 16);
     const coreMaterial = new THREE.MeshStandardMaterial({ color: 0x9a6bff, emissive: 0x5a2ea6, emissiveIntensity: 1.2 });
     const core = new THREE.Mesh(coreGeometry, coreMaterial);
-    core.position.set(x, 40, z);
+    core.position.set(x, 200, z);
     core.userData = { name: region.name, notes: region.notes };
     group.add(core);
   }

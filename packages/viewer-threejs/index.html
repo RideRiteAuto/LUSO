@@ -70,6 +70,12 @@
         position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 9;
         width: 5px; height: 5px; border-radius: 50%; background: rgba(255,255,255,0.65); display: none;
         box-shadow: 0 0 6px rgba(255,255,255,0.5);
+        /* Sits pixel-perfect at screen center -- exactly where a look-drag
+           naturally starts. Without this, a pointerdown there lands on the
+           crosshair div instead of the canvas underneath, and the drag
+           listener (bound to the canvas element specifically) never fires,
+           so look-drag silently does nothing. */
+        pointer-events: none;
       }
       #crosshair.visible { display: block; }
     </style>
@@ -87,6 +93,7 @@
           <button id="viewTop">Top-down</button>
           <button id="viewWorld">World</button>
           <button id="viewFly">Fly ✈</button>
+          <button id="viewWalk">Walk 🚶</button>
         </div>
         <div class="group">
           <span class="group-label">Layers</span>

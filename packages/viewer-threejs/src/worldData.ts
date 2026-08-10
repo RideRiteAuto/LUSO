@@ -11,6 +11,7 @@ export interface Manifest {
   worldScale: { continentTileSize: number; heightmapResolution: number };
   continents: string[];
   continentLayout: Record<string, { worldOffset: [number, number] }>;
+  worldHeightmap: { width: number; height: number; bounds: { minX: number; minZ: number; maxX: number; maxZ: number } };
 }
 
 export interface SeaRegionRecord {
@@ -49,10 +50,17 @@ export interface RiverRecord {
   path: [number, number][];
 }
 
+export interface BridgePointRecord {
+  id: string;
+  start: [number, number];
+  end: [number, number];
+}
+
 export interface RoadRecord {
   id: string;
   kind: "road" | "trail";
   path: [number, number][];
+  bridges: BridgePointRecord[];
 }
 
 export interface ContinentData {
@@ -64,12 +72,21 @@ export interface ContinentData {
   roads: RoadRecord[];
 }
 
+/** The unified world heightfield (docs/01 §3 stage 3) -- both continents plus the connecting seabed between them, one grid. */
+export interface WorldHeightData {
+  data: Float32Array;
+  width: number;
+  height: number;
+  bounds: { minX: number; minZ: number; maxX: number; maxZ: number };
+}
+
 export interface WorldData {
   manifest: Manifest;
   zones: ZoneRecord[];
   settlements: SettlementRecord[];
   seaRegions: SeaRegionRecord[];
   continents: Record<string, ContinentData>;
+  worldHeight: WorldHeightData;
 }
 
 function base(seed: number) {
@@ -103,6 +120,7 @@ export interface EmbeddedWorld {
   roads: RoadRecord[];
   waterways: { continents: Record<string, { rivers: RiverRecord[] }> };
   continents: Record<string, { heightDataBase64: string; biomeImageDataUri: string }>;
+  worldHeightBase64: string;
 }
 
 function base64ToFloat32Array(b64: string): Float32Array {
@@ -132,12 +150,21 @@ export async function loadEmbeddedWorld(onProgress?: (msg: string) => void): Pro
     };
   }
 
+  onProgress?.("decoding ocean floor…");
+  const worldHeight: WorldHeightData = {
+    data: base64ToFloat32Array(embedded.worldHeightBase64),
+    width: embedded.manifest.worldHeightmap.width,
+    height: embedded.manifest.worldHeightmap.height,
+    bounds: embedded.manifest.worldHeightmap.bounds,
+  };
+
   return {
     manifest: embedded.manifest,
     zones: embedded.zones,
     settlements: embedded.settlements,
     seaRegions: embedded.seaRegions,
     continents,
+    worldHeight,
   };
 }
 
@@ -187,5 +214,14 @@ export async function loadWorld(seed: number, onProgress?: (msg: string) => void
     };
   }
 
-  return { manifest, zones: zonesRaw.zones, settlements: poi.settlements, seaRegions: seaRegionsData.regions, continents };
+  onProgress?.("ocean floor…");
+  const worldHeightData = await fetchFloat32(`${b}/heightmap.world.raw`);
+  const worldHeight: WorldHeightData = {
+    data: worldHeightData,
+    width: manifest.worldHeightmap.width,
+    height: manifest.worldHeightmap.height,
+    bounds: manifest.worldHeightmap.bounds,
+  };
+
+  return { manifest, zones: zonesRaw.zones, settlements: poi.settlements, seaRegions: seaRegionsData.regions, continents, worldHeight };
 }

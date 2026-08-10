@@ -46,6 +46,32 @@ function writeHeightmapPng(outDir: string, continent: ContinentId, height: World
   writeFileSync(path.join(outDir, `heightmap.${continent}.raw`), raw);
 }
 
+/** The unified world field (docs/01 §3 stage 3) -- mostly ocean by area, so normalize purely by the land/ocean split like writeHeightmapPng, and write the lossless raw buffer the viewer's seabed mesh actually reads. */
+function writeWorldHeightmap(outDir: string, height: WorldOutput["worldHeightField"]) {
+  const { width, height: h, data } = height;
+  let landMax = 1;
+  let oceanMin = -1;
+  for (const v of data) {
+    if (v > 0 && v > landMax) landMax = v;
+    if (v <= 0 && v < oceanMin) oceanMin = v;
+  }
+
+  const png = new PNG({ width, height: h });
+  for (let i = 0; i < width * h; i++) {
+    const v = data[i];
+    const norm = v > 0 ? 128 + Math.round(Math.pow(v / landMax, 0.6) * 127) : Math.round((1 - v / oceanMin) * 127);
+    const o = i * 4;
+    png.data[o] = norm;
+    png.data[o + 1] = norm;
+    png.data[o + 2] = norm;
+    png.data[o + 3] = 255;
+  }
+  writeFileSync(path.join(outDir, "heightmap.world.png"), PNG.sync.write(png));
+
+  const raw = Buffer.from(data.buffer, data.byteOffset, data.byteLength);
+  writeFileSync(path.join(outDir, "heightmap.world.raw"), raw);
+}
+
 function writeBiomeMapPng(outDir: string, continent: ContinentId, biomes: WorldOutput["biomeFields"][ContinentId]) {
   const { width, height: h, data } = biomes;
   const png = new PNG({ width, height: h });
@@ -68,6 +94,7 @@ export function writeWorldOutput(output: WorldOutput, outputRootDir: string) {
     writeHeightmapPng(outDir, continent, output.heightFields[continent]);
     writeBiomeMapPng(outDir, continent, output.biomeFields[continent]);
   }
+  writeWorldHeightmap(outDir, output.worldHeightField);
 
   const waterways = {
     oceanLevelM: 0,

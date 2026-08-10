@@ -54,6 +54,10 @@ const embedded = {
   roads,
   waterways: { continents: waterways.continents },
   continents,
+  // The unified world heightfield (the connecting seabed between continents,
+  // docs/01 §3 stage 3) -- worldData.ts's loadEmbeddedWorld() expects this
+  // field to build the seabed mesh and to ground the walk-mode camera.
+  worldHeightBase64: readBase64("heightmap.world.raw"),
 };
 
 console.log("Bundling viewer JS with esbuild…");
@@ -73,7 +77,8 @@ const bundledJs = buildResult.outputFiles[0].text;
 // escape it defensively even though nothing in today's data contains it.
 const embeddedJson = JSON.stringify(embedded).replace(/<\/script/gi, "<\\/script");
 
-const htmlBody = `<style>
+const htmlBody = `<meta charset="UTF-8">
+<style>
   :root {
     /* A night-chart/star-atlas palette, deliberately single-theme: this
        renders a 3D scene of an ocean and continents at night, so a
@@ -139,6 +144,12 @@ const htmlBody = `<style>
     position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 9;
     width: 5px; height: 5px; border-radius: 50%; background: rgba(255,255,255,0.65); display: none;
     box-shadow: 0 0 6px rgba(255,255,255,0.5);
+    /* Sits pixel-perfect at screen center -- exactly where a look-drag
+       naturally starts. Without this, a pointerdown there lands on the
+       crosshair div instead of the canvas underneath, and the drag
+       listener (bound to the canvas element specifically) never fires,
+       so look-drag silently does nothing. */
+    pointer-events: none;
   }
   #crosshair.visible { display: block; }
 </style>
@@ -154,6 +165,7 @@ const htmlBody = `<style>
       <button id="viewTop">Top-down</button>
       <button id="viewWorld">World</button>
       <button id="viewFly">Fly ✈</button>
+      <button id="viewWalk">Walk 🚶</button>
     </div>
     <div class="group">
       <span class="group-label">Layers</span>

@@ -167,11 +167,20 @@ export interface Landmark {
   zoneId: string;
 }
 
+export interface BridgePoint {
+  id: string;
+  /** continent-local UV */
+  start: Vec2;
+  end: Vec2;
+}
+
 export interface Road {
   id: string;
   kind: "road" | "trail";
   path: Vec2[];
   connects: [string, string];
+  /** Where this road's terrain-aware route crosses water -- see roads/index.ts. */
+  bridges: BridgePoint[];
 }
 
 export interface SeaRoute {
@@ -189,8 +198,13 @@ export interface WorldOutput {
     worldScale: WorldRules["worldScale"];
     continents: ContinentId[];
     continentLayout: Record<ContinentId, { worldOffset: Vec2 }>;
+    /** Dimensions + extent of heightmap.world.raw (docs/02 §11b), so the viewer knows how to index into it. */
+    worldHeightmap: { width: number; height: number; bounds: { minX: number; minZ: number; maxX: number; maxZ: number } };
   };
   seaRegions: SeaRegion[];
+  /** The single unified heightfield spanning the whole world (both continents + the connecting seabed between them) -- see elevation/index.ts. */
+  worldHeightField: HeightField;
+  worldBounds: { minX: number; minZ: number; maxX: number; maxZ: number };
   heightFields: Record<ContinentId, HeightField>;
   biomeFields: Record<ContinentId, ScalarField>;
   water: Record<ContinentId, WaterData>;

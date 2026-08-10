@@ -6,40 +6,52 @@ Defines the exact output contract of `packages/generator` — the interface betw
 
 | File | Format | Produced by pipeline stage |
 |---|---|---|
-| `heightmap.png` | 16-bit grayscale PNG, one per continent tile | Elevation (03) |
-| `heightmap.raw` | Raw float32 array, row-major, same dimensions, for lossless re-import | Elevation (03) |
+| `heightmap.<continent>.png` | 16-bit grayscale PNG, one per continent tile | Elevation (03) |
+| `heightmap.<continent>.raw` | Raw float32 array, row-major, same dimensions, for lossless re-import | Elevation (03) |
+| `heightmap.world.png` | 16-bit grayscale PNG of the **unified world heightfield** — both continents *and* the connecting seabed between them, one grid | Elevation (03) |
+| `heightmap.world.raw` | Raw float32 array of the same unified field, row-major, no header — dimensions/bounds come from `manifest.json`'s `worldHeightmap` | Elevation (03) |
 | `biome_map.png` | 8-bit indexed PNG, palette = biome IDs | Biomes (07) |
 | `waterways.json` | rivers, lakes, ocean boundary polylines/polygons | Hydrology (04) |
 | `zones.json` | zone boundaries, identity, climate/resource/danger summary | Zone resolution (06) |
 | `resources.json` | resource node type, location, density, tier | Resources (08) |
 | `spawns.json` | creature/ecology regions | Ecology (09) |
-| `roads.json` | roads, trails, sea routes | Roads (11) |
+| `roads.json` | roads, trails, bridge points, sea routes | Roads (11) |
 | `poi.json` | settlements, ruins, landmarks, dungeons | Settlements (10) + POI (12) |
 | `seaRegions.json` | named open-ocean regions (currently just the Bruma) | Continental layout (02), see §11 |
-| `manifest.json` | seed, generator version, rule-config hash, generation timestamp, world scale, **continent world placement** | Export (14) |
+| `manifest.json` | seed, generator version, rule-config hash, generation timestamp, world scale, **continent world placement**, unified world heightmap dimensions/bounds | Export (14) |
 
 All coordinates are in **world units** (see doc 01 §5), origin at the southwest corner of the combined world bounds, `+x` east, `+y` north. Elevation is meters above/below sea level (float).
 
-> **v1 implementation note:** the current generator emits positions as **continent-local normalized `[0,1]×[0,1]` UV coordinates** rather than unified world-unit coordinates — every position-bearing record also carries (or is reachable from) a `continent`/`zoneId` field that disambiguates which continent's UV space it's in. Converting to a single unified world-unit frame (continents placed side-by-side per doc 01 §5, with the Luna Sea gap between them) is straightforward follow-up work once the two-tile world layout is visually locked in the viewer, and is a pure export-layer change — it does not touch any generation logic above stage 14.
+> **v1 implementation note:** the current generator emits most positions (zones, resources, spawns, settlements, roads, rivers) as **continent-local normalized `[0,1]×[0,1]` UV coordinates** rather than unified world-unit coordinates — every position-bearing record also carries (or is reachable from) a `continent`/`zoneId` field that disambiguates which continent's UV space it's in. The one exception is elevation: `heightmap.world.raw`/`.png` (§9) already IS a single unified world-unit heightfield spanning both continents (docs/01 §3 stage 3), since the connecting seabed between them has no continent to be local to. Converting the remaining position-bearing records to the same unified frame (continents placed side-by-side per doc 01 §5, with the Luna Sea gap between them) is straightforward follow-up work, and is a pure export-layer change — it does not touch any generation logic above stage 14. `seaRegions.json` (§8b) is the other existing exception, for the same reason.
 
 ## 2. `manifest.json`
 
 ```jsonc
 {
   "seed": 48291,
-  "generatorVersion": "0.1.0",
+  "generatorVersion": "0.2.0",
   "ruleConfigHash": "sha256:...",   // hash of everything in data/design/ used
   "generatedAt": "2026-08-10T00:00:00Z",
-  "worldScale": { "continentTileSize": 8192, "heightmapResolution": 1024 },
+  // World units are meters, both horizontally and vertically (docs/01 §5).
+  "worldScale": { "continentTileSize": 32768, "heightmapResolution": 512 },
   "continents": ["valora", "seradia"],
-  // World-unit placement of each continent tile's origin, sourced from
-  // data/design/continents.json -- the ONLY thing that gets consumers
+  // World-unit (meter) placement of each continent tile's origin, sourced
+  // from data/design/continents.json -- the ONLY thing that gets consumers
   // (viewer, future Unreal exporter) to agree on where Valora and Seradia
   // sit relative to each other and to the Luna Sea/Bruma between them.
   // See docs/01 §5 for why this exists and what the numbers mean.
   "continentLayout": {
     "valora": { "worldOffset": [0, 0] },
-    "seradia": { "worldOffset": [24576, 0] }
+    "seradia": { "worldOffset": [98304, 0] }
+  },
+  // Dimensions/bounds of heightmap.world.raw -- the unified heightfield
+  // spanning both continents and the connecting seabed between them
+  // (docs/01 §3 stage 3). bounds are in the same world-unit (meter) frame
+  // as continentLayout above.
+  "worldHeightmap": {
+    "width": 2048,
+    "height": 512,
+    "bounds": { "minX": 0, "minZ": 0, "maxX": 131072, "maxZ": 32768 }
   }
 }
 ```
@@ -138,7 +150,18 @@ Mirrors the bible's Skinning ecosystem table exactly (creature name, family, req
 
 ```jsonc
 {
-  "roads": [ { "id": "...", "kind": "road|trail", "path": [[x,y], "..."], "connects": ["alvora-crownkeep", "valedouro-greenmarket"] } ],
+  "roads": [
+    {
+      "id": "...",
+      "kind": "road|trail",
+      "path": [[x,y], "..."],   // A*-resolved route over the real heightfield (docs/01 §3 stage 11), not a straight line between endpoints
+      "connects": ["alvora-crownkeep", "valedouro-greenmarket"],
+      // Every contiguous water crossing along `path`, as an explicit anchor
+      // point a renderer can place a bridge asset at instead of the road
+      // silently walking on water. Empty if the route never crosses water.
+      "bridges": [ { "id": "...", "start": [x,y], "end": [x,y] } ]
+    }
+  ],
   "seaRoutes": [ { "id": "...", "path": [[x,y], "..."], "connects": ["port-a", "port-b"], "risk": "low|medium|high" } ]
 }
 ```
@@ -175,8 +198,8 @@ Named open-ocean regions that don't belong to either continent's UV space — cu
     {
       "id": "bruma",
       "name": "The Bruma",
-      "center": [16384, 4096],   // world units; midpoint of the Luna Sea gap -- (valora edge 8192 + seradia edge 24576) / 2
-      "radiusUnits": 2500,
+      "center": [65536, 16384],   // world units (meters); midpoint of the Luna Sea gap -- (valora edge 32768 + seradia edge 98304) / 2
+      "radiusUnits": 10000,
       "magicalIntensity": "high",
       "notes": "Mysterious central waters of the Luna Sea -- storm-prone, magically anomalous, avoided by ordinary sailors. See docs/01 §5, docs/03 §1."
     }
@@ -186,8 +209,8 @@ Named open-ocean regions that don't belong to either continent's UV space — cu
 
 ## 9. Raster formats
 
-- `heightmap.png`: 16-bit grayscale, value `0..65535` maps linearly to `[-maxDepthM, +maxHeightM]` recorded in `manifest.json`.
-- `heightmap.raw`: float32, little-endian, row-major, no header — dimensions come from `manifest.json`; kept alongside the PNG because PNG's 16-bit quantization is lossy for downstream erosion/re-processing.
+- `heightmap.<continent>.png` / `heightmap.world.png`: 16-bit grayscale, value `0..65535` maps linearly to `[-maxDepthM, +maxHeightM]` — the world variant uses a dual land/ocean gamma curve so both abyssal depth and mountain peaks stay visually legible in one 16-bit image.
+- `heightmap.<continent>.raw` / `heightmap.world.raw`: float32, little-endian, row-major, no header — dimensions come from `manifest.json` (`worldScale.heightmapResolution` for the per-continent files, `worldHeightmap.width`/`height` for the world file); kept alongside the PNGs because PNG's 16-bit quantization is lossy for downstream erosion/re-processing. `heightmap.world.raw` is the authoritative source for the connecting seabed between continents (docs/01 §3 stage 3) and for grounding the viewer's walk-mode camera anywhere in the world, including mid-ocean.
 - `biome_map.png`: 8-bit indexed color; the palette-to-biome-ID mapping is fixed and versioned in `packages/generator/src/biomes/palette.ts` and mirrored in this doc's biome table (doc 04 §2).
 
 ## 10. Versioning & regeneration contract

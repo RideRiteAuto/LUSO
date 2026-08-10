@@ -2,7 +2,7 @@
 // Each stage is a pure function of (seed-derived rng, upstream data, rules).
 
 import { SeedRegistry } from "./seed/index.js";
-import { generateHeightField } from "./elevation/index.js";
+import { generateWorldHeightField, sliceContinentField } from "./elevation/index.js";
 import { generateWaterData } from "./hydrology/index.js";
 import { generateClimateFields } from "./climate/index.js";
 import { assignZones, resolveZones } from "./zones/index.js";
@@ -15,7 +15,7 @@ import { generateSettlementName } from "./naming/index.js";
 import { loadZoneDesigns, loadResourceDesigns, loadCreatureDesigns, loadContinentLayout } from "./designData.js";
 import type { ContinentId, Landmark, ResolvedZone, WorldOutput } from "./types/index.js";
 
-const GENERATOR_VERSION = "0.1.0";
+const GENERATOR_VERSION = "0.2.0";
 
 export interface GenerateOptions {
   seed: number;
@@ -31,11 +31,17 @@ export function generateWorld(opts: GenerateOptions): WorldOutput {
   const continentTileSize = opts.continentTileSize ?? continentLayout.continentTileSize;
   const continents: ContinentId[] = opts.continents ?? ["valora", "seradia"];
   const nameSettlements = opts.nameSettlements ?? true;
+  // Same physical density the old per-continent `resolution` flag implied
+  // (continentTileSize / resolution meters per grid cell), just now applied
+  // to one unified world grid instead of two independent tiles.
+  const metersPerCell = continentTileSize / resolution;
 
   const seeds = new SeedRegistry(opts.seed);
   const zoneDesigns = loadZoneDesigns();
   const resourceDesigns = loadResourceDesigns();
   const creatureDesigns = loadCreatureDesigns();
+
+  const worldHeight = generateWorldHeightField(seeds, continentLayout, zoneDesigns, metersPerCell);
 
   const heightFields: WorldOutput["heightFields"] = {} as any;
   const biomeFields: WorldOutput["biomeFields"] = {} as any;
@@ -48,8 +54,10 @@ export function generateWorld(opts: GenerateOptions): WorldOutput {
   const allRoads: WorldOutput["roads"] = [];
 
   for (const continent of continents) {
-    const elevationRng = seeds.rngFor("elevation", continent);
-    const height = generateHeightField(elevationRng, { resolution, continent, zones: zoneDesigns });
+    // Slice this continent's own local [0,1]x[0,1] region back out of the
+    // unified field -- every downstream stage still works exactly as it did
+    // before the unified-heightfield change (docs/01 §3 stage 3 note).
+    const height = sliceContinentField(worldHeight, continentLayout, continent, resolution);
     heightFields[continent] = height;
 
     const { water: waterData, riverCellMask } = generateWaterData(height, continent);
@@ -94,7 +102,7 @@ export function generateWorld(opts: GenerateOptions): WorldOutput {
       }
     }
 
-    allRoads.push(...generateRoads(settlements, continent));
+    allRoads.push(...generateRoads(settlements, continent, height, continentTileSize));
   }
 
   const continentLayoutByIdEntries = continentLayout.continents
@@ -120,6 +128,11 @@ export function generateWorld(opts: GenerateOptions): WorldOutput {
       worldScale: { continentTileSize, heightmapResolution: resolution },
       continents,
       continentLayout: Object.fromEntries(continentLayoutByIdEntries) as WorldOutput["manifest"]["continentLayout"],
+      worldHeightmap: {
+        width: worldHeight.field.width,
+        height: worldHeight.field.height,
+        bounds: worldHeight.bounds,
+      },
     },
     seaRegions,
     heightFields,
@@ -132,5 +145,7 @@ export function generateWorld(opts: GenerateOptions): WorldOutput {
     landmarks: allLandmarks,
     roads: allRoads,
     seaRoutes: [],
+    worldHeightField: worldHeight.field,
+    worldBounds: worldHeight.bounds,
   };
 }
