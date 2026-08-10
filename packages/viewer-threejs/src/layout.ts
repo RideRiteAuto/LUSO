@@ -1,14 +1,21 @@
-// v1 continent placement, per docs/02's noted UV->world-unit gap: Valora
-// (west) and Seradia (east) are laid out side by side with a gap between
-// their tiles standing in for the Luna Sea. This is viewer-side only -- the
-// generator itself still emits continent-local normalized UV coordinates
-// (docs/02 "v1 implementation note").
+// Continent placement -- reads manifest.json's continentLayout rather than
+// guessing. There used to be a hardcoded 1.4x-tileSize offset here, which
+// produced a sea gap smaller than either continent (reads as a strait, not
+// "two large continents separated by an ocean" per the master prompt) --
+// data/design/continents.json is now the single source of truth for this,
+// and manifest.json is just carrying its numbers through (docs/01 §5).
 
-export function continentOriginX(continent: string, tileSize: number): number {
-  return continent === "seradia" ? tileSize * 1.4 : 0;
+import type { Manifest } from "./worldData.js";
+
+export function continentOriginX(continent: string, manifest: Manifest): number {
+  return manifest.continentLayout[continent]?.worldOffset[0] ?? 0;
 }
 
-export function uvToWorld(u: number, v: number, continent: string, tileSize: number): [number, number] {
-  const originX = continentOriginX(continent, tileSize);
-  return [originX + u * tileSize, v * tileSize];
+export function continentOriginZ(continent: string, manifest: Manifest): number {
+  return manifest.continentLayout[continent]?.worldOffset[1] ?? 0;
+}
+
+export function uvToWorld(u: number, v: number, continent: string, manifest: Manifest): [number, number] {
+  const tileSize = manifest.worldScale.continentTileSize;
+  return [continentOriginX(continent, manifest) + u * tileSize, continentOriginZ(continent, manifest) + v * tileSize];
 }

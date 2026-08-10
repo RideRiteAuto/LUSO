@@ -13,6 +13,29 @@ export interface WorldRules {
   };
 }
 
+export interface ContinentLayoutDesign {
+  continentTileSize: number;
+  lunaSeaGapUnits: number;
+  continents: { id: ContinentId; worldOffset: Vec2 }[];
+  bruma: {
+    id: string;
+    name: string;
+    center: Vec2;
+    radiusUnits: number;
+    magicalIntensity: string;
+    notes: string;
+  };
+}
+
+export interface SeaRegion {
+  id: string;
+  name: string;
+  center: Vec2;
+  radiusUnits: number;
+  magicalIntensity: string;
+  notes: string;
+}
+
 export interface ZoneDesign {
   id: string;
   properName: string;
@@ -165,7 +188,9 @@ export interface WorldOutput {
     generatedAt: string;
     worldScale: WorldRules["worldScale"];
     continents: ContinentId[];
+    continentLayout: Record<ContinentId, { worldOffset: Vec2 }>;
   };
+  seaRegions: SeaRegion[];
   heightFields: Record<ContinentId, HeightField>;
   biomeFields: Record<ContinentId, ScalarField>;
   water: Record<ContinentId, WaterData>;

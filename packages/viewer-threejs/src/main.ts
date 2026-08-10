@@ -2,7 +2,8 @@ import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { loadWorld } from "./worldData.js";
 import { buildTerrainMesh } from "./terrain.js";
-import { buildZoneBoundaries, buildRivers, buildRoads, buildSettlements } from "./overlays.js";
+import { buildZoneBoundaries, buildRivers, buildRoads, buildSettlements, buildOceanPlane, buildSeaRegions } from "./overlays.js";
+import { uvToWorld } from "./layout.js";
 
 const params = new URLSearchParams(location.search);
 const seed = Number(params.get("seed") ?? 48291);
@@ -24,9 +25,9 @@ app.appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x0a1626);
-scene.fog = new THREE.Fog(0x0a1626, 6000, 18000);
+scene.fog = new THREE.Fog(0x0a1626, 12000, 42000);
 
-const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 1, 40000);
+const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 1, 90000);
 camera.position.set(-3000, 4200, 9000);
 
 const controls = new OrbitControls(camera, renderer.domElement);
@@ -35,7 +36,7 @@ controls.enableDamping = true;
 controls.dampingFactor = 0.08;
 controls.maxPolarAngle = Math.PI * 0.49;
 controls.minDistance = 200;
-controls.maxDistance = 20000;
+controls.maxDistance = 70000;
 controls.update();
 
 const hemi = new THREE.HemisphereLight(0xbcd4ff, 0x1a2a1a, 0.9);
@@ -54,37 +55,55 @@ let zoneOverlay: THREE.Group | null = null;
 let riverOverlay: THREE.Group | null = null;
 let roadOverlay: THREE.Group | null = null;
 let settlementOverlay: THREE.Group | null = null;
+let worldFrame: { center: THREE.Vector3; distance: number } | null = null;
 
 async function boot() {
   statusEl.textContent = "loading manifest…";
   const world = await loadWorld(seed, (msg) => (statusEl.textContent = `loading ${msg}`));
+  const manifest = world.manifest;
+  const tileSize = manifest.worldScale.continentTileSize;
 
-  const tileSize = world.manifest.worldScale.continentTileSize;
+  const ocean = buildOceanPlane(manifest);
+  scene.add(ocean);
 
   for (const continent of Object.values(world.continents)) {
     statusEl.textContent = `building terrain (${continent.id})…`;
-    const mesh = buildTerrainMesh(continent, tileSize);
+    const mesh = buildTerrainMesh(continent, manifest);
     scene.add(mesh);
   }
 
   const zonesById = new Map(world.zones.map((z) => [z.id, z]));
 
-  zoneOverlay = buildZoneBoundaries(world.zones, world.continents, tileSize);
+  zoneOverlay = buildZoneBoundaries(world.zones, world.continents, manifest);
   scene.add(zoneOverlay);
 
-  riverOverlay = buildRivers(world.continents, tileSize);
+  riverOverlay = buildRivers(world.continents, manifest);
   scene.add(riverOverlay);
 
-  roadOverlay = buildRoads(world.continents, tileSize);
+  roadOverlay = buildRoads(world.continents, manifest);
   scene.add(roadOverlay);
 
-  settlementOverlay = buildSettlements(world.settlements, zonesById, world.continents, tileSize);
+  settlementOverlay = buildSettlements(world.settlements, zonesById, world.continents, manifest);
   scene.add(settlementOverlay);
+
+  scene.add(buildSeaRegions(world.seaRegions));
 
   zoneCountEl.textContent = String(world.zones.length);
   settleCountEl.textContent = String(world.settlements.length);
-  legendEl.innerHTML = "Band 1 (white) → Band 8 (pink) zone outlines. Yellow markers = Tier 1 settlements.";
-  statusEl.textContent = `seed ${seed} — ${world.manifest.generatorVersion}, generated ${new Date(world.manifest.generatedAt).toLocaleString()}`;
+  const brumaNote = world.seaRegions[0] ? ` · ${world.seaRegions[0].name} marked mid-sea (purple ring).` : "";
+  legendEl.innerHTML = `Band 1 (white) → Band 8 (pink) zone outlines. Yellow markers = Tier 1 settlements.${brumaNote}`;
+  statusEl.textContent = `seed ${seed} — ${manifest.generatorVersion}, generated ${new Date(manifest.generatedAt).toLocaleString()}`;
+
+  // Compute a "frame the whole world" camera target (both continents + the
+  // Luna Sea/Bruma between them), used by the World view button below.
+  const offsets = Object.values(manifest.continentLayout).map((c) => c.worldOffset[0]);
+  const minX = Math.min(...offsets);
+  const maxX = Math.max(...offsets) + tileSize;
+  const worldWidth = maxX - minX;
+  worldFrame = {
+    center: new THREE.Vector3((minX + maxX) / 2, 0, tileSize / 2),
+    distance: worldWidth * 0.85,
+  };
 
   // Frame the camera on the first continent's Band-1 validation corridor by
   // default (Alvora), since that's the region this pass is meant to validate
@@ -93,8 +112,9 @@ async function boot() {
   if (alvora) {
     const cx = alvora.boundary.reduce((s, p) => s + p[0], 0) / alvora.boundary.length;
     const cz = alvora.boundary.reduce((s, p) => s + p[1], 0) / alvora.boundary.length;
-    controls.target.set(cx * tileSize, 200, cz * tileSize);
-    camera.position.set(cx * tileSize - 1800, 1800, cz * tileSize + 2400);
+    const [wx, wz] = uvToWorld(cx, cz, "valora", manifest);
+    controls.target.set(wx, 200, wz);
+    camera.position.set(wx - 1800, 1800, wz + 2400);
     controls.update();
   }
 }
@@ -114,17 +134,34 @@ animate();
 // --- HUD wiring ---
 const viewOrbitBtn = document.getElementById("viewOrbit")!;
 const viewTopBtn = document.getElementById("viewTop")!;
+const viewWorldBtn = document.getElementById("viewWorld")!;
+
+function setActiveView(active: HTMLElement) {
+  for (const btn of [viewOrbitBtn, viewTopBtn, viewWorldBtn]) btn.classList.remove("active");
+  active.classList.add("active");
+}
+
 viewOrbitBtn.addEventListener("click", () => {
-  viewOrbitBtn.classList.add("active");
-  viewTopBtn.classList.remove("active");
+  setActiveView(viewOrbitBtn);
   controls.maxPolarAngle = Math.PI * 0.49;
 });
 viewTopBtn.addEventListener("click", () => {
-  viewTopBtn.classList.add("active");
-  viewOrbitBtn.classList.remove("active");
+  setActiveView(viewTopBtn);
   const target = controls.target.clone();
-  camera.position.set(target.x, 9000, target.z + 0.01);
+  // Preserve the current zoom distance rather than a fixed height, so
+  // "top-down" behaves sensibly whether the last view was a close-up
+  // corridor orbit or the pulled-back World view.
+  const distance = Math.max(2000, camera.position.distanceTo(target));
+  camera.position.set(target.x, distance, target.z + 0.01);
   controls.maxPolarAngle = 0.01;
+  controls.update();
+});
+viewWorldBtn.addEventListener("click", () => {
+  setActiveView(viewWorldBtn);
+  if (!worldFrame) return;
+  controls.maxPolarAngle = Math.PI * 0.49;
+  controls.target.copy(worldFrame.center);
+  camera.position.set(worldFrame.center.x, worldFrame.distance * 0.55, worldFrame.center.z + worldFrame.distance * 0.75);
   controls.update();
 });
 

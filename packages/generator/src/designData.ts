@@ -5,7 +5,7 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
-import type { ZoneDesign, ResourceDesign, CreatureDesign } from "./types/index.js";
+import type { ZoneDesign, ResourceDesign, CreatureDesign, ContinentLayoutDesign } from "./types/index.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // packages/generator/src -> repo root is four levels up (src -> generator -> packages -> root)
@@ -30,4 +30,8 @@ export function loadResourceDesigns(): ResourceDesign[] {
 export function loadCreatureDesigns(): CreatureDesign[] {
   const { creatures } = loadJson<{ creatures: CreatureDesign[] }>("creatures.json");
   return creatures;
+}
+
+export function loadContinentLayout(): ContinentLayoutDesign {
+  return loadJson<ContinentLayoutDesign>("continents.json");
 }

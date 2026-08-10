@@ -10,6 +10,16 @@ export interface Manifest {
   generatedAt: string;
   worldScale: { continentTileSize: number; heightmapResolution: number };
   continents: string[];
+  continentLayout: Record<string, { worldOffset: [number, number] }>;
+}
+
+export interface SeaRegionRecord {
+  id: string;
+  name: string;
+  center: [number, number];
+  radiusUnits: number;
+  magicalIntensity: string;
+  notes: string;
 }
 
 export interface ZoneRecord {
@@ -58,6 +68,7 @@ export interface WorldData {
   manifest: Manifest;
   zones: ZoneRecord[];
   settlements: SettlementRecord[];
+  seaRegions: SeaRegionRecord[];
   continents: Record<string, ContinentData>;
 }
 
@@ -106,6 +117,9 @@ export async function loadWorld(seed: number, onProgress?: (msg: string) => void
   onProgress?.("roads…");
   const roadsData = await fetchJson<{ roads: RoadRecord[] }>(`${b}/roads.json`);
 
+  onProgress?.("sea regions…");
+  const seaRegionsData = await fetchJson<{ regions: SeaRegionRecord[] }>(`${b}/seaRegions.json`);
+
   const continents: Record<string, ContinentData> = {};
   for (const continent of manifest.continents) {
     onProgress?.(`heightmap ${continent}…`);
@@ -121,5 +135,5 @@ export async function loadWorld(seed: number, onProgress?: (msg: string) => void
     };
   }
 
-  return { manifest, zones: zonesRaw.zones, settlements: poi.settlements, continents };
+  return { manifest, zones: zonesRaw.zones, settlements: poi.settlements, seaRegions: seaRegionsData.regions, continents };
 }

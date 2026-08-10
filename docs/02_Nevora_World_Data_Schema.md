@@ -15,7 +15,8 @@ Defines the exact output contract of `packages/generator` — the interface betw
 | `spawns.json` | creature/ecology regions | Ecology (09) |
 | `roads.json` | roads, trails, sea routes | Roads (11) |
 | `poi.json` | settlements, ruins, landmarks, dungeons | Settlements (10) + POI (12) |
-| `manifest.json` | seed, generator version, rule-config hash, generation timestamp, world scale | Export (14) |
+| `seaRegions.json` | named open-ocean regions (currently just the Bruma) | Continental layout (02), see §11 |
+| `manifest.json` | seed, generator version, rule-config hash, generation timestamp, world scale, **continent world placement** | Export (14) |
 
 All coordinates are in **world units** (see doc 01 §5), origin at the southwest corner of the combined world bounds, `+x` east, `+y` north. Elevation is meters above/below sea level (float).
 
@@ -30,7 +31,16 @@ All coordinates are in **world units** (see doc 01 §5), origin at the southwest
   "ruleConfigHash": "sha256:...",   // hash of everything in data/design/ used
   "generatedAt": "2026-08-10T00:00:00Z",
   "worldScale": { "continentTileSize": 8192, "heightmapResolution": 1024 },
-  "continents": ["valora", "seradia"]
+  "continents": ["valora", "seradia"],
+  // World-unit placement of each continent tile's origin, sourced from
+  // data/design/continents.json -- the ONLY thing that gets consumers
+  // (viewer, future Unreal exporter) to agree on where Valora and Seradia
+  // sit relative to each other and to the Luna Sea/Bruma between them.
+  // See docs/01 §5 for why this exists and what the numbers mean.
+  "continentLayout": {
+    "valora": { "worldOffset": [0, 0] },
+    "seradia": { "worldOffset": [24576, 0] }
+  }
 }
 ```
 
@@ -154,6 +164,25 @@ Mirrors the bible's Skinning ecosystem table exactly (creature name, family, req
 ```
 
 This is the exact "Settlement Anchor" object shape the master prompt specifies (`Type`, `Reason`, `Importance`/tier).
+
+## 8b. `seaRegions.json`
+
+Named open-ocean regions that don't belong to either continent's UV space — currently just the Bruma, but the shape generalizes to future mid-ocean features (storm bands, sea monster territories, ...). Positions here are the one deliberate exception to the "continent-local UV" v1 coordinate note in §1: a sea region between two continents has no single continent to be local to, so it's expressed directly in world units against `manifest.json`'s `continentLayout`.
+
+```jsonc
+{
+  "regions": [
+    {
+      "id": "bruma",
+      "name": "The Bruma",
+      "center": [16384, 4096],   // world units; midpoint of the Luna Sea gap -- (valora edge 8192 + seradia edge 24576) / 2
+      "radiusUnits": 2500,
+      "magicalIntensity": "high",
+      "notes": "Mysterious central waters of the Luna Sea -- storm-prone, magically anomalous, avoided by ordinary sailors. See docs/01 §5, docs/03 §1."
+    }
+  ]
+}
+```
 
 ## 9. Raster formats
 

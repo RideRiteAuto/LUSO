@@ -19,6 +19,8 @@ Defines continents, kingdoms, the 16 launch zones, and the settlement/naming rul
 
 Valora and Seradia are **progression-equivalent, not mirrored**. Same mechanical role per band (same resource tiers available, same rough danger curve), different geography, culture, architecture, and creatures. Valora reads as vertical/rugged/ocean-facing (fjords, mountain passes, deep harbors); Seradia reads as broad/river-driven (deltas, plateaus, plains). The generator must therefore run two distinct terrain "grammars" per continent, not one grammar with a palette swap — this is a load-bearing constraint, called out explicitly and repeatedly in the bible (Sections 6, 13, 17).
 
+**Geography, concretely**: two large continents divided by the Luna Sea, a genuinely large ocean (2× a continent's own width — doc 01 §5), not a strait or narrow channel. The Bruma sits in the middle of that sea, roughly equidistant from both coasts — mysterious, storm-prone, magically anomalous waters that ordinary sailors avoid, not a landmass. `data/design/continents.json` is the source of truth for the actual placement numbers.
+
 ## 2. The 16 launch zones
 
 Working target: 8 major progression zones per continent. Level ranges describe expected danger, not a hard access gate — low-level characters can physically enter high-level zones; the danger is enforced through mobs/hazards/gear requirements, not invisible walls.

@@ -12,7 +12,7 @@ import { placeEcology } from "./ecology/index.js";
 import { placeSettlements } from "./settlements/index.js";
 import { generateRoads } from "./roads/index.js";
 import { generateSettlementName } from "./naming/index.js";
-import { loadZoneDesigns, loadResourceDesigns, loadCreatureDesigns } from "./designData.js";
+import { loadZoneDesigns, loadResourceDesigns, loadCreatureDesigns, loadContinentLayout } from "./designData.js";
 import type { ContinentId, Landmark, ResolvedZone, WorldOutput } from "./types/index.js";
 
 const GENERATOR_VERSION = "0.1.0";
@@ -27,7 +27,8 @@ export interface GenerateOptions {
 
 export function generateWorld(opts: GenerateOptions): WorldOutput {
   const resolution = opts.heightmapResolution ?? 512;
-  const continentTileSize = opts.continentTileSize ?? 8192;
+  const continentLayout = loadContinentLayout();
+  const continentTileSize = opts.continentTileSize ?? continentLayout.continentTileSize;
   const continents: ContinentId[] = opts.continents ?? ["valora", "seradia"];
   const nameSettlements = opts.nameSettlements ?? true;
 
@@ -96,6 +97,21 @@ export function generateWorld(opts: GenerateOptions): WorldOutput {
     allRoads.push(...generateRoads(settlements, continent));
   }
 
+  const continentLayoutByIdEntries = continentLayout.continents
+    .filter((c) => continents.includes(c.id))
+    .map((c) => [c.id, { worldOffset: c.worldOffset }] as const);
+
+  const seaRegions: WorldOutput["seaRegions"] = [
+    {
+      id: continentLayout.bruma.id,
+      name: continentLayout.bruma.name,
+      center: continentLayout.bruma.center,
+      radiusUnits: continentLayout.bruma.radiusUnits,
+      magicalIntensity: continentLayout.bruma.magicalIntensity,
+      notes: continentLayout.bruma.notes,
+    },
+  ];
+
   return {
     manifest: {
       seed: opts.seed,
@@ -103,7 +119,9 @@ export function generateWorld(opts: GenerateOptions): WorldOutput {
       generatedAt: new Date().toISOString(),
       worldScale: { continentTileSize, heightmapResolution: resolution },
       continents,
+      continentLayout: Object.fromEntries(continentLayoutByIdEntries) as WorldOutput["manifest"]["continentLayout"],
     },
+    seaRegions,
     heightFields,
     biomeFields,
     water,

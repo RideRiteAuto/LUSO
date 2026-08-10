@@ -1,6 +1,6 @@
 import * as THREE from "three";
-import type { ContinentData } from "./worldData.js";
-import { continentOriginX } from "./layout.js";
+import type { ContinentData, Manifest } from "./worldData.js";
+import { continentOriginX, continentOriginZ } from "./layout.js";
 
 // World-unit horizontal scale (docs/01 §5) has no defined real-world meter
 // correspondence, so this is a chosen-for-legibility vertical exaggeration:
@@ -8,7 +8,8 @@ import { continentOriginX } from "./layout.js";
 const ELEVATION_SCALE = 0.35;
 
 /** Builds a displaced terrain mesh from a continent's raw heightfield, textured with its biome map. */
-export function buildTerrainMesh(continent: ContinentData, tileSize: number): THREE.Mesh {
+export function buildTerrainMesh(continent: ContinentData, manifest: Manifest): THREE.Mesh {
+  const tileSize = manifest.worldScale.continentTileSize;
   const res = continent.resolution;
   // Downsample the geometry grid for performance; the biome texture still
   // samples the full-resolution PNG, so visual detail isn't lost, only the
@@ -48,7 +49,11 @@ export function buildTerrainMesh(continent: ContinentData, tileSize: number): TH
 
   const material = new THREE.MeshStandardMaterial({ map: texture, roughness: 0.95, metalness: 0.0 });
   const mesh = new THREE.Mesh(geometry, material);
-  mesh.position.set(continentOriginX(continent.id, tileSize) + tileSize / 2, 0, tileSize / 2);
+  mesh.position.set(
+    continentOriginX(continent.id, manifest) + tileSize / 2,
+    0,
+    continentOriginZ(continent.id, manifest) + tileSize / 2
+  );
   mesh.receiveShadow = true;
   return mesh;
 }

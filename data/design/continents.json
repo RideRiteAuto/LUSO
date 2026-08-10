@@ -1,0 +1,17 @@
+{
+  "_comment": "The source of truth for continent placement and the Luna Sea/Bruma geography -- docs/01_Nevora_World_Generation_Architecture.md §5 was corrected 2026-08-10 to actually specify these numbers after the first implementation pass produced a sea gap smaller than either continent (reads as a strait, not the 'large ocean separating continents' the master prompt calls for). See docs/03 §1.",
+  "continentTileSize": 8192,
+  "lunaSeaGapUnits": 16384,
+  "continents": [
+    { "id": "valora", "worldOffset": [0, 0] },
+    { "id": "seradia", "worldOffset": [24576, 0] }
+  ],
+  "bruma": {
+    "id": "bruma",
+    "name": "The Bruma",
+    "center": [16384, 4096],
+    "radiusUnits": 2500,
+    "magicalIntensity": "high",
+    "notes": "Mysterious central waters of the Luna Sea -- storm-prone, magically anomalous, avoided by ordinary sailors. Midpoint of the sea gap between Valora's east coast and Seradia's west coast."
+  }
+}
