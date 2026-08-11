@@ -27,6 +27,10 @@ npm run generate -- --seed 48291 --hq
 
 Writes `output/48291/*` (heightmaps, biome maps, zones, resources, creature spawns, settlements, roads, waterways — see `docs/02_Nevora_World_Data_Schema.md` for the full file contract).
 
+Version 0.4 generates 65.5 km continent tiles at 1024 samples by default;
+`--hq` uses 2048. Terrain geometry combines multi-scale mountain spines,
+secondary ridges, fault relief, drainage incision, and fine local variation.
+
 ## Inspect it
 
 ```bash

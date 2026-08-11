@@ -42,6 +42,29 @@ test("Valora and Seradia have distinct macro silhouettes", () => {
   assert.ok(Math.abs(signatures[0].land - signatures[1].land) > 128, "continent land areas are suspiciously similar");
 });
 
+test("world scale and relief meet the regional terrain floor", () => {
+  const world = generateWorld({ seed: 48291, heightmapResolution: 192 });
+  assert.ok(world.manifest.worldScale.continentTileSize >= 65_536, "continents are smaller than the approved doubled scale");
+  for (const continent of world.manifest.continents) {
+    const field = world.heightFields[continent];
+    let peak = 0;
+    let reliefSamples = 0;
+    let reliefSum = 0;
+    for (let y = 1; y < field.height; y++) {
+      for (let x = 1; x < field.width; x++) {
+        const i = y * field.width + x;
+        if (field.data[i] <= 0) continue;
+        peak = Math.max(peak, field.data[i]);
+        reliefSum += Math.abs(field.data[i] - field.data[i - 1]);
+        reliefSum += Math.abs(field.data[i] - field.data[i - field.width]);
+        reliefSamples += 2;
+      }
+    }
+    assert.ok(peak > 2_000, `${continent} lacks major mountain relief`);
+    assert.ok(reliefSum / reliefSamples > 20, `${continent} remains excessively smooth`);
+  }
+});
+
 test("authoritative world boundary is entirely underwater", () => {
   const world = generateWorld({ seed: 48291, heightmapResolution: 96 });
   const { data, width, height } = world.worldHeightField;

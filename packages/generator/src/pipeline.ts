@@ -15,7 +15,7 @@ import { generateSettlementName } from "./naming/index.js";
 import { loadZoneDesigns, loadResourceDesigns, loadCreatureDesigns, loadContinentLayout } from "./designData.js";
 import type { ContinentId, Landmark, ResolvedZone, WorldOutput } from "./types/index.js";
 
-const GENERATOR_VERSION = "0.3.0";
+const GENERATOR_VERSION = "0.4.0";
 
 export interface GenerateOptions {
   seed: number;
@@ -26,7 +26,7 @@ export interface GenerateOptions {
 }
 
 export function generateWorld(opts: GenerateOptions): WorldOutput {
-  const resolution = opts.heightmapResolution ?? 512;
+  const resolution = opts.heightmapResolution ?? 1024;
   const continentLayout = loadContinentLayout();
   const continentTileSize = opts.continentTileSize ?? continentLayout.continentTileSize;
   const continents: ContinentId[] = opts.continents ?? ["valora", "seradia"];

@@ -32,9 +32,9 @@ scene.background = new THREE.Color(0x0a1626);
 // World units are true meters now (docs/01 §5) and the world is ~131km
 // across, so fog/camera-far distances are scaled up accordingly from the
 // pre-rescale version of this file.
-scene.fog = new THREE.Fog(0x0a1626, 35000, 140000);
+scene.fog = new THREE.Fog(0x0a1626, 70000, 280000);
 
-const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 2, 240000);
+const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 4, 500000);
 camera.position.set(-12000, 16000, 36000);
 
 const controls = new OrbitControls(camera, renderer.domElement);

@@ -1,6 +1,6 @@
 {
   "name": "@nevora/viewer-threejs",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "private": true,
   "description": "Three.js inspection tool for Nevora World Compiler output. Not the game -- a debug viewer that only ever reads generator output files.",
   "type": "module",

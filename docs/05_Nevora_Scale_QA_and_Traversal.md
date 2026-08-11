@@ -9,7 +9,9 @@ Bruma encounters, and port placement.
 
 `crossing distance = ship speed × desired crossing duration`
 
-The current 65,536 m open-water gap provides these direct-crossing examples:
+Version 0.4 uses two 65,536 m continent tiles and a 65,536 m open-water
+gap. This doubles continent and zone dimensions without sacrificing the sea
+reserved for naval exploration. The gap provides these direct-crossing examples:
 
 | Ship pace | Approximate direct crossing |
 | --- | ---: |
@@ -26,6 +28,10 @@ the sea geographically small.
 
 - Valora and Seradia use distinct authored macro grammars; seeds vary local
   coastline and relief without erasing continental identity.
+- The elevation stack combines primary and secondary ridges, fault-broken
+  relief, incised drainage bands, micro-ridges, and fine geometric variation.
+- Default generation is 1024 samples per continent (2048 in HQ), preserving
+  approximately 64 m default horizontal sampling after the scale increase.
 - The authoritative heightfield includes a 25%-of-tile ocean safety margin.
   No positive elevation may reach its outer boundary.
 - The renderer never propagates positive boundary elevation into its

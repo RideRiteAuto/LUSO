@@ -302,14 +302,17 @@ export function buildWorldMesh(world: WorldData): THREE.Mesh {
   const biomeFields = new Map<string, BlurredBiomeField>();
   for (const id of continentIds) biomeFields.set(id, buildBlurredBiomeField(continents[id].biomeImage));
 
-  const softHeights = buildSoftenedHeights(worldHeight, 3);
+  // Preserve generated landform detail. The former three-cell blur erased
+  // roughly 400m of ridges and drainage at the default scale; a one-cell
+  // visual filter only suppresses single-sample coastline spikes.
+  const softHeights = buildSoftenedHeights(worldHeight, 1);
 
   // Core resolution: half the unified field's native resolution (which is
   // already a downsample of the per-continent 64m/cell data) -- detailed
   // enough for a coastline to read as a coastline, not so dense that the
   // per-vertex color pass (continent lookup + blurred-biome sample) becomes
   // the load bottleneck.
-  const coreW = Math.min(1024, worldHeight.width);
+  const coreW = Math.min(1536, worldHeight.width);
   const coreD = Math.max(2, Math.round(coreW * ((bounds.maxZ - bounds.minZ) / (bounds.maxX - bounds.minX))));
 
   const xs = buildAxis(coreW, bounds.minX, bounds.maxX, SKIRT_REACH);

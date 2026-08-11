@@ -111,6 +111,10 @@ function buildContinentSampler(rng: Rng, zones: ZoneDesign[], continent: Contine
   const warpNoiseY = createNoise2D(mulberry32(seed + 303));
   const ridgeNoise = createNoise2D(mulberry32(seed + 404));
   const coastNoise = createNoise2D(mulberry32(seed + 505));
+  const secondaryRidgeNoise = createNoise2D(mulberry32(seed + 606));
+  const valleyNoise = createNoise2D(mulberry32(seed + 707));
+  const faultNoise = createNoise2D(mulberry32(seed + 808));
+  const microNoise = createNoise2D(mulberry32(seed + 909));
 
   return (u: number, v: number): number => {
     const warpScale = 2.2;
@@ -121,21 +125,40 @@ function buildContinentSampler(rng: Rng, zones: ZoneDesign[], continent: Contine
     const coastN = coastNoise(u * 3.5, v * 3.5);
     const mask = continentMaskAt(wx, wy, coastN, continent);
 
-    const detail = fractalNoise2D(detailNoise, wx * 4, wy * 4, 5, 2.05, 0.5);
+    const detail = fractalNoise2D(detailNoise, wx * 3.2, wy * 3.2, 6, 2.05, 0.5);
     // Ridge frequency raised 2.5 -> 3.4 and amplitude 900 -> 1600 (docs/01 §5
     // "genuinely big" pass): the old amplitude, layered on top of the old
     // gentle target blend above, produced rolling highland texture rather
     // than a real summit-to-shoulder drop; the higher frequency also tightens
     // individual ridgelines instead of one broad hump spanning the whole
     // mountain zone.
-    const ridge = 1 - Math.abs(fractalNoise2D(ridgeNoise, wx * 3.4, wy * 3.4, 4, 2.0, 0.55));
+    const majorRidgeRaw = 1 - Math.abs(fractalNoise2D(ridgeNoise, wx * 3.1, wy * 3.1, 5, 2.0, 0.54));
+    const majorRidge = Math.pow(Math.max(0, majorRidgeRaw), 3.2);
+    const secondaryRidgeRaw = 1 - Math.abs(fractalNoise2D(secondaryRidgeNoise, wx * 9, wy * 9, 4, 2.1, 0.5));
+    const secondaryRidge = Math.pow(Math.max(0, secondaryRidgeRaw), 4.5);
+    const microRidgeRaw = 1 - Math.abs(fractalNoise2D(microNoise, wx * 27, wy * 27, 3, 2.15, 0.48));
+    const microRidge = Math.pow(Math.max(0, microRidgeRaw), 6);
+    const drainageRaw = 1 - Math.abs(fractalNoise2D(valleyNoise, wx * 7, wy * 7, 4, 2.0, 0.52));
+    const drainage = Math.pow(Math.max(0, drainageRaw), 9);
+    const fault = fractalNoise2D(faultNoise, wx * 5.5, wy * 5.5, 4, 2.05, 0.5);
+    const brokenRelief = Math.sign(fault) * Math.pow(Math.abs(fault), 0.58);
+    const fineRelief = fractalNoise2D(microNoise, wx * 48, wy * 48, 3, 2.2, 0.46);
 
     if (mask > 0.5) {
       const target = zoneTargetElevationAt(u, v, zones);
       const mountainFactor = Math.max(0, Math.min(1, (target - 200) / 1400));
-      const localDetailM = detail * 120 + ridge * mountainFactor * 1600;
+      const uplandFactor = Math.max(0.18, Math.min(1, (target + 100) / 1100));
+      const localDetailM =
+        detail * 170 +
+        majorRidge * mountainFactor * 2100 +
+        secondaryRidge * uplandFactor * 520 +
+        microRidge * uplandFactor * 135 +
+        brokenRelief * uplandFactor * 210 +
+        fineRelief * 58 -
+        drainage * (90 + uplandFactor * 260);
       const landStrength = Math.min(1, (mask - 0.5) * 2.4);
-      return Math.max(1, target * landStrength + localDetailM);
+      const coastDetailStrength = Math.max(0.12, Math.min(1, landStrength * 1.7));
+      return Math.max(1, target * landStrength + localDetailM * coastDetailStrength);
     } else {
       // Ocean branch: depthFactor -> 1 as mask -> 0 (or below, once UV is far
       // outside this continent's own tile), so this naturally reaches full
