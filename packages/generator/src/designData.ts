@@ -14,24 +14,61 @@ const DESIGN_DIR = path.join(REPO_ROOT, "data", "design");
 
 function loadJson<T>(fileName: string): T {
   const raw = readFileSync(path.join(DESIGN_DIR, fileName), "utf-8");
-  return JSON.parse(raw) as T;
+  try {
+    return JSON.parse(raw) as T;
+  } catch (error) {
+    throw new Error(`Invalid JSON in data/design/${fileName}: ${(error as Error).message}`);
+  }
+}
+
+function assertUniqueIds(records: { id: string }[], label: string): void {
+  const seen = new Set<string>();
+  for (const record of records) {
+    if (!record.id || seen.has(record.id)) throw new Error(`${label} contains missing or duplicate id: ${record.id}`);
+    seen.add(record.id);
+  }
+}
+
+function validateZones(zones: ZoneDesign[]): ZoneDesign[] {
+  assertUniqueIds(zones, "zones.json");
+  for (const zone of zones) {
+    if (!(["valora", "seradia"] as string[]).includes(zone.continent)) throw new Error(`Zone ${zone.id} has invalid continent`);
+    if (zone.anchor.some((v) => !Number.isFinite(v) || v < 0 || v > 1)) throw new Error(`Zone ${zone.id} has invalid anchor`);
+    if (!(zone.radius > 0) || zone.elevationTargetM[0] > zone.elevationTargetM[1]) throw new Error(`Zone ${zone.id} has invalid ranges`);
+  }
+  return zones;
 }
 
 export function loadZoneDesigns(): ZoneDesign[] {
   const { zones } = loadJson<{ zones: ZoneDesign[] }>("zones.json");
-  return zones;
+  return validateZones(zones);
 }
 
 export function loadResourceDesigns(): ResourceDesign[] {
   const { resources } = loadJson<{ resources: ResourceDesign[] }>("resources.json");
+  const seen = new Set<string>();
+  for (const resource of resources) {
+    if (!resource.resourceId || seen.has(resource.resourceId)) throw new Error(`resources.json contains duplicate resourceId: ${resource.resourceId}`);
+    seen.add(resource.resourceId);
+    if (resource.elevationRangeM && resource.elevationRangeM[0] > resource.elevationRangeM[1]) throw new Error(`Resource ${resource.resourceId} has invalid elevation range`);
+  }
   return resources;
 }
 
 export function loadCreatureDesigns(): CreatureDesign[] {
   const { creatures } = loadJson<{ creatures: CreatureDesign[] }>("creatures.json");
+  const seen = new Set<string>();
+  for (const creature of creatures) {
+    if (!creature.creatureId || seen.has(creature.creatureId)) throw new Error(`creatures.json contains duplicate creatureId: ${creature.creatureId}`);
+    seen.add(creature.creatureId);
+    if (creature.elevationRangeM[0] > creature.elevationRangeM[1] || creature.minDistanceFromSettlementM < 0) throw new Error(`Creature ${creature.creatureId} has invalid ranges`);
+  }
   return creatures;
 }
 
 export function loadContinentLayout(): ContinentLayoutDesign {
-  return loadJson<ContinentLayoutDesign>("continents.json");
+  const layout = loadJson<ContinentLayoutDesign>("continents.json");
+  assertUniqueIds(layout.continents, "continents.json");
+  if (!(layout.continentTileSize > 0) || !(layout.lunaSeaGapUnits >= 0)) throw new Error("continents.json has invalid scale values");
+  return layout;
 }

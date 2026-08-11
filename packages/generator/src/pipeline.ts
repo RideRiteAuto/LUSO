@@ -15,7 +15,7 @@ import { generateSettlementName } from "./naming/index.js";
 import { loadZoneDesigns, loadResourceDesigns, loadCreatureDesigns, loadContinentLayout } from "./designData.js";
 import type { ContinentId, Landmark, ResolvedZone, WorldOutput } from "./types/index.js";
 
-const GENERATOR_VERSION = "0.2.0";
+const GENERATOR_VERSION = "0.4.0";
 
 export interface GenerateOptions {
   seed: number;
@@ -26,7 +26,7 @@ export interface GenerateOptions {
 }
 
 export function generateWorld(opts: GenerateOptions): WorldOutput {
-  const resolution = opts.heightmapResolution ?? 512;
+  const resolution = opts.heightmapResolution ?? 1024;
   const continentLayout = loadContinentLayout();
   const continentTileSize = opts.continentTileSize ?? continentLayout.continentTileSize;
   const continents: ContinentId[] = opts.continents ?? ["valora", "seradia"];
@@ -78,10 +78,6 @@ export function generateWorld(opts: GenerateOptions): WorldOutput {
     const resources = placeResources(resourceRng, resourceDesigns, zoneDesigns, continent, height, biomes, zoneAssignment);
     allResources.push(...resources);
 
-    const ecologyRng = seeds.rngFor("ecology", continent);
-    const spawns = placeEcology(ecologyRng, creatureDesigns, zoneDesigns, continent, height, zoneAssignment);
-    allSpawns.push(...spawns);
-
     const settlementRng = seeds.rngFor("settlements", continent);
     const settlements = placeSettlements(settlementRng, resolvedZones, continent, height);
 
@@ -90,6 +86,19 @@ export function generateWorld(opts: GenerateOptions): WorldOutput {
       for (const s of settlements) s.name = generateSettlementName(namingRng);
     }
     allSettlements.push(...settlements);
+
+    const ecologyRng = seeds.rngFor("ecology", continent);
+    const spawns = placeEcology(
+      ecologyRng,
+      creatureDesigns,
+      zoneDesigns,
+      continent,
+      height,
+      zoneAssignment,
+      settlements,
+      continentTileSize
+    );
+    allSpawns.push(...spawns);
 
     for (const zone of resolvedZones) {
       if (zone.loreBreadcrumb) {

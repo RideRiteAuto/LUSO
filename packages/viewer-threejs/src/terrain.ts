@@ -21,8 +21,8 @@ const ABYSS_DEPTH = -3550;
 // what makes the ocean read as boundless instead of ending in a wall
 // (Kevin: "I should be able to swim off the beach on any edge of the world
 // ... right now our game world ends in a flat blank wall").
-export const SKIRT_REACH = 220000;
-const SKIRT_STEP_FRACTIONS = [0.05, 0.12, 0.22, 0.38, 0.62, 1.0];
+export const SKIRT_REACH = 60000;
+const SKIRT_STEP_FRACTIONS = [0.025, 0.05, 0.085, 0.13, 0.19, 0.27, 0.37, 0.49, 0.63, 0.8, 1.0];
 
 // --- TEMPORARY DIAGNOSTIC INSTRUMENTATION (streak-bug investigation, see
 // docs handoff notes) -----------------------------------------------------
@@ -216,9 +216,14 @@ function nearestUnifiedHeight(worldHeight: WorldHeightData, worldX: number, worl
   const { width, height: gridH, data, bounds } = worldHeight;
   const u = (worldX - bounds.minX) / (bounds.maxX - bounds.minX);
   const v = (worldZ - bounds.minZ) / (bounds.maxZ - bounds.minZ);
-  const gx = Math.min(width - 1, Math.max(0, Math.round(u * (width - 1))));
-  const gy = Math.min(gridH - 1, Math.max(0, Math.round(v * (gridH - 1))));
-  return data[gy * width + gx];
+  const fx = Math.min(width - 1, Math.max(0, u * (width - 1)));
+  const fy = Math.min(gridH - 1, Math.max(0, v * (gridH - 1)));
+  const x0 = Math.floor(fx), y0 = Math.floor(fy);
+  const x1 = Math.min(width - 1, x0 + 1), y1 = Math.min(gridH - 1, y0 + 1);
+  const tx = fx - x0, ty = fy - y0;
+  const a = data[y0 * width + x0] * (1 - tx) + data[y0 * width + x1] * tx;
+  const b = data[y1 * width + x0] * (1 - tx) + data[y1 * width + x1] * tx;
+  return a * (1 - ty) + b * ty;
 }
 
 /**
@@ -297,14 +302,17 @@ export function buildWorldMesh(world: WorldData): THREE.Mesh {
   const biomeFields = new Map<string, BlurredBiomeField>();
   for (const id of continentIds) biomeFields.set(id, buildBlurredBiomeField(continents[id].biomeImage));
 
-  const softHeights = buildSoftenedHeights(worldHeight, 3);
+  // Preserve generated landform detail. The former three-cell blur erased
+  // roughly 400m of ridges and drainage at the default scale; a one-cell
+  // visual filter only suppresses single-sample coastline spikes.
+  const softHeights = buildSoftenedHeights(worldHeight, 1);
 
   // Core resolution: half the unified field's native resolution (which is
   // already a downsample of the per-continent 64m/cell data) -- detailed
   // enough for a coastline to read as a coastline, not so dense that the
   // per-vertex color pass (continent lookup + blurred-biome sample) becomes
   // the load bottleneck.
-  const coreW = Math.min(1024, worldHeight.width);
+  const coreW = Math.min(1536, worldHeight.width);
   const coreD = Math.max(2, Math.round(coreW * ((bounds.maxZ - bounds.minZ) / (bounds.maxX - bounds.minX))));
 
   const xs = buildAxis(coreW, bounds.minX, bounds.maxX, SKIRT_REACH);
@@ -333,6 +341,10 @@ export function buildWorldMesh(world: WorldData): THREE.Mesh {
       // skirt's starting elevation before the abyss blend below, regardless
       // of what the (possibly land-carrying) boundary sample says.
       if (DIAG_FORCE_SKIRT_UNDERWATER && skirtT > 0) realH = -100;
+      // Never propagate positive boundary elevation into the synthetic ocean
+      // margin. Generated worlds now include an ocean-only safety margin too,
+      // but this guard keeps older exported seeds safe to inspect.
+      if (skirtT > 0) realH = Math.min(realH, -100);
       const h = realH + (ABYSS_DEPTH - realH) * skirtT;
 
       // Color follows height, not "which mesh this used to be": pure

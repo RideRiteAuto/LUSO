@@ -20,7 +20,7 @@
 // unified field so none of those stages needed to change.
 
 import { createNoise2D } from "simplex-noise";
-import type { Rng, SeedRegistry } from "../seed/index.js";
+import { mulberry32, type Rng, type SeedRegistry } from "../seed/index.js";
 import type { ContinentId, ContinentLayoutDesign, HeightField, ZoneDesign } from "../types/index.js";
 
 function fractalNoise2D(noise2D: (x: number, y: number) => number, x: number, y: number, octaves: number, lacunarity: number, persistence: number): number {
@@ -69,13 +69,30 @@ function zoneTargetElevationAt(u: number, v: number, zones: ZoneDesign[]): numbe
   return weightSum > 0 ? valueSum / weightSum : 0;
 }
 
-function continentMaskAt(u: number, v: number, coastNoise: number): number {
-  const cx = 0.5;
-  const cy = 0.5;
-  const dx = u - cx;
-  const dy = v - cy;
-  const radial = 1 - Math.sqrt(dx * dx + dy * dy) / 0.62;
-  const perturbed = radial + coastNoise * 0.18;
+function continentMaskAt(u: number, v: number, coastNoise: number, continent: ContinentId): number {
+  const dx = u - 0.5;
+  const dy = v - 0.5;
+  let macro: number;
+  if (continent === "valora") {
+    // Broad, diagonally-oriented mainland with a southwestern peninsula and
+    // a northeastern coastal bite. It remains recognizably Valora across
+    // seeds while small-scale coast noise changes the shoreline.
+    const angle = -0.28;
+    const rx = dx * Math.cos(angle) - dy * Math.sin(angle);
+    const ry = dx * Math.sin(angle) + dy * Math.cos(angle);
+    const body = 1 - Math.hypot(rx / 0.58, ry / 0.45);
+    const peninsula = 0.35 - Math.hypot((u - 0.2) / 0.24, (v - 0.73) / 0.3);
+    const gulf = 0.38 - Math.hypot((u - 0.78) / 0.2, (v - 0.27) / 0.22);
+    macro = Math.max(body, peninsula) - Math.max(0, gulf) * 0.75;
+  } else {
+    // Seradia is a taller crescent with a broken eastern coast, deliberately
+    // unlike Valora's broad diagonal body.
+    const outer = 1 - Math.hypot(dx / 0.43, dy / 0.59);
+    const innerBay = 0.42 - Math.hypot((u - 0.34) / 0.29, (v - 0.5) / 0.43);
+    const northernShoulder = 0.28 - Math.hypot((u - 0.67) / 0.24, (v - 0.2) / 0.24);
+    macro = Math.max(outer - Math.max(0, innerBay) * 0.9, northernShoulder);
+  }
+  const perturbed = macro + coastNoise * 0.14;
   return Math.max(0, Math.min(1, (perturbed + 0.15) * 1.3));
 }
 
@@ -84,13 +101,20 @@ interface ContinentSampler {
 }
 
 /** Builds a continent's own noise-seeded elevation sampler. Safe to call with UV far outside [0,1] -- it just smoothly bottoms out at abyssal ocean depth. */
-function buildContinentSampler(rng: Rng, zones: ZoneDesign[]): ContinentSampler {
+function buildContinentSampler(rng: Rng, zones: ZoneDesign[], continent: ContinentId): ContinentSampler {
   const seed = Math.floor(rng.float() * 2 ** 31);
-  const detailNoise = createNoise2D(() => (seed + 101) / 2 ** 31);
-  const warpNoiseX = createNoise2D(() => (seed + 202) / 2 ** 31);
-  const warpNoiseY = createNoise2D(() => (seed + 303) / 2 ** 31);
-  const ridgeNoise = createNoise2D(() => (seed + 404) / 2 ** 31);
-  const coastNoise = createNoise2D(() => (seed + 505) / 2 ** 31);
+  // simplex-noise expects a stateful random sequence while it builds its
+  // permutation table. Passing a constant function creates biased and highly
+  // correlated fields even when the constant itself differs by seed.
+  const detailNoise = createNoise2D(mulberry32(seed + 101));
+  const warpNoiseX = createNoise2D(mulberry32(seed + 202));
+  const warpNoiseY = createNoise2D(mulberry32(seed + 303));
+  const ridgeNoise = createNoise2D(mulberry32(seed + 404));
+  const coastNoise = createNoise2D(mulberry32(seed + 505));
+  const secondaryRidgeNoise = createNoise2D(mulberry32(seed + 606));
+  const valleyNoise = createNoise2D(mulberry32(seed + 707));
+  const faultNoise = createNoise2D(mulberry32(seed + 808));
+  const microNoise = createNoise2D(mulberry32(seed + 909));
 
   return (u: number, v: number): number => {
     const warpScale = 2.2;
@@ -99,23 +123,42 @@ function buildContinentSampler(rng: Rng, zones: ZoneDesign[]): ContinentSampler 
     const wy = v + warpAmount * warpNoiseY(u * warpScale, v * warpScale);
 
     const coastN = coastNoise(u * 3.5, v * 3.5);
-    const mask = continentMaskAt(wx, wy, coastN);
+    const mask = continentMaskAt(wx, wy, coastN, continent);
 
-    const detail = fractalNoise2D(detailNoise, wx * 4, wy * 4, 5, 2.05, 0.5);
+    const detail = fractalNoise2D(detailNoise, wx * 3.2, wy * 3.2, 6, 2.05, 0.5);
     // Ridge frequency raised 2.5 -> 3.4 and amplitude 900 -> 1600 (docs/01 §5
     // "genuinely big" pass): the old amplitude, layered on top of the old
     // gentle target blend above, produced rolling highland texture rather
     // than a real summit-to-shoulder drop; the higher frequency also tightens
     // individual ridgelines instead of one broad hump spanning the whole
     // mountain zone.
-    const ridge = 1 - Math.abs(fractalNoise2D(ridgeNoise, wx * 3.4, wy * 3.4, 4, 2.0, 0.55));
+    const majorRidgeRaw = 1 - Math.abs(fractalNoise2D(ridgeNoise, wx * 3.1, wy * 3.1, 5, 2.0, 0.54));
+    const majorRidge = Math.pow(Math.max(0, majorRidgeRaw), 3.2);
+    const secondaryRidgeRaw = 1 - Math.abs(fractalNoise2D(secondaryRidgeNoise, wx * 9, wy * 9, 4, 2.1, 0.5));
+    const secondaryRidge = Math.pow(Math.max(0, secondaryRidgeRaw), 4.5);
+    const microRidgeRaw = 1 - Math.abs(fractalNoise2D(microNoise, wx * 27, wy * 27, 3, 2.15, 0.48));
+    const microRidge = Math.pow(Math.max(0, microRidgeRaw), 6);
+    const drainageRaw = 1 - Math.abs(fractalNoise2D(valleyNoise, wx * 7, wy * 7, 4, 2.0, 0.52));
+    const drainage = Math.pow(Math.max(0, drainageRaw), 9);
+    const fault = fractalNoise2D(faultNoise, wx * 5.5, wy * 5.5, 4, 2.05, 0.5);
+    const brokenRelief = Math.sign(fault) * Math.pow(Math.abs(fault), 0.58);
+    const fineRelief = fractalNoise2D(microNoise, wx * 48, wy * 48, 3, 2.2, 0.46);
 
     if (mask > 0.5) {
       const target = zoneTargetElevationAt(u, v, zones);
       const mountainFactor = Math.max(0, Math.min(1, (target - 200) / 1400));
-      const localDetailM = detail * 120 + ridge * mountainFactor * 1600;
+      const uplandFactor = Math.max(0.18, Math.min(1, (target + 100) / 1100));
+      const localDetailM =
+        detail * 170 +
+        majorRidge * mountainFactor * 2100 +
+        secondaryRidge * uplandFactor * 520 +
+        microRidge * uplandFactor * 135 +
+        brokenRelief * uplandFactor * 210 +
+        fineRelief * 58 -
+        drainage * (90 + uplandFactor * 260);
       const landStrength = Math.min(1, (mask - 0.5) * 2.4);
-      return Math.max(1, target * landStrength + localDetailM);
+      const coastDetailStrength = Math.max(0.12, Math.min(1, landStrength * 1.7));
+      return Math.max(1, target * landStrength + localDetailM * coastDetailStrength);
     } else {
       // Ocean branch: depthFactor -> 1 as mask -> 0 (or below, once UV is far
       // outside this continent's own tile), so this naturally reaches full
@@ -143,12 +186,19 @@ export interface WorldBounds {
 
 export function computeWorldBounds(continentLayout: ContinentLayoutDesign): WorldBounds {
   const tileSize = continentLayout.continentTileSize;
-  const offsets = continentLayout.continents.map((c) => c.worldOffset[0]);
+  const xOffsets = continentLayout.continents.map((c) => c.worldOffset[0]);
+  const zOffsets = continentLayout.continents.map((c) => c.worldOffset[1]);
+  // The continent mask intentionally reaches beyond the nominal tile square.
+  // The old bounds ended exactly on that square, allowing positive land at a
+  // heightfield edge. The viewer then copied those edge elevations into its
+  // ocean skirt, producing the enormous diagonal "extrusions". A generated
+  // ocean margin makes every authoritative outer edge bathymetry, not land.
+  const oceanMargin = tileSize * 0.25;
   return {
-    minX: Math.min(...offsets),
-    maxX: Math.max(...offsets) + tileSize,
-    minZ: 0,
-    maxZ: tileSize,
+    minX: Math.min(...xOffsets) - oceanMargin,
+    maxX: Math.max(...xOffsets) + tileSize + oceanMargin,
+    minZ: Math.min(...zOffsets) - oceanMargin,
+    maxZ: Math.max(...zOffsets) + tileSize + oceanMargin,
   };
 }
 
@@ -177,7 +227,7 @@ export function generateWorldHeightField(
   for (const c of continentLayout.continents) {
     const rng = seeds.rngFor("elevation", c.id);
     const zonesForContinent = zoneDesigns.filter((z) => z.continent === c.id);
-    samplers.set(c.id, buildContinentSampler(rng, zonesForContinent));
+    samplers.set(c.id, buildContinentSampler(rng, zonesForContinent, c.id));
     offsets.set(c.id, c.worldOffset);
   }
 

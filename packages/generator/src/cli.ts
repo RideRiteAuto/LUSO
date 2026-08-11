@@ -28,7 +28,7 @@ function parseArgs(argv: string[]) {
 
 const args = parseArgs(process.argv.slice(2));
 const seed = args.seed ? Number(args.seed) : 48291;
-const resolution = args.resolution ? Number(args.resolution) : args.hq ? 1024 : 512;
+const resolution = args.resolution ? Number(args.resolution) : args.hq ? 2048 : 1024;
 const continents = (args.continents ? args.continents.split(",") : ["valora", "seradia"]) as ContinentId[];
 
 console.log(`Generating Navora world — seed=${seed}, resolution=${resolution}, continents=${continents.join(",")}`);

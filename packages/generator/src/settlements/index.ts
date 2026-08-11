@@ -69,6 +69,39 @@ function reasonForKind(kind: string): string {
   }
 }
 
+function nearestValidLand(height: HeightField, desired: Vec2): Vec2 {
+  const { width, height: h, data } = height;
+  const sx = Math.round(desired[0] * (width - 1));
+  const sy = Math.round(desired[1] * (h - 1));
+  let best: Vec2 | null = null;
+  let bestScore = Infinity;
+  const radius = Math.max(width, h);
+  for (let r = 0; r < radius && !best; r++) {
+    for (let dy = -r; dy <= r; dy++) {
+      for (let dx = -r; dx <= r; dx++) {
+        if (Math.abs(dx) !== r && Math.abs(dy) !== r) continue;
+        const x = sx + dx;
+        const y = sy + dy;
+        if (x < 1 || y < 1 || x >= width - 1 || y >= h - 1) continue;
+        const e = data[y * width + x];
+        if (e <= 2) continue;
+        const slope = Math.max(
+          Math.abs(data[y * width + x - 1] - e),
+          Math.abs(data[y * width + x + 1] - e),
+          Math.abs(data[(y - 1) * width + x] - e),
+          Math.abs(data[(y + 1) * width + x] - e)
+        );
+        const score = dx * dx + dy * dy + slope * slope * 0.02;
+        if (score < bestScore) {
+          bestScore = score;
+          best = [x / (width - 1), y / (h - 1)];
+        }
+      }
+    }
+  }
+  return best ?? desired;
+}
+
 export function placeSettlements(rng: Rng, resolvedZones: ResolvedZone[], continent: ContinentId, height: HeightField): SettlementAnchor[] {
   const anchors: SettlementAnchor[] = [];
 
@@ -88,13 +121,19 @@ export function placeSettlements(rng: Rng, resolvedZones: ResolvedZone[], contin
       }
     } else {
       // Fallback for zones without bible-specified housing detail (Bands 5-8).
+      const centroid: Vec2 = zone.boundary.length > 0
+        ? [
+            zone.boundary.reduce((sum, p) => sum + p[0], 0) / zone.boundary.length,
+            zone.boundary.reduce((sum, p) => sum + p[1], 0) / zone.boundary.length,
+          ]
+        : [0.5, 0.5];
       anchors.push({
         id: `${zone.id}-generic-settlement`,
         name: null,
         tier: 3,
         type: "settlement",
         reason: "generic placement pending design pass (docs/03 §6)",
-        position: zone.boundary[0] ?? [0.5, 0.5],
+        position: nearestValidLand(height, centroid),
         zoneId: zone.id,
       });
     }

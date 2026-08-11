@@ -6,7 +6,7 @@
 
 import { createNoise2D } from "simplex-noise";
 import type { HeightField, ScalarField } from "../types/index.js";
-import type { Rng } from "../seed/index.js";
+import { mulberry32, type Rng } from "../seed/index.js";
 
 const LAPSE_RATE_C_PER_M = 0.0065; // ~6.5C per 1000m, standard atmospheric lapse rate
 
@@ -54,8 +54,8 @@ export function generateClimateFields(rng: Rng, height: HeightField, riverCellMa
   const n = width * h;
 
   const seed = Math.floor(rng.float() * 2 ** 31);
-  const moistureNoise = createNoise2D(() => seed / 2 ** 31);
-  const shadowNoise = createNoise2D(() => (seed + 77) / 2 ** 31);
+  const moistureNoise = createNoise2D(mulberry32(seed));
+  const shadowNoise = createNoise2D(mulberry32(seed + 77));
 
   const distWater = distanceToWaterField(height, riverCellMask);
   let maxDist = 1;
