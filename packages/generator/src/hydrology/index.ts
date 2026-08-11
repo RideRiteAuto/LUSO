@@ -4,7 +4,7 @@
 // a closed basin (recorded as a lake). Rivers always originate at elevation
 // and flow downhill to a terminus — no decorative/closed-loop rivers.
 
-import type { HeightField, Lake, River, Vec2, WaterData } from "../types/index.js";
+import type { HeightField, River, Vec2, WaterData } from "../types/index.js";
 
 const NEIGHBORS: [number, number][] = [
   [-1, -1], [0, -1], [1, -1],
@@ -78,9 +78,13 @@ export function generateWaterData(height: HeightField, riverIdPrefix: string): H
 
   const visited = new Uint8Array(n);
   const rivers: River[] = [];
-  const lakes: Lake[] = [];
+  // Closed depressions are deliberately not emitted as lakes. A previous
+  // placeholder turned every D8 pit into a small circular pond without
+  // flooding/carving the terrain beneath it, producing unnatural blue dots
+  // across both continents. Real lakes require basin filling and spill-level
+  // calculation; until that stage exists, an unresolved pit is not water.
+  const lakes: WaterData["lakes"] = [];
   let riverCount = 0;
-  let lakeCount = 0;
 
   // Candidate sources: river cells whose upstream contributors are all below threshold
   // (i.e. this is where a river network segment begins), sorted by elevation descending
@@ -101,6 +105,7 @@ export function generateWaterData(height: HeightField, riverIdPrefix: string): H
     let steps = 0;
     const sourceElevationM = data[src];
     let terminatesIn: River["terminatesIn"] = { type: "ocean", featureId: "luna-sea" };
+    let reachedOcean = false;
 
     while (steps < width * 2) {
       const x = cur % width;
@@ -110,36 +115,18 @@ export function generateWaterData(height: HeightField, riverIdPrefix: string): H
 
       if (data[cur] <= 0) {
         terminatesIn = { type: "ocean", featureId: "luna-sea" };
+        reachedOcean = true;
         break;
       }
       const next = flowTo[cur];
       if (next < 0 || visited[next]) {
-        // Pit or merge into an already-traced river: treat a true pit as a small lake.
-        if (next < 0 && data[cur] > 0) {
-          const lakeId = `${riverIdPrefix}-lake-${lakeCount++}`;
-          const cx = x / (width - 1);
-          const cy = y / (height.height - 1);
-          const contributingCells = Math.max(1, accumulation[cur]);
-          const r = Math.max(0.003, Math.min(0.018, Math.sqrt(contributingCells) / Math.max(width, h) * 0.35));
-          const polygon: Vec2[] = [];
-          for (let p = 0; p < 16; p++) {
-            const angle = (p / 16) * Math.PI * 2;
-            polygon.push([cx + Math.cos(angle) * r, cy + Math.sin(angle) * r]);
-          }
-          lakes.push({
-            id: lakeId,
-            polygon,
-            depthM: Math.round(Math.max(3, Math.min(30, Math.sqrt(contributingCells) * 0.8))),
-          });
-          terminatesIn = { type: "lake", featureId: lakeId };
-        }
         break;
       }
       cur = next;
       steps++;
     }
 
-    if (path.length > 10) {
+    if (path.length > 10 && reachedOcean) {
       rivers.push({
         id: `${riverIdPrefix}-river-${riverCount++}`,
         path,

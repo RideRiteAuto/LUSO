@@ -73,6 +73,14 @@ test("authoritative world boundary is entirely underwater", () => {
   assert.ok(Math.max(...edges) < -10, "world boundary lacks a safe bathymetric margin");
 });
 
+test("unresolved drainage pits are not rendered as fake ponds", () => {
+  const world = generateWorld({ seed: 48291, heightmapResolution: 128 });
+  for (const continent of world.manifest.continents) {
+    assert.equal(world.water[continent].lakes.length, 0);
+    assert.ok(world.water[continent].rivers.every((river) => river.terminatesIn.type === "ocean"));
+  }
+});
+
 test("resources never duplicate a cell and ecology respects settlements", () => {
   const world = generateWorld({ seed: 48291, heightmapResolution: 96 });
   for (const resource of world.resources) {
