@@ -6,7 +6,7 @@
 // light validation pass once settlement anchors exist, per docs/01 §3 stage 9).
 
 import { convexHull } from "../zones/index.js";
-import type { ContinentId, CreatureDesign, HeightField, SpawnRegion, Vec2, ZoneDesign } from "../types/index.js";
+import type { ContinentId, CreatureDesign, HeightField, SettlementAnchor, SpawnRegion, Vec2, ZoneDesign } from "../types/index.js";
 import type { ZoneAssignment } from "../zones/index.js";
 import type { Rng } from "../seed/index.js";
 
@@ -16,7 +16,9 @@ export function placeEcology(
   zones: ZoneDesign[],
   continent: ContinentId,
   height: HeightField,
-  zoneAssignment: ZoneAssignment
+  zoneAssignment: ZoneAssignment,
+  settlements: SettlementAnchor[],
+  continentTileSize: number
 ): SpawnRegion[] {
   const continentZones = zones.filter((z) => z.continent === continent);
   const zoneIdToIndex = new Map(continentZones.map((z, i) => [z.id, i]));
@@ -35,7 +37,13 @@ export function placeEcology(
         if (zoneAssignment.zoneIndexGrid[i] !== zi) continue;
         const e = height.data[i];
         if (e < creature.elevationRangeM[0] || e > creature.elevationRangeM[1]) continue;
-        candidates.push([cx / (res - 1), cy / (res - 1)]);
+        const uv: Vec2 = [cx / (res - 1), cy / (res - 1)];
+        const tooClose = settlements.some((s) => {
+          const dx = (uv[0] - s.position[0]) * continentTileSize;
+          const dy = (uv[1] - s.position[1]) * continentTileSize;
+          return dx * dx + dy * dy < creature.minDistanceFromSettlementM ** 2;
+        });
+        if (!tooClose) candidates.push(uv);
       }
     }
     if (candidates.length < 3) continue;
@@ -45,7 +53,11 @@ export function placeEcology(
     // whole zone for creatures with a wide elevation tolerance).
     const sampleCount = Math.min(candidates.length, 24);
     const sample: Vec2[] = [];
-    for (let k = 0; k < sampleCount; k++) sample.push(rng.pick(candidates));
+    for (let k = 0; k < sampleCount; k++) {
+      const pickIndex = rng.int(k, candidates.length - 1);
+      [candidates[k], candidates[pickIndex]] = [candidates[pickIndex], candidates[k]];
+      sample.push(candidates[k]);
+    }
 
     regions.push({
       creatureId: creature.creatureId,

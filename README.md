@@ -50,6 +50,17 @@ Phase 1 (architecture docs) and an initial Phase 2 pass (working pipeline: eleva
 
 - Only Mining + Woodcutting resource tables are wired in (`data/design/resources.json`); the other 8 professions' CSVs weren't safely transcribable by hand (see `docs/00` §1) and need a proper data-sync step.
 - Zone boundaries are convex-hull approximations of a Voronoi-style assignment, not yet snapped to ridgelines/rivers.
-- Roads are a minimum-spanning-tree of straight lines, not least-cost terrain paths.
+- Road topology uses a minimum-spanning tree, while each connection follows a terrain-aware A* route and records water crossings as bridge anchors.
 - Bands 5–8 (Azurama, Montemoura, Corvento, Lumevara, Vidrala, Altavera, Fendoura, Lumeira) have terrain/ecology but no bible-sourced settlement/housing detail yet — the bible itself doesn't specify it past Band 4.
 - Coordinates are continent-local normalized UV, not yet unified world-unit coordinates (docs/02 §1 note).
+
+## Verification and scale
+
+Run `npm test` to validate deterministic generation, seed variation, safe
+ocean boundaries, unique resource placement, and ecology/settlement distance
+constraints. The production `npm run build` now builds both the generator and
+the inspection viewer.
+
+Naval traversal and world-scale tradeoffs are documented in
+`docs/05_Nevora_Scale_QA_and_Traversal.md`; the central sea remains a deliberate
+gameplay parameter rather than a camera-composition patch.

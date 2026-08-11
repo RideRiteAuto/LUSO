@@ -57,8 +57,13 @@ export function placeResources(
       if (candidates.length === 0) continue;
 
       const count = Math.min(DENSITY_COUNT[design.density], Math.ceil(candidates.length / 40));
+      // Partial Fisher-Yates: deterministic sampling without replacement.
+      // The previous rng.pick loop could place several instances on the
+      // exact same cell.
       for (let k = 0; k < count; k++) {
-        const i = rng.pick(candidates);
+        const pickIndex = rng.int(k, candidates.length - 1);
+        [candidates[k], candidates[pickIndex]] = [candidates[pickIndex], candidates[k]];
+        const i = candidates[k];
         const cx = i % res;
         const cy = Math.floor(i / res);
         const position: Vec2 = [cx / (res - 1), cy / (res - 1)];

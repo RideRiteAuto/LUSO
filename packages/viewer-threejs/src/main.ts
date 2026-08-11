@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { loadWorld, loadEmbeddedWorld } from "./worldData.js";
-import { buildWorldMesh, sampleHeightWithSkirt, SKIRT_REACH } from "./terrain.js";
+import { buildWorldMesh, sampleHeightWithSkirt, sampleWorldHeight, SKIRT_REACH } from "./terrain.js";
 import { buildZoneBoundaries, buildRivers, buildLakes, buildRoads, buildSettlements, buildSeaRegions } from "./overlays.js";
 import { uvToWorld } from "./layout.js";
 import { FlightController } from "./flightControls.js";
@@ -13,6 +13,9 @@ const statusEl = document.getElementById("status")!;
 const seedValEl = document.getElementById("seedVal")!;
 const zoneCountEl = document.getElementById("zoneCount")!;
 const settleCountEl = document.getElementById("settleCount")!;
+const cameraPosEl = document.getElementById("cameraPos")!;
+const altitudeEl = document.getElementById("altitude")!;
+const movementEl = document.getElementById("movement")!;
 const legendEl = document.getElementById("legend")!;
 
 seedValEl.textContent = String(seed);
@@ -29,9 +32,9 @@ scene.background = new THREE.Color(0x0a1626);
 // World units are true meters now (docs/01 §5) and the world is ~131km
 // across, so fog/camera-far distances are scaled up accordingly from the
 // pre-rescale version of this file.
-scene.fog = new THREE.Fog(0x0a1626, 40000, 160000);
+scene.fog = new THREE.Fog(0x0a1626, 35000, 140000);
 
-const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.5, 400000);
+const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 2, 240000);
 camera.position.set(-12000, 16000, 36000);
 
 const controls = new OrbitControls(camera, renderer.domElement);
@@ -61,9 +64,12 @@ window.addEventListener("resize", () => {
 
 let zoneOverlay: THREE.Group | null = null;
 let riverOverlay: THREE.Group | null = null;
+let lakeOverlay: THREE.Group | null = null;
 let roadOverlay: THREE.Group | null = null;
 let settlementOverlay: THREE.Group | null = null;
 let worldFrame: { center: THREE.Vector3; distance: number } | null = null;
+let worldMesh: THREE.Mesh | null = null;
+let loadedWorld: Awaited<ReturnType<typeof loadWorld>> | null = null;
 
 async function boot() {
   statusEl.textContent = "loading manifest…";
@@ -72,6 +78,7 @@ async function boot() {
     ? await loadEmbeddedWorld((msg) => (statusEl.textContent = `loading ${msg}`))
     : await loadWorld(seed, (msg) => (statusEl.textContent = `loading ${msg}`));
   const manifest = world.manifest;
+  loadedWorld = world;
 
   statusEl.textContent = "building world mesh…";
   // One continuous mesh -- both continents, the connecting seabed, and a
@@ -79,7 +86,8 @@ async function boot() {
   // separately-built terrain + seabed meshes, which only approximately
   // lined up at the coast and read as "two models stitched together" with
   // the seabed visibly peeking through the seams (see terrain.ts).
-  scene.add(buildWorldMesh(world));
+  worldMesh = buildWorldMesh(world);
+  scene.add(worldMesh);
 
   // Let fly/walk roam well past the real generated coastline into the
   // synthetic ocean skirt (terrain.ts) -- the skirt itself reaches full
@@ -102,8 +110,9 @@ async function boot() {
   scene.add(zoneOverlay);
 
   riverOverlay = buildRivers(world.continents, manifest);
-  riverOverlay.add(buildLakes(world.continents, manifest)); // same toggle as rivers -- both are "water"
   scene.add(riverOverlay);
+  lakeOverlay = buildLakes(world.continents, manifest);
+  scene.add(lakeOverlay);
 
   roadOverlay = buildRoads(world.continents, manifest);
   scene.add(roadOverlay);
@@ -156,6 +165,14 @@ function animate() {
     controls.update();
   }
   renderer.render(scene, camera);
+  if (loadedWorld) {
+    const ground = sampleHeightWithSkirt(loadedWorld.worldHeight, camera.position.x, camera.position.z);
+    cameraPosEl.textContent = `${camera.position.x.toFixed(0)}, ${camera.position.z.toFixed(0)} m`;
+    altitudeEl.textContent = `${camera.position.y.toFixed(1)} / ${ground.toFixed(1)} m`;
+    movementEl.textContent = flying && flight
+      ? `${flight.currentMode} / ${flight.currentSpeed.toFixed(1)} m/s`
+      : "orbit";
+  }
 }
 animate();
 
@@ -256,9 +273,23 @@ viewWalkBtn.addEventListener("click", () => {
   // stand at whatever point the camera was last looking AT (controls.target)
   // instead of the camera's own eye position, which after e.g. the World
   // overview is tens of km out in open ocean.
-  const anchor = wasFlying
+  let anchor = wasFlying
     ? { x: camera.position.x, z: camera.position.z }
     : { x: controls.target.x, z: controls.target.z };
+  if (loadedWorld && sampleWorldHeight(loadedWorld.worldHeight, anchor.x, anchor.z) <= 0) {
+    const maxRadius = loadedWorld.manifest.worldScale.continentTileSize;
+    search: for (let radius = 250; radius <= maxRadius; radius += 250) {
+      for (let i = 0; i < 32; i++) {
+        const angle = (i / 32) * Math.PI * 2;
+        const x = anchor.x + Math.cos(angle) * radius;
+        const z = anchor.z + Math.sin(angle) * radius;
+        if (sampleWorldHeight(loadedWorld.worldHeight, x, z) > 2) {
+          anchor = { x, z };
+          break search;
+        }
+      }
+    }
+  }
   flight.enable(exitFlight, "walk", anchor);
 });
 
@@ -272,5 +303,12 @@ function wireToggle(id: string, group: () => THREE.Group | null) {
   });
 }
 wireToggle("toggleZones", () => zoneOverlay);
-wireToggle("toggleWater", () => riverOverlay);
+wireToggle("toggleRivers", () => riverOverlay);
+wireToggle("toggleLakes", () => lakeOverlay);
 wireToggle("toggleSettlements", () => settlementOverlay);
+document.getElementById("toggleWireframe")!.addEventListener("click", (event) => {
+  if (!worldMesh) return;
+  const material = worldMesh.material as THREE.MeshStandardMaterial;
+  material.wireframe = !material.wireframe;
+  (event.currentTarget as HTMLElement).classList.toggle("active", material.wireframe);
+});

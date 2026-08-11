@@ -119,13 +119,17 @@ export function generateWaterData(height: HeightField, riverIdPrefix: string): H
           const lakeId = `${riverIdPrefix}-lake-${lakeCount++}`;
           const cx = x / (width - 1);
           const cy = y / (height.height - 1);
-          const r = 0.006;
+          const contributingCells = Math.max(1, accumulation[cur]);
+          const r = Math.max(0.003, Math.min(0.018, Math.sqrt(contributingCells) / Math.max(width, h) * 0.35));
+          const polygon: Vec2[] = [];
+          for (let p = 0; p < 16; p++) {
+            const angle = (p / 16) * Math.PI * 2;
+            polygon.push([cx + Math.cos(angle) * r, cy + Math.sin(angle) * r]);
+          }
           lakes.push({
             id: lakeId,
-            polygon: [
-              [cx - r, cy - r], [cx + r, cy - r], [cx + r, cy + r], [cx - r, cy + r],
-            ],
-            depthM: 5,
+            polygon,
+            depthM: Math.round(Math.max(3, Math.min(30, Math.sqrt(contributingCells) * 0.8))),
           });
           terminatesIn = { type: "lake", featureId: lakeId };
         }
