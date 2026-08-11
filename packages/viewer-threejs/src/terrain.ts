@@ -24,6 +24,35 @@ const ABYSS_DEPTH = -3550;
 export const SKIRT_REACH = 220000;
 const SKIRT_STEP_FRACTIONS = [0.05, 0.12, 0.22, 0.38, 0.62, 1.0];
 
+// --- TEMPORARY DIAGNOSTIC INSTRUMENTATION (streak-bug investigation, see
+// docs handoff notes) -----------------------------------------------------
+// All three flags below default to false/off. They exist to let a later
+// pass reproduce and verify the "diagonal streaks in the World view" bug
+// without hunting for injection points. Search "DIAG_" to find every use.
+// Toggle via URL query params, e.g. ?diagCoreSkirt=1&diagWireframe=1 --
+// or flip the literal `false` defaults below for a hardcoded override.
+const params = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
+
+// DIAG_CORE_SKIRT_COLOR: when true, ignores the normal biome/water vertex
+// color entirely and instead colors every skirt vertex (skirtT > 0) bright
+// magenta (1,0,1) and every core vertex bright cyan (0,1,1). Used to check
+// whether the observed streaks fall in the skirt region, the core region,
+// or straddle the boundary between them.
+export const DIAG_CORE_SKIRT_COLOR = (params?.get("diagCoreSkirt") === "1") || false;
+
+// DIAG_WIREFRAME: when true, the material returned by buildWorldMesh has
+// wireframe rendering enabled, to inspect triangle shape/degeneracy near
+// the core/skirt seam.
+export const DIAG_WIREFRAME = (params?.get("diagWireframe") === "1") || false;
+
+// DIAG_FORCE_SKIRT_UNDERWATER: when true, every skirt vertex's starting
+// elevation (the "realH" that then gets blended toward ABYSS_DEPTH) is
+// forced to a fixed, safely-underwater -100 instead of the normal
+// clamped-boundary sample. Tests whether the streaks are caused by that
+// boundary sample carrying a positive (land) elevation out into the skirt.
+export const DIAG_FORCE_SKIRT_UNDERWATER = (params?.get("diagForceUnderwater") === "1") || false;
+// --- END TEMPORARY DIAGNOSTIC INSTRUMENTATION -----------------------------
+
 const SHALLOW_WATER = new THREE.Color(0x1c5a78);
 const DEEP_WATER = new THREE.Color(0x081c33);
 const BEACH_SAND = new THREE.Color(0xe3d6a8);
@@ -299,7 +328,11 @@ export function buildWorldMesh(world: WorldData): THREE.Mesh {
 
       const cx = Math.max(bounds.minX, Math.min(bounds.maxX, x));
       const cz = Math.max(bounds.minZ, Math.min(bounds.maxZ, z));
-      const realH = sampleField(softHeights, worldHeight.width, worldHeight.height, bounds, cx, cz);
+      let realH = sampleField(softHeights, worldHeight.width, worldHeight.height, bounds, cx, cz);
+      // DIAG_FORCE_SKIRT_UNDERWATER: see flag doc above -- overrides the
+      // skirt's starting elevation before the abyss blend below, regardless
+      // of what the (possibly land-carrying) boundary sample says.
+      if (DIAG_FORCE_SKIRT_UNDERWATER && skirtT > 0) realH = -100;
       const h = realH + (ABYSS_DEPTH - realH) * skirtT;
 
       // Color follows height, not "which mesh this used to be": pure
@@ -322,6 +355,14 @@ export function buildWorldMesh(world: WorldData): THREE.Mesh {
         }
       }
       if (skirtT > 0) tmpColor.lerp(DEEP_WATER, skirtT);
+
+      // DIAG_CORE_SKIRT_COLOR: see flag doc above -- unmistakable debug
+      // colors that ignore the normal shading entirely, applied last so
+      // nothing above this point can dilute them.
+      if (DIAG_CORE_SKIRT_COLOR) {
+        if (skirtT > 0) tmpColor.setRGB(1, 0, 1);
+        else tmpColor.setRGB(0, 1, 1);
+      }
 
       const vi = iz * gridW + ix;
       positions[vi * 3] = x;
@@ -351,6 +392,8 @@ export function buildWorldMesh(world: WorldData): THREE.Mesh {
   geometry.computeVertexNormals();
 
   const material = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.92, metalness: 0.02 });
+  // DIAG_WIREFRAME: see flag doc above.
+  if (DIAG_WIREFRAME) material.wireframe = true;
   const mesh = new THREE.Mesh(geometry, material);
   mesh.receiveShadow = true;
   return mesh;
