@@ -119,9 +119,8 @@ export function sampleHeight(continent: ContinentData, u: number, v: number): nu
  * sampleHeightWithSkirt).
  *
  * The coastline read as "jagged, not an actual beach" even after softening
- * how quickly the ocean floor drops (elevation/index.ts) and after adding a
- * flat water plane on top (buildOceanSurface) -- because neither of those
- * touches the actual land/water boundary LINE, which is wherever the
+ * how quickly the ocean floor drops (elevation/index.ts) -- because that
+ * doesn't touch the actual land/water boundary LINE, which is wherever the
  * terrain mesh's own triangulation crosses sea level. That line is exactly
  * as jagged as the underlying grid's small-scale height variation, at any
  * resolution. A small blur on the height values feeding the visual mesh
@@ -129,6 +128,16 @@ export function sampleHeight(continent: ContinentData, u: number, v: number): nu
  * kilometers) are essentially untouched by a ~200m-radius blur, but the
  * coastline crossing, sensitive to every small local bump, comes out
  * visibly smoother.
+ *
+ * (An earlier attempt at this fix added a separate flat, semi-transparent
+ * water plane covering the whole world at a fixed sea-level height, on the
+ * theory that a flat surface has no facets to hide underwater jaggedness
+ * behind. It didn't touch the boundary line either, so it was removed --
+ * and worse, being nearly coincident in extent with this mesh, it
+ * z-fought with the actual terrain across large areas: flickering "static"
+ * wherever land sat close to that fixed height, and a striped Moire
+ * pattern out past the coast where the flat plane's height repeatedly
+ * crossed the sloping seabed's. Kevin caught both from screenshots.)
  */
 function buildSoftenedHeights(worldHeight: WorldHeightData, radiusCells: number): Float32Array {
   const { width, height: gridH, data } = worldHeight;
@@ -344,38 +353,6 @@ export function buildWorldMesh(world: WorldData): THREE.Mesh {
   const material = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.92, metalness: 0.02 });
   const mesh = new THREE.Mesh(geometry, material);
   mesh.receiveShadow = true;
-  return mesh;
-}
-
-/**
- * A single flat plane at sea level, covering the same footprint as the
- * world mesh (real bounds + skirt), semi-transparent so the terrain's own
- * depth-shaded color still reads through it. This is what actually hides
- * the coastline's stair-stepped underwater geometry: at any given mesh
- * resolution, a heightfield's own underwater slope shows faceted normals as
- * it steps down toward the seabed, which is what read as "jagged edges,
- * not an actual beach" -- softening the depth falloff (elevation/index.ts)
- * helped only marginally, because the faceting is inherent to rendering a
- * *sloped* surface at a grazing angle, not primarily a function of how
- * steep the slope is. A flat plane has no facets at all: wherever land
- * rises above sea level it naturally occludes this plane (ordinary depth
- * testing), and wherever terrain dips below sea level, this smooth, flat
- * surface is what you actually see instead of the jagged seabed beneath
- * it -- the coastline reads as clean because the visible water edge no
- * longer depends on the terrain mesh's own triangulation at all.
- */
-export function buildOceanSurface(worldHeight: WorldHeightData): THREE.Mesh {
-  const { bounds } = worldHeight;
-  const pad = SKIRT_REACH * 0.95;
-  const width = bounds.maxX - bounds.minX + pad * 2;
-  const depth = bounds.maxZ - bounds.minZ + pad * 2;
-  const geometry = new THREE.PlaneGeometry(width, depth, 1, 1);
-  geometry.rotateX(-Math.PI / 2);
-  const material = new THREE.MeshStandardMaterial({
-    color: 0x1c5a78, transparent: true, opacity: 0.82, roughness: 0.25, metalness: 0.05,
-  });
-  const mesh = new THREE.Mesh(geometry, material);
-  mesh.position.set((bounds.minX + bounds.maxX) / 2, 0.3, (bounds.minZ + bounds.maxZ) / 2);
   return mesh;
 }
 

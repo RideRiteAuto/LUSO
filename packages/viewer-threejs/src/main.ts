@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { loadWorld, loadEmbeddedWorld } from "./worldData.js";
-import { buildWorldMesh, buildOceanSurface, sampleHeightWithSkirt, SKIRT_REACH } from "./terrain.js";
+import { buildWorldMesh, sampleHeightWithSkirt, SKIRT_REACH } from "./terrain.js";
 import { buildZoneBoundaries, buildRivers, buildLakes, buildRoads, buildSettlements, buildSeaRegions } from "./overlays.js";
 import { uvToWorld } from "./layout.js";
 import { FlightController } from "./flightControls.js";
@@ -80,7 +80,6 @@ async function boot() {
   // lined up at the coast and read as "two models stitched together" with
   // the seabed visibly peeking through the seams (see terrain.ts).
   scene.add(buildWorldMesh(world));
-  scene.add(buildOceanSurface(world.worldHeight));
 
   // Let fly/walk roam well past the real generated coastline into the
   // synthetic ocean skirt (terrain.ts) -- the skirt itself reaches full
