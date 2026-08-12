@@ -153,7 +153,7 @@ async function boot() {
   worldRoot.add(environmentDressing.group);
   traversalBookmarks = buildTraversalBookmarks(world, (x, z) => collisionHeights!.sample(x, z));
   const reviewBookmark = traversalBookmarks.find((candidate) => candidate.id === "alvora-resource-review");
-  resourceReviewYard = new ResourceReviewYard(sampleDressingGround);
+  resourceReviewYard = await ResourceReviewYard.create(sampleDressingGround);
   if (reviewBookmark) resourceReviewYard.setAnchor(reviewBookmark);
   worldRoot.add(resourceReviewYard.group);
   const bookmarkSelect = document.getElementById("bookmarkSelect") as HTMLSelectElement;
@@ -168,6 +168,8 @@ async function boot() {
     const bookmark = traversalBookmarks.find((candidate) => candidate.id === "alvora-resource-review");
     if (!bookmark || !flight) return;
     resourceReviewYard!.visible = true;
+    environmentDressing?.setEnabled(false);
+    document.getElementById("toggleDressing")!.classList.remove("active");
     resourceReview.classList.add("active");
     document.getElementById("reviewLegend")!.classList.add("visible");
     controls.enabled = false;
@@ -287,6 +289,7 @@ function animate(timestamp: number) {
   if (environmentDressing) environmentDressing.update(
     worldOrigin.worldX(camera.position.x), worldOrigin.worldZ(camera.position.z),
   );
+  resourceReviewYard?.updateWind(timer.getElapsed());
   renderer.render(scene, camera);
   frameSamples.push(rawDelta * 1000);
   if (frameSamples.length > 180) frameSamples.shift();
@@ -497,6 +500,8 @@ document.getElementById("teleportBookmark")!.addEventListener("click", () => {
   if (!bookmark) return;
   if (resourceReviewYard) {
     resourceReviewYard.visible = bookmark.id === "alvora-resource-review";
+    environmentDressing?.setEnabled(!resourceReviewYard.visible);
+    document.getElementById("toggleDressing")!.classList.toggle("active", !resourceReviewYard.visible);
     document.getElementById("resourceReview")!.classList.toggle("active", resourceReviewYard.visible);
     document.getElementById("reviewLegend")!.classList.toggle("visible", resourceReviewYard.visible);
   }

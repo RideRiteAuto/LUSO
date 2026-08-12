@@ -33,6 +33,10 @@ class NodeFileReader {
 
 Object.assign(globalThis, { FileReader: NodeFileReader });
 
+// Review runtime uses photographic/procedural texture sources, while portable
+// GLBs keep vertex colors and material response. Exporting in Node must not
+// attempt to serialize a DOM canvas that does not exist here.
+
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const outputRoot = path.resolve(scriptDir, "../public/assets/resources");
 const families: ResourceFamilyId[] = ["pine", "birch", "copper", "tin", "stone", "redberry"];

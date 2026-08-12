@@ -1,0 +1,29 @@
+{
+  "sourcePage": "https://polyhaven.com/a/pine_tree_01",
+  "creator": "Rico Cilliers / Rob Tuytel / Poly Haven",
+  "license": "CC0 1.0",
+  "acquiredAt": "2026-08-12T22:52:56.310Z",
+  "files": [
+    {
+      "file": "pine-twig-diff.png",
+      "url": "https://dl.polyhaven.org/file/ph-assets/Models/png/1k/pine_tree_01/pine_tree_01_twig_diff_1k.png",
+      "role": "pine foliage color",
+      "bytes": 3208228,
+      "sha256": "d02c031de64b8ad671f3dd0da19870fa4783d912ae6674aeab0702871deeaeaa"
+    },
+    {
+      "file": "pine-twig-alpha.png",
+      "url": "https://dl.polyhaven.org/file/ph-assets/Models/png/1k/pine_tree_01/pine_tree_01_twig_alpha_1k.png",
+      "role": "pine foliage opacity",
+      "bytes": 351928,
+      "sha256": "6f91aa99f2c27108d6f817f874954aa7df8bfbb4dea2673e9322555a6ae79d99"
+    },
+    {
+      "file": "pine-bark-diff.jpg",
+      "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/pine_tree_01/pine_tree_01_bark_diff_1k.jpg",
+      "role": "pine bark color",
+      "bytes": 725265,
+      "sha256": "5c76836b01c3536fa0e24207b67bf4f3315b53ebe2b4ecc6f08dfcf3f8d74929"
+    }
+  ]
+}

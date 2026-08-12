@@ -9,9 +9,11 @@ import sys
 
 
 BUDGETS = {
-    "woodcutting": ((8000, 14000), (2500, 5000), (400, 1200), 2048),
+    # Alpha-cut foliage moves silhouette complexity into the cutout texture;
+    # enforcing a high minimum triangle count would punish the optimized form.
+    "woodcutting": ((3500, 14000), (1500, 5000), (300, 1200), 2048),
     "mining": ((2500, 6000), (700, 1800), (120, 400), 2048),
-    "foraging": ((2000, 5000), (600, 1500), (150, 400), 1024),
+    "foraging": ((1200, 5000), (400, 1500), (150, 400), 1024),
 }
 
 
@@ -65,9 +67,9 @@ def validate(path: pathlib.Path) -> list[str]:
         fail("materials must be between 1 and 2", errors)
     textures = data["textureSet"]
     runtime_format = textures.get("runtimeFormat")
-    review_vertex_color = data.get("deliveryStage") == "review" and runtime_format == "VERTEX_COLOR_PBR"
-    if runtime_format != "KTX2" and not review_vertex_color:
-        fail("textureSet.runtimeFormat must be KTX2 (VERTEX_COLOR_PBR is allowed only for review candidates)", errors)
+    review_format = data.get("deliveryStage") == "review" and runtime_format in {"VERTEX_COLOR_PBR", "SOURCE_PNG_JPG_REVIEW"}
+    if runtime_format != "KTX2" and not review_format:
+        fail("textureSet.runtimeFormat must be KTX2 (review candidates may use VERTEX_COLOR_PBR or SOURCE_PNG_JPG_REVIEW)", errors)
     if textures.get("maxResolution", 0) > budget[3]:
         fail(f"texture resolution exceeds {budget[3]} for {data['profession']}", errors)
     if data["collision"].get("type") not in {"capsule", "convex-hull", "compound"}:

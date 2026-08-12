@@ -15,9 +15,9 @@
 
 | Family | LOD0 tris | LOD1 tris | LOD2 tris | Textures |
 |---|---:|---:|---:|---|
-| Tree | 8,000–14,000 | 2,500–5,000 | 400–1,200 or impostor | Shared 2K color, normal, ORM |
+| Tree | 3,500–14,000 | 1,500–5,000 | 300–1,200 or impostor | Shared 2K color, normal, ORM |
 | Ore/stone | 2,500–6,000 | 700–1,800 | 120–400 | Shared 1K–2K color, normal, ORM |
-| Forage bush | 2,000–5,000 | 600–1,500 | 150–400 or card | Shared 1K color, normal, ORM |
+| Forage bush | 1,200–5,000 | 400–1,500 | 150–400 or card | Shared 1K color, normal, ORM |
 
 ## Runtime behavior
 

@@ -12,6 +12,7 @@
     "textures:ktx2": "node scripts/prepare-terrain-textures.mjs",
     "assets:environment": "node scripts/download-environment-assets.mjs",
     "assets:resources": "tsx scripts/export-resource-models.ts",
+    "textures:resources": "node scripts/download-resource-textures.mjs",
     "build:artifact": "node scripts/build-artifact.mjs"
   },
   "dependencies": {

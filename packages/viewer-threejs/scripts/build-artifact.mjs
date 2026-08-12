@@ -94,9 +94,15 @@ const bundledJs = buildResult.outputFiles[0].text.replace(/<\/script/gi, "<\\/sc
 const embeddedJson = JSON.stringify(embedded).replace(/<\/script/gi, "<\\/script");
 const terrainJson = JSON.stringify(terrainAssets).replace(/<\/script/gi, "<\\/script");
 const environmentJson = JSON.stringify(environmentAssets).replace(/<\/script/gi, "<\\/script");
+const resourceTextureAssets = Object.fromEntries([
+  ["pine-twig-diff.png", "image/png"],
+  ["pine-twig-alpha.png", "image/png"],
+  ["pine-bark-diff.jpg", "image/jpeg"],
+].map(([file, mime]) => [file, `data:${mime};base64,${readFileSync(path.join(packageRoot, "public", "assets", "resource-textures", file)).toString("base64")}`]));
+const resourceTextureJson = JSON.stringify(resourceTextureAssets).replace(/<\/script/gi, "<\\/script");
 
 const moduleTag = '<script type="module" src="/src/main.ts"></script>';
-const inlineScripts = `<script>window.__NEVORA_WORLD__ = ${embeddedJson};window.__NEVORA_TERRAIN_ASSETS__ = ${terrainJson};window.__NAVORA_ENVIRONMENT_ASSETS__ = ${environmentJson};</script>\n<script>${bundledJs}</script>`;
+const inlineScripts = `<script>window.__NEVORA_WORLD__ = ${embeddedJson};window.__NEVORA_TERRAIN_ASSETS__ = ${terrainJson};window.__NAVORA_ENVIRONMENT_ASSETS__ = ${environmentJson};window.__NAVORA_RESOURCE_TEXTURES__ = ${resourceTextureJson};</script>\n<script>${bundledJs}</script>`;
 const sourceHtml = readFileSync(path.join(packageRoot, "index.html"), "utf-8");
 if (!sourceHtml.includes(moduleTag)) throw new Error(`Expected module tag not found in ${path.join(packageRoot, "index.html")}`);
 const html = sourceHtml.replace(moduleTag, inlineScripts);

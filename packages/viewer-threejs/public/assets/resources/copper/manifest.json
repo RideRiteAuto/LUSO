@@ -13,9 +13,9 @@
   "materialJustification": "Host rock remains rough/nonmetal while exposed mineral seams use a separately batched metallic response.",
   "textureSet": { "maxResolution": 0, "runtimeFormat": "VERTEX_COLOR_PBR", "channels": ["color", "roughness", "metalness"], "promotionTarget": "shared 1K KTX2 color + normal + ORM" },
   "variants": [
-    { "id": "small", "lodTriangles": [2608, 764, 224], "runtimeFiles": ["small-lod0.glb", "small-lod1.glb", "small-lod2.glb"] },
-    { "id": "standard", "lodTriangles": [2608, 944, 224], "runtimeFiles": ["standard-lod0.glb", "standard-lod1.glb", "standard-lod2.glb"] },
-    { "id": "mature", "lodTriangles": [2608, 944, 224], "runtimeFiles": ["mature-lod0.glb", "mature-lod1.glb", "mature-lod2.glb"] }
+    { "id": "small", "lodTriangles": [4220, 980, 140], "runtimeFiles": ["small-lod0.glb", "small-lod1.glb", "small-lod2.glb"] },
+    { "id": "standard", "lodTriangles": [4220, 980, 140], "runtimeFiles": ["standard-lod0.glb", "standard-lod1.glb", "standard-lod2.glb"] },
+    { "id": "mature", "lodTriangles": [4220, 980, 140], "runtimeFiles": ["mature-lod0.glb", "mature-lod1.glb", "mature-lod2.glb"] }
   ],
   "collision": { "type": "convex-hull", "embeddedMetadata": true },
   "lodDistancesMeters": [35, 90],

@@ -9,15 +9,15 @@
   "realWorldReference": "Temperate pine growth habit: monopodial trunk, irregular whorled branches, deep-green needle masses and exposed root flare",
   "scaleMeters": { "minHeight": 12.5, "maxHeight": 23.5 },
   "interactionDistanceMeters": 6,
-  "materials": 1,
-  "textureSet": { "maxResolution": 0, "runtimeFormat": "VERTEX_COLOR_PBR", "channels": ["color", "roughness"], "promotionTarget": "shared 2K KTX2 color + normal + ORM" },
+  "materials": 2,
+  "textureSet": { "maxResolution": 1024, "runtimeFormat": "SOURCE_PNG_JPG_REVIEW", "channels": ["foliageColor", "foliageAlpha", "barkColor"], "promotionTarget": "shared 2K KTX2 color + normal + ORM" },
   "variants": [
-    { "id": "small", "lodTriangles": [9900, 3560, 440], "runtimeFiles": ["small-lod0.glb", "small-lod1.glb", "small-lod2.glb"] },
-    { "id": "standard", "lodTriangles": [11972, 4160, 500], "runtimeFiles": ["standard-lod0.glb", "standard-lod1.glb", "standard-lod2.glb"] },
-    { "id": "mature", "lodTriangles": [13452, 4160, 520], "runtimeFiles": ["mature-lod0.glb", "mature-lod1.glb", "mature-lod2.glb"] }
+    { "id": "small", "lodTriangles": [4488, 2232, 404], "runtimeFiles": ["small-lod0.glb", "small-lod1.glb", "small-lod2.glb"] },
+    { "id": "standard", "lodTriangles": [5122, 2736, 464], "runtimeFiles": ["standard-lod0.glb", "standard-lod1.glb", "standard-lod2.glb"] },
+    { "id": "mature", "lodTriangles": [6100, 2880, 464], "runtimeFiles": ["mature-lod0.glb", "mature-lod1.glb", "mature-lod2.glb"] }
   ],
   "collision": { "type": "capsule", "embeddedMetadata": true },
   "lodDistancesMeters": [55, 150],
-  "provenance": [],
+  "provenance": [{ "url": "https://polyhaven.com/a/pine_tree_01", "license": "CC0 1.0", "sha256": "see public/assets/resource-textures/provenance.json", "use": "1K twig diffuse/alpha and bark diffuse review sources; project-authored geometry" }],
   "review": { "yardApproved": false, "crowdedSceneMeasured": false }
 }
