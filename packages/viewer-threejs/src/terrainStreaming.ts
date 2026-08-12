@@ -2,7 +2,7 @@ import * as THREE from "three/webgpu";
 import type { WorldData } from "./worldData.js";
 import { buildTerrainColorMap, SKIRT_REACH } from "./terrain.js";
 import { selectTerrainTiles, type TerrainLodSettings, type TerrainTileSpec } from "./terrainLod.js";
-import { AlvoraTerrainMaterial, type TerrainMaterialDebugMode } from "./terrainMaterial.js";
+import { AlvoraTerrainMaterial, type TerrainMaterialDebugMode, type TerrainQuality } from "./terrainMaterial.js";
 
 export interface TerrainStreamingStats {
   active: number;
@@ -240,8 +240,12 @@ export class TerrainStreamer {
   );
   private readonly expandedBounds: { minX: number; minZ: number; maxX: number; maxZ: number };
 
-  constructor(private readonly world: WorldData, quality: "high" | "balanced" | "compatibility") {
-    this.terrainMaterial = new AlvoraTerrainMaterial(quality);
+  static async create(world: WorldData, quality: TerrainQuality, renderer: THREE.WebGPURenderer): Promise<TerrainStreamer> {
+    return new TerrainStreamer(world, quality, await AlvoraTerrainMaterial.create(renderer, quality));
+  }
+
+  private constructor(private readonly world: WorldData, quality: TerrainQuality, terrainMaterial: AlvoraTerrainMaterial) {
+    this.terrainMaterial = terrainMaterial;
     this.settings = quality === "high"
       ? { minTileSize: 128, splitDistance: 1.8, maxTiles: 240 }
       : quality === "compatibility"

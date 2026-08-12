@@ -5,7 +5,9 @@ export type MovementMode = "fly" | "walk";
 
 const LOOK_SENSITIVITY = 0.0023;
 const MAX_PITCH = Math.PI / 2 - 0.02;
-const EYE_HEIGHT_M = 1.7;
+// Neutral adult standing eye height; this is camera height above the
+// capsule's feet, not total character height.
+const EYE_HEIGHT_M = 1.72;
 const CAPSULE_RADIUS_M = 0.35;
 const FLY_SPEED = { base: 4000, min: 200, max: 20000, boost: 4 };
 

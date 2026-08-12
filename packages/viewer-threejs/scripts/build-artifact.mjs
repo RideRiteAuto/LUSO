@@ -25,6 +25,11 @@ function readBase64(name) {
   return readFileSync(path.join(outputDir, name)).toString("base64");
 }
 
+function readTerrainTexture(layer, channel) {
+  const file = path.join(packageRoot, "assets", "terrain", "source", `${layer}_${channel}_2k.jpg`);
+  return `data:image/jpeg;base64,${readFileSync(file).toString("base64")}`;
+}
+
 console.log(`Building artifact for seed ${seed} from ${outputDir}`);
 
 const manifest = readJson("manifest.json");
@@ -53,6 +58,19 @@ const embedded = {
   worldHeightBase64: readBase64("heightmap.world.raw"),
 };
 
+// Standalone file:// artifacts cannot fetch KTX2 transcoder workers. Embed the
+// reviewed 2K sources instead; the normal Vite build uses GPU-compressed KTX2.
+const terrainAssets = {};
+for (const layer of ["sand", "grass", "soil", "forest", "rock", "scree", "snow"]) {
+  terrainAssets[layer] = { albedo: readTerrainTexture(layer, "albedo") };
+}
+for (const layer of ["sand", "grass", "soil", "rock", "snow"]) {
+  terrainAssets[layer].normal = readTerrainTexture(layer, "normal");
+}
+for (const layer of ["sand", "grass", "rock"]) {
+  terrainAssets[layer].roughness = readTerrainTexture(layer, "roughness");
+}
+
 console.log("Bundling viewer JS with esbuild…");
 const buildResult = await esbuild.build({
   entryPoints: [path.join(packageRoot, "src", "main.ts")],
@@ -65,9 +83,10 @@ const buildResult = await esbuild.build({
 });
 const bundledJs = buildResult.outputFiles[0].text.replace(/<\/script/gi, "<\\/script");
 const embeddedJson = JSON.stringify(embedded).replace(/<\/script/gi, "<\\/script");
+const terrainJson = JSON.stringify(terrainAssets).replace(/<\/script/gi, "<\\/script");
 
 const moduleTag = '<script type="module" src="/src/main.ts"></script>';
-const inlineScripts = `<script>window.__NEVORA_WORLD__ = ${embeddedJson};</script>\n<script>${bundledJs}</script>`;
+const inlineScripts = `<script>window.__NEVORA_WORLD__ = ${embeddedJson};window.__NEVORA_TERRAIN_ASSETS__ = ${terrainJson};</script>\n<script>${bundledJs}</script>`;
 const sourceHtml = readFileSync(path.join(packageRoot, "index.html"), "utf-8");
 if (!sourceHtml.includes(moduleTag)) throw new Error(`Expected module tag not found in ${path.join(packageRoot, "index.html")}`);
 const html = sourceHtml.replace(moduleTag, inlineScripts);

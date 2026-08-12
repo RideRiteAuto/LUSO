@@ -4,3 +4,5 @@ dist-artifact/
 output/
 *.log
 .DS_Store
+.tools/
+packages/viewer-threejs/assets/terrain/source/*.jpg

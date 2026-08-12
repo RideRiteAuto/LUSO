@@ -123,9 +123,9 @@ async function boot() {
   const manifest = world.manifest;
   loadedWorld = world;
 
-  statusEl.textContent = "starting terrain stream…";
+  statusEl.textContent = "loading scanned terrain materials…";
   collisionHeights = new CollisionHeightCache(world.worldHeight, manifest.seed, sampleHeightWithSkirt);
-  terrainStreamer = new TerrainStreamer(world, qualityName);
+  terrainStreamer = await TerrainStreamer.create(world, qualityName, renderer);
   worldRoot.add(terrainStreamer.group);
   traversalBookmarks = buildTraversalBookmarks(world, (x, z) => collisionHeights!.sample(x, z));
   const bookmarkSelect = document.getElementById("bookmarkSelect") as HTMLSelectElement;
@@ -287,9 +287,20 @@ function setActiveView(active: HTMLElement) {
   active.classList.add("active");
 }
 
+function setGroundCameraProjection(grounded: boolean) {
+  // A 4 m near plane intersects the ground under a 1.72 m eye and literally
+  // cuts away the foreground. Use an FPS projection for walking and retain
+  // the long-range precision settings for scouting/overview modes.
+  camera.near = grounded ? 0.08 : 4;
+  camera.far = grounded ? 220000 : 500000;
+  camera.fov = grounded ? 62 : 55;
+  camera.updateProjectionMatrix();
+}
+
 function exitFlight() {
   flying = false;
   controls.enabled = true;
+  setGroundCameraProjection(false);
   flyHintEl.classList.remove("visible");
   crosshairEl.classList.remove("visible");
   if (![viewOrbitBtn, viewTopBtn, viewWorldBtn].some((b) => b.classList.contains("active"))) {
@@ -349,6 +360,7 @@ viewFlyBtn.addEventListener("click", () => {
   controls.enabled = false;
   setActiveView(viewFlyBtn);
   flying = true;
+  setGroundCameraProjection(false);
   flyHintEl.textContent = "Click world for mouse lock (drag fallback) · WASD move · Space/Ctrl up-down · Shift boost · scroll = speed · Esc exit";
   flyHintEl.classList.add("visible");
   crosshairEl.classList.add("visible");
@@ -366,6 +378,7 @@ viewWalkBtn.addEventListener("click", () => {
   controls.enabled = false; // see viewFlyBtn's handler for why this matters
   setActiveView(viewWalkBtn);
   flying = true;
+  setGroundCameraProjection(true);
   flyHintEl.textContent = "Click world for mouse lock (drag fallback) · WASD move · Shift sprint · Space jump / swim up · Ctrl swim down · Esc exit";
   flyHintEl.classList.add("visible");
   crosshairEl.classList.add("visible");
@@ -389,6 +402,7 @@ document.getElementById("teleportBookmark")!.addEventListener("click", () => {
   controls.enabled = false;
   setActiveView(viewWalkBtn);
   flying = true;
+  setGroundCameraProjection(true);
   flyHintEl.textContent = "Click world for mouse lock (drag fallback) · WASD move · Shift sprint · Space jump / swim up · Ctrl swim down · Esc exit";
   flyHintEl.classList.add("visible");
   crosshairEl.classList.add("visible");
