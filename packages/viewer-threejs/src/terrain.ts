@@ -1,4 +1,4 @@
-import * as THREE from "three";
+import * as THREE from "three/webgpu";
 import type { ContinentData, Manifest, WorldData, WorldHeightData } from "./worldData.js";
 import { continentOriginX, continentOriginZ } from "./layout.js";
 
@@ -271,6 +271,52 @@ function findOwningContinent(
     if (!best || dist < best.dist) best = { id, u: Math.max(0, Math.min(1, u)), v: Math.max(0, Math.min(1, v)), dist };
   }
   return best;
+}
+
+export interface TerrainColorMap {
+  data: Uint8Array;
+  width: number;
+  height: number;
+}
+
+/**
+ * Builds a compact, unified lookup texture for worker-generated terrain
+ * tiles. The source remains the generated biome maps; this merely avoids
+ * sending DOM images into workers and keeps the current zone colors intact
+ * until Phase 4 replaces them with layered terrain materials.
+ */
+export function buildTerrainColorMap(world: WorldData, targetWidth = 1024): TerrainColorMap {
+  const { manifest, worldHeight, continents } = world;
+  const { bounds } = worldHeight;
+  const width = Math.min(targetWidth, worldHeight.width);
+  const height = Math.max(2, Math.round(width * (bounds.maxZ - bounds.minZ) / (bounds.maxX - bounds.minX)));
+  const data = new Uint8Array(width * height * 3);
+  const biomeFields = new Map<string, BlurredBiomeField>();
+  for (const id of manifest.continents) biomeFields.set(id, buildBlurredBiomeField(continents[id].biomeImage));
+  const color = new THREE.Color();
+  const biome = new THREE.Color();
+
+  for (let z = 0; z < height; z++) {
+    const worldZ = bounds.minZ + (z / (height - 1)) * (bounds.maxZ - bounds.minZ);
+    for (let x = 0; x < width; x++) {
+      const worldX = bounds.minX + (x / (width - 1)) * (bounds.maxX - bounds.minX);
+      const h = nearestUnifiedHeight(worldHeight, worldX, worldZ);
+      if (h <= 0) color.copy(waterColor(h));
+      else if (h <= 8) color.copy(waterColor(0)).lerp(BEACH_SAND, smoothstep(0, 8, h));
+      else {
+        const owner = findOwningContinent(worldX, worldZ, manifest.continents, manifest);
+        if (owner) {
+          sampleBlurredBiome(biomeFields.get(owner.id)!, owner.u, owner.v, biome);
+          color.copy(biome);
+        } else color.copy(LAND_FALLBACK);
+      }
+      const i = (z * width + x) * 3;
+      data[i] = Math.round(color.r * 255);
+      data[i + 1] = Math.round(color.g * 255);
+      data[i + 2] = Math.round(color.b * 255);
+    }
+  }
+  return { data, width, height };
 }
 
 function buildAxis(coreCount: number, min: number, max: number, reach: number): number[] {

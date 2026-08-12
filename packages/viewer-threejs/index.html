@@ -90,6 +90,10 @@
         <div class="row"><span class="muted">Position</span><span id="cameraPos" class="val">—</span></div>
         <div class="row"><span class="muted">Altitude / ground</span><span id="altitude" class="val">—</span></div>
         <div class="row"><span class="muted">Mode / speed</span><span id="movement" class="val">Orbit</span></div>
+        <div class="row"><span class="muted">Renderer</span><span id="rendererBackend" class="val">initializing…</span></div>
+        <div class="row"><span class="muted">Performance</span><span id="performance" class="val">sampling…</span></div>
+        <div class="row"><span class="muted">Scene</span><span id="sceneStats" class="val">—</span></div>
+        <div class="row"><span class="muted">Streaming</span><span id="streamingStats" class="val">waiting…</span></div>
         <div class="group">
           <span class="group-label">Camera</span>
           <button id="viewOrbit" class="active">Orbit</button>
@@ -105,6 +109,8 @@
           <button id="toggleLakes" class="active">Lakes</button>
           <button id="toggleSettlements" class="active">Settlements</button>
           <button id="toggleWireframe">Wireframe</button>
+          <button id="toggleTileLod">Tile LOD</button>
+          <button id="freezeStreaming">Freeze stream</button>
         </div>
         <div class="legend" id="legend"></div>
       </div>

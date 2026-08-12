@@ -10,7 +10,7 @@
     "generate": "npm run generate -w @nevora/generator --",
     "viewer": "npm run dev -w @nevora/viewer-threejs",
     "build": "npm run build -w @nevora/generator && npm run build -w @nevora/viewer-threejs",
-    "test": "npm test -w @nevora/generator"
+    "test": "npm test -w @nevora/generator && npm test -w @nevora/viewer-threejs"
   },
   "engines": {
     "node": ">=20"

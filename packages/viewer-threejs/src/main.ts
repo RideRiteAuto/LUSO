@@ -1,13 +1,26 @@
-import * as THREE from "three";
-import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
+import * as THREE from "three/webgpu";
+import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { loadWorld, loadEmbeddedWorld } from "./worldData.js";
-import { buildWorldMesh, sampleHeightWithSkirt, sampleWorldHeight, SKIRT_REACH } from "./terrain.js";
+import { sampleHeightWithSkirt, sampleWorldHeight, SKIRT_REACH } from "./terrain.js";
+import { CollisionHeightCache } from "./terrainLod.js";
+import { TerrainStreamer } from "./terrainStreaming.js";
 import { buildZoneBoundaries, buildRivers, buildLakes, buildRoads, buildSettlements, buildSeaRegions } from "./overlays.js";
 import { uvToWorld } from "./layout.js";
 import { FlightController } from "./flightControls.js";
+import { CameraRelativeOrigin } from "./worldOrigin.js";
 
 const params = new URLSearchParams(location.search);
 const seed = Number(params.get("seed") ?? 48291);
+const streamTourRequested = params.get("streamTour") === "1";
+const requestedRenderer = params.get("renderer") === "webgl" ? "webgl" : "auto";
+const qualityName = params.get("quality") === "high" || params.get("quality") === "compatibility"
+  ? params.get("quality")!
+  : "balanced";
+const quality = {
+  high: { pixelRatioCap: 2 },
+  balanced: { pixelRatioCap: 1.5 },
+  compatibility: { pixelRatioCap: 1 },
+}[qualityName];
 
 const statusEl = document.getElementById("status")!;
 const seedValEl = document.getElementById("seedVal")!;
@@ -16,16 +29,36 @@ const settleCountEl = document.getElementById("settleCount")!;
 const cameraPosEl = document.getElementById("cameraPos")!;
 const altitudeEl = document.getElementById("altitude")!;
 const movementEl = document.getElementById("movement")!;
+const rendererBackendEl = document.getElementById("rendererBackend")!;
+const performanceEl = document.getElementById("performance")!;
+const sceneStatsEl = document.getElementById("sceneStats")!;
+const streamingStatsEl = document.getElementById("streamingStats")!;
 const legendEl = document.getElementById("legend")!;
 
 seedValEl.textContent = String(seed);
 
 const app = document.getElementById("app")!;
-const renderer = new THREE.WebGLRenderer({ antialias: true });
+const renderer = new THREE.WebGPURenderer({
+  antialias: qualityName !== "compatibility",
+  forceWebGL: requestedRenderer === "webgl",
+});
 renderer.setSize(window.innerWidth, window.innerHeight);
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, quality.pixelRatioCap));
 renderer.shadowMap.enabled = false;
 app.appendChild(renderer.domElement);
+
+type RendererBackend = { isWebGPUBackend?: boolean; compatibilityMode?: boolean };
+
+function activeBackendLabel(): string {
+  const backend = (renderer as unknown as { backend: RendererBackend }).backend;
+  if (backend.isWebGPUBackend) return backend.compatibilityMode ? "WebGPU compatibility" : "WebGPU";
+  return "WebGL 2 fallback";
+}
+
+function updateBackendLabel() {
+  const gpuAvailable = "gpu" in navigator;
+  rendererBackendEl.textContent = `${activeBackendLabel()} · ${qualityName} · GPU API ${gpuAvailable ? "available" : "unavailable"}`;
+}
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x0a1626);
@@ -46,9 +79,14 @@ controls.minDistance = 3;
 controls.maxDistance = 280000;
 controls.update();
 
+const worldRoot = new THREE.Group();
+scene.add(worldRoot);
+const worldOrigin = new CameraRelativeOrigin(worldRoot);
+
 let flight: FlightController | null = null; // created once world data (needed for walk-mode grounding) has loaded
 let flying = false;
-const clock = new THREE.Clock();
+const timer = new THREE.Timer();
+timer.connect(document);
 
 const hemi = new THREE.HemisphereLight(0xbcd4ff, 0x1a2a1a, 0.9);
 scene.add(hemi);
@@ -68,7 +106,8 @@ let lakeOverlay: THREE.Group | null = null;
 let roadOverlay: THREE.Group | null = null;
 let settlementOverlay: THREE.Group | null = null;
 let worldFrame: { center: THREE.Vector3; distance: number } | null = null;
-let worldMesh: THREE.Mesh | null = null;
+let terrainStreamer: TerrainStreamer | null = null;
+let collisionHeights: CollisionHeightCache | null = null;
 let loadedWorld: Awaited<ReturnType<typeof loadWorld>> | null = null;
 
 async function boot() {
@@ -80,14 +119,10 @@ async function boot() {
   const manifest = world.manifest;
   loadedWorld = world;
 
-  statusEl.textContent = "building world mesh…";
-  // One continuous mesh -- both continents, the connecting seabed, and a
-  // smoothly-blended skirt beyond the real bounds -- replaces the old
-  // separately-built terrain + seabed meshes, which only approximately
-  // lined up at the coast and read as "two models stitched together" with
-  // the seabed visibly peeking through the seams (see terrain.ts).
-  worldMesh = buildWorldMesh(world);
-  scene.add(worldMesh);
+  statusEl.textContent = "starting terrain stream…";
+  collisionHeights = new CollisionHeightCache(world.worldHeight, manifest.seed, sampleHeightWithSkirt);
+  terrainStreamer = new TerrainStreamer(world, qualityName);
+  worldRoot.add(terrainStreamer.group);
 
   // Let fly/walk roam well past the real generated coastline into the
   // synthetic ocean skirt (terrain.ts) -- the skirt itself reaches full
@@ -100,27 +135,28 @@ async function boot() {
     minZ: worldBoundsRaw.minZ - SKIRT_REACH * 0.85, maxZ: worldBoundsRaw.maxZ + SKIRT_REACH * 0.85,
   };
   flight = new FlightController(camera, renderer.domElement, {
-    getGroundHeight: (x, z) => sampleHeightWithSkirt(world.worldHeight, x, z),
+    getGroundHeight: (x, z) => collisionHeights!.sample(x, z),
+    getWorldOffset: () => ({ x: worldOrigin.offset.x, z: worldOrigin.offset.z }),
     worldBounds: expandedBounds,
   });
 
   const zonesById = new Map(world.zones.map((z) => [z.id, z]));
 
   zoneOverlay = buildZoneBoundaries(world.zones, world.continents, manifest);
-  scene.add(zoneOverlay);
+  worldRoot.add(zoneOverlay);
 
   riverOverlay = buildRivers(world.continents, manifest);
-  scene.add(riverOverlay);
+  worldRoot.add(riverOverlay);
   lakeOverlay = buildLakes(world.continents, manifest);
-  scene.add(lakeOverlay);
+  worldRoot.add(lakeOverlay);
 
   roadOverlay = buildRoads(world.continents, manifest);
-  scene.add(roadOverlay);
+  worldRoot.add(roadOverlay);
 
   settlementOverlay = buildSettlements(world.settlements, zonesById, world.continents, manifest);
-  scene.add(settlementOverlay);
+  worldRoot.add(settlementOverlay);
 
-  scene.add(buildSeaRegions(world.seaRegions));
+  worldRoot.add(buildSeaRegions(world.seaRegions));
 
   seedValEl.textContent = String(manifest.seed);
   zoneCountEl.textContent = String(world.zones.length);
@@ -145,36 +181,83 @@ async function boot() {
     const cx = alvora.boundary.reduce((s, p) => s + p[0], 0) / alvora.boundary.length;
     const cz = alvora.boundary.reduce((s, p) => s + p[1], 0) / alvora.boundary.length;
     const [wx, wz] = uvToWorld(cx, cz, "valora", manifest);
-    controls.target.set(wx, 800, wz);
-    camera.position.set(wx - 7000, 7000, wz + 9500);
+    controls.target.set(worldOrigin.localX(wx), 800, worldOrigin.localZ(wz));
+    camera.position.set(worldOrigin.localX(wx - 7000), 7000, worldOrigin.localZ(wz + 9500));
     controls.update();
   }
+
+  const cameraWorld = worldOrigin.worldPoint(camera.position);
+  terrainStreamer.update(cameraWorld.x, cameraWorld.z);
 }
 
-boot().catch((err) => {
-  console.error(err);
-  statusEl.textContent = `error: ${err.message} — did you run "npm run generate -- --seed ${seed}" first?`;
-});
+const frameSamples: number[] = [];
+let telemetryElapsed = 0;
+let streamTourDistance = 0;
 
-function animate() {
-  requestAnimationFrame(animate);
-  const delta = Math.min(0.1, clock.getDelta()); // clamp so a stalled tab doesn't teleport the camera on resume
+function animate(timestamp: number) {
+  timer.update(timestamp);
+  const rawDelta = timer.getDelta();
+  const delta = Math.min(0.1, rawDelta); // clamp so a stalled tab doesn't teleport the camera on resume
+  if (streamTourRequested && terrainStreamer && streamTourDistance < 10000) {
+    const stream = terrainStreamer.stats;
+    if (stream.active === stream.desired && stream.queued === 0 && stream.building === 0) {
+      const step = Math.min(10000 - streamTourDistance, delta * 1000);
+      camera.position.x += step;
+      controls.target.x += step;
+      streamTourDistance += step;
+    }
+  }
   if (flying && flight) {
     flight.update(delta);
   } else {
     controls.update();
   }
+  if (terrainStreamer) {
+    worldOrigin.update(camera, controls);
+    terrainStreamer.update(worldOrigin.worldX(camera.position.x), worldOrigin.worldZ(camera.position.z));
+  }
   renderer.render(scene, camera);
+  frameSamples.push(rawDelta * 1000);
+  if (frameSamples.length > 180) frameSamples.shift();
+  telemetryElapsed += rawDelta;
+  if (telemetryElapsed >= 0.25 && frameSamples.length > 0) {
+    telemetryElapsed = 0;
+    const sorted = [...frameSamples].sort((a, b) => a - b);
+    const medianMs = sorted[Math.floor(sorted.length * 0.5)];
+    const p95Ms = sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * 0.95))];
+    performanceEl.textContent = `${(1000 / medianMs).toFixed(0)} fps · ${medianMs.toFixed(1)} ms med · ${p95Ms.toFixed(1)} ms p95`;
+    const info = renderer.info;
+    sceneStatsEl.textContent = `${info.render.drawCalls} draws · ${info.render.triangles.toLocaleString()} tris · ${info.memory.geometries} geo · ${info.memory.textures} tex`;
+    if (terrainStreamer) {
+      const stream = terrainStreamer.stats;
+      const tour = streamTourRequested ? ` · tour ${(streamTourDistance / 1000).toFixed(1)}/10km` : "";
+      streamingStatsEl.textContent = `${stream.active}/${stream.desired} tiles · g${stream.generation}/o${worldOrigin.rebaseCount} · q${stream.queued}+${stream.building} · ${stream.minSpacing}m near · ${stream.maxUpdateMs.toFixed(1)}ms main/${stream.maxWorkerMs.toFixed(1)}ms worker${stream.frozen ? " · frozen" : ""}${tour}`;
+    }
+  }
   if (loadedWorld) {
-    const ground = sampleHeightWithSkirt(loadedWorld.worldHeight, camera.position.x, camera.position.z);
-    cameraPosEl.textContent = `${camera.position.x.toFixed(0)}, ${camera.position.z.toFixed(0)} m`;
+    const worldX = worldOrigin.worldX(camera.position.x);
+    const worldZ = worldOrigin.worldZ(camera.position.z);
+    const ground = collisionHeights?.sample(worldX, worldZ) ?? sampleHeightWithSkirt(loadedWorld.worldHeight, worldX, worldZ);
+    cameraPosEl.textContent = `${worldX.toFixed(0)}, ${worldZ.toFixed(0)} m`;
     altitudeEl.textContent = `${camera.position.y.toFixed(1)} / ${ground.toFixed(1)} m`;
     movementEl.textContent = flying && flight
       ? `${flight.currentMode} / ${flight.currentSpeed.toFixed(1)} m/s`
       : "orbit";
   }
 }
-animate();
+
+async function startRenderer() {
+  statusEl.textContent = "initializing renderer…";
+  await renderer.init();
+  updateBackendLabel();
+  renderer.setAnimationLoop(animate);
+  await boot();
+}
+
+startRenderer().catch((err) => {
+  console.error(err);
+  statusEl.textContent = `renderer startup failed: ${err instanceof Error ? err.message : String(err)}`;
+});
 
 // --- HUD wiring ---
 const viewOrbitBtn = document.getElementById("viewOrbit")!;
@@ -231,8 +314,12 @@ viewWorldBtn.addEventListener("click", () => {
   setActiveView(viewWorldBtn);
   if (!worldFrame) return;
   controls.maxPolarAngle = Math.PI * 0.49;
-  controls.target.copy(worldFrame.center);
-  camera.position.set(worldFrame.center.x, worldFrame.distance * 0.55, worldFrame.center.z + worldFrame.distance * 0.75);
+  controls.target.copy(worldOrigin.localPoint(worldFrame.center));
+  camera.position.set(
+    worldOrigin.localX(worldFrame.center.x),
+    worldFrame.distance * 0.55,
+    worldOrigin.localZ(worldFrame.center.z + worldFrame.distance * 0.75),
+  );
   controls.update();
 });
 viewFlyBtn.addEventListener("click", () => {
@@ -274,8 +361,8 @@ viewWalkBtn.addEventListener("click", () => {
   // instead of the camera's own eye position, which after e.g. the World
   // overview is tens of km out in open ocean.
   let anchor = wasFlying
-    ? { x: camera.position.x, z: camera.position.z }
-    : { x: controls.target.x, z: controls.target.z };
+    ? { x: worldOrigin.worldX(camera.position.x), z: worldOrigin.worldZ(camera.position.z) }
+    : { x: worldOrigin.worldX(controls.target.x), z: worldOrigin.worldZ(controls.target.z) };
   if (loadedWorld && sampleWorldHeight(loadedWorld.worldHeight, anchor.x, anchor.z) <= 0) {
     const maxRadius = loadedWorld.manifest.worldScale.continentTileSize;
     search: for (let radius = 250; radius <= maxRadius; radius += 250) {
@@ -307,8 +394,19 @@ wireToggle("toggleRivers", () => riverOverlay);
 wireToggle("toggleLakes", () => lakeOverlay);
 wireToggle("toggleSettlements", () => settlementOverlay);
 document.getElementById("toggleWireframe")!.addEventListener("click", (event) => {
-  if (!worldMesh) return;
-  const material = worldMesh.material as THREE.MeshStandardMaterial;
-  material.wireframe = !material.wireframe;
-  (event.currentTarget as HTMLElement).classList.toggle("active", material.wireframe);
+  if (!terrainStreamer) return;
+  const active = !(event.currentTarget as HTMLElement).classList.contains("active");
+  terrainStreamer.setWireframe(active);
+  (event.currentTarget as HTMLElement).classList.toggle("active", active);
+});
+document.getElementById("toggleTileLod")!.addEventListener("click", (event) => {
+  if (!terrainStreamer) return;
+  const active = !(event.currentTarget as HTMLElement).classList.contains("active");
+  terrainStreamer.setDebugLod(active);
+  (event.currentTarget as HTMLElement).classList.toggle("active", active);
+});
+document.getElementById("freezeStreaming")!.addEventListener("click", (event) => {
+  if (!terrainStreamer) return;
+  terrainStreamer.setFrozen(!terrainStreamer.isFrozen);
+  (event.currentTarget as HTMLElement).classList.toggle("active", terrainStreamer.isFrozen);
 });

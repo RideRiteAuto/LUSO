@@ -1,4 +1,4 @@
-import * as THREE from "three";
+import * as THREE from "three/webgpu";
 import type { ContinentData, LakeRecord, Manifest, RiverRecord, RoadRecord, SeaRegionRecord, SettlementRecord, ZoneRecord } from "./worldData.js";
 import { sampleHeight } from "./terrain.js";
 import { uvToWorld } from "./layout.js";

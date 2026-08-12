@@ -1,0 +1,399 @@
+import * as THREE from "three/webgpu";
+import type { WorldData } from "./worldData.js";
+import { buildTerrainColorMap, SKIRT_REACH } from "./terrain.js";
+import { selectTerrainTiles, type TerrainLodSettings, type TerrainTileSpec } from "./terrainLod.js";
+
+export interface TerrainStreamingStats {
+  active: number;
+  desired: number;
+  queued: number;
+  building: number;
+  generation: number;
+  lastWorkerMs: number;
+  maxWorkerMs: number;
+  maxUpdateMs: number;
+  frozen: boolean;
+  minSpacing: number;
+}
+
+interface TileResult {
+  token: number;
+  spec: TerrainTileSpec;
+  positions: ArrayBuffer;
+  normals: ArrayBuffer;
+  colors: ArrayBuffer;
+  indices: ArrayBuffer;
+  workerMs: number;
+}
+
+interface WorkerSlot {
+  worker: Worker;
+  busy: boolean;
+}
+
+function terrainWorkerMain() {
+  type WorkerState = {
+    heights: Float32Array;
+    width: number;
+    height: number;
+    bounds: { minX: number; minZ: number; maxX: number; maxZ: number };
+    colorData: Uint8Array;
+    colorWidth: number;
+    colorHeight: number;
+    seed: number;
+    skirtReach: number;
+  };
+  type WorkerTile = { id: string; minX: number; minZ: number; size: number; level: number; segments: number };
+  const scope = self as unknown as {
+    onmessage: ((event: MessageEvent) => void) | null;
+    postMessage: (message: unknown, transfer?: Transferable[]) => void;
+  };
+  let state: WorkerState | null = null;
+  const abyssDepth = -3550;
+
+  function smoothstep(a: number, b: number, x: number): number {
+    const t = Math.max(0, Math.min(1, (x - a) / (b - a)));
+    return t * t * (3 - 2 * t);
+  }
+  function hash2(x: number, z: number, seed: number): number {
+    let h = Math.imul(x, 0x1f123bb5) ^ Math.imul(z, 0x5f356495) ^ Math.imul(seed | 0, 0x6c8e9cf5);
+    h = Math.imul(h ^ (h >>> 16), 0x45d9f3b);
+    h = Math.imul(h ^ (h >>> 16), 0x45d9f3b);
+    return ((h ^ (h >>> 16)) >>> 0) / 4294967295;
+  }
+  function fade(t: number): number { return t * t * (3 - 2 * t); }
+  function valueNoise(x: number, z: number, scale: number, seed: number): number {
+    const fx = x / scale, fz = z / scale;
+    const x0 = Math.floor(fx), z0 = Math.floor(fz);
+    const tx = fade(fx - x0), tz = fade(fz - z0);
+    const a = hash2(x0, z0, seed), b = hash2(x0 + 1, z0, seed);
+    const c = hash2(x0, z0 + 1, seed), d = hash2(x0 + 1, z0 + 1, seed);
+    return ((a + (b - a) * tx) + ((c + (d - c) * tx) - (a + (b - a) * tx)) * tz) * 2 - 1;
+  }
+  function detail(x: number, z: number, macro: number): number {
+    const s = state!;
+    const exposure = macro <= -8 ? 0.08 : macro < 2 ? 0.25 : 1;
+    return (valueNoise(x, z, 32, s.seed ^ 0x36a9f17) * 1.15
+      + valueNoise(x, z, 8, s.seed ^ 0x4b1d2c3) * 0.32) * exposure;
+  }
+  function macroHeight(x: number, z: number): number {
+    const s = state!;
+    const b = s.bounds;
+    const cx = Math.max(b.minX, Math.min(b.maxX, x));
+    const cz = Math.max(b.minZ, Math.min(b.maxZ, z));
+    const u = (cx - b.minX) / (b.maxX - b.minX);
+    const v = (cz - b.minZ) / (b.maxZ - b.minZ);
+    const fx = Math.max(0, Math.min(s.width - 1, u * (s.width - 1)));
+    const fz = Math.max(0, Math.min(s.height - 1, v * (s.height - 1)));
+    const x0 = Math.floor(fx), z0 = Math.floor(fz);
+    const x1 = Math.min(s.width - 1, x0 + 1), z1 = Math.min(s.height - 1, z0 + 1);
+    const tx = fx - x0, tz = fz - z0;
+    const north = s.heights[z0 * s.width + x0] * (1 - tx) + s.heights[z0 * s.width + x1] * tx;
+    const south = s.heights[z1 * s.width + x0] * (1 - tx) + s.heights[z1 * s.width + x1] * tx;
+    let h = north * (1 - tz) + south * tz;
+    const dx = Math.max(0, b.minX - x, x - b.maxX);
+    const dz = Math.max(0, b.minZ - z, z - b.maxZ);
+    const past = Math.max(dx, dz);
+    if (past > 0) {
+      h = Math.min(h, -100);
+      h += (abyssDepth - h) * smoothstep(0, s.skirtReach, past);
+    }
+    return h;
+  }
+  function terrainHeight(x: number, z: number): number {
+    const macro = macroHeight(x, z);
+    return macro + detail(x, z, macro);
+  }
+  function sampleColor(x: number, z: number, out: Float32Array, index: number): void {
+    const s = state!;
+    const b = s.bounds;
+    const cx = Math.max(b.minX, Math.min(b.maxX, x));
+    const cz = Math.max(b.minZ, Math.min(b.maxZ, z));
+    const px = Math.round((cx - b.minX) / (b.maxX - b.minX) * (s.colorWidth - 1));
+    const pz = Math.round((cz - b.minZ) / (b.maxZ - b.minZ) * (s.colorHeight - 1));
+    const ci = (pz * s.colorWidth + px) * 3;
+    let r = s.colorData[ci] / 255, g = s.colorData[ci + 1] / 255, bl = s.colorData[ci + 2] / 255;
+    const past = Math.max(0, b.minX - x, x - b.maxX, b.minZ - z, z - b.maxZ);
+    if (past > 0) {
+      const t = smoothstep(0, s.skirtReach, past);
+      r += (0.031 - r) * t; g += (0.110 - g) * t; bl += (0.200 - bl) * t;
+    }
+    out[index] = r; out[index + 1] = g; out[index + 2] = bl;
+  }
+  function buildTile(spec: WorkerTile) {
+    const started = performance.now();
+    const n = spec.segments + 1;
+    const coreCount = n * n;
+    const skirtCount = n * 4;
+    const vertexCount = coreCount + skirtCount;
+    const positions = new Float32Array(vertexCount * 3);
+    const normals = new Float32Array(vertexCount * 3);
+    const colors = new Float32Array(vertexCount * 3);
+    const step = spec.size / spec.segments;
+    const centerX = spec.minX + spec.size * 0.5;
+    const centerZ = spec.minZ + spec.size * 0.5;
+    const normalStep = Math.max(2, step * 0.5);
+
+    for (let z = 0; z < n; z++) {
+      for (let x = 0; x < n; x++) {
+        const worldX = spec.minX + x * step;
+        const worldZ = spec.minZ + z * step;
+        const vi = z * n + x;
+        const i = vi * 3;
+        const h = terrainHeight(worldX, worldZ);
+        positions[i] = worldX - centerX; positions[i + 1] = h; positions[i + 2] = worldZ - centerZ;
+        const nx = terrainHeight(worldX - normalStep, worldZ) - terrainHeight(worldX + normalStep, worldZ);
+        const nz = terrainHeight(worldX, worldZ - normalStep) - terrainHeight(worldX, worldZ + normalStep);
+        const ny = normalStep * 2;
+        const length = Math.hypot(nx, ny, nz) || 1;
+        normals[i] = nx / length; normals[i + 1] = ny / length; normals[i + 2] = nz / length;
+        sampleColor(worldX, worldZ, colors, i);
+      }
+    }
+
+    const edges: number[][] = [[], [], [], []];
+    for (let i = 0; i < n; i++) {
+      edges[0].push(i);
+      edges[1].push((n - 1) * n + i);
+      edges[2].push(i * n);
+      edges[3].push(i * n + n - 1);
+    }
+    const skirtDrop = Math.max(24, spec.size * 0.025);
+    let skirtVertex = coreCount;
+    for (const edge of edges) {
+      for (const coreVertex of edge) {
+        const src = coreVertex * 3, dst = skirtVertex * 3;
+        positions[dst] = positions[src]; positions[dst + 1] = positions[src + 1] - skirtDrop; positions[dst + 2] = positions[src + 2];
+        normals[dst] = normals[src]; normals[dst + 1] = normals[src + 1]; normals[dst + 2] = normals[src + 2];
+        colors[dst] = colors[src]; colors[dst + 1] = colors[src + 1]; colors[dst + 2] = colors[src + 2];
+        skirtVertex++;
+      }
+    }
+
+    const coreIndexCount = spec.segments * spec.segments * 6;
+    const skirtIndexCount = spec.segments * 4 * 6;
+    const indices = new Uint32Array(coreIndexCount + skirtIndexCount);
+    let ii = 0;
+    for (let z = 0; z < spec.segments; z++) {
+      for (let x = 0; x < spec.segments; x++) {
+        const a = z * n + x, b = a + 1, c = a + n, d = c + 1;
+        indices[ii++] = a; indices[ii++] = c; indices[ii++] = b;
+        indices[ii++] = b; indices[ii++] = c; indices[ii++] = d;
+      }
+    }
+    let skirtBase = coreCount;
+    for (const edge of edges) {
+      for (let i = 0; i < spec.segments; i++) {
+        const a = edge[i], b = edge[i + 1], sa = skirtBase + i, sb = skirtBase + i + 1;
+        indices[ii++] = a; indices[ii++] = sa; indices[ii++] = b;
+        indices[ii++] = b; indices[ii++] = sa; indices[ii++] = sb;
+      }
+      skirtBase += n;
+    }
+    return { positions, normals, colors, indices, workerMs: performance.now() - started };
+  }
+
+  scope.onmessage = (event: MessageEvent) => {
+    const message = event.data as { type: string; token?: number; spec?: WorkerTile; state?: Omit<WorkerState, "heights" | "colorData"> & { heights: ArrayBuffer; colorData: ArrayBuffer } };
+    if (message.type === "init" && message.state) {
+      state = { ...message.state, heights: new Float32Array(message.state.heights), colorData: new Uint8Array(message.state.colorData) };
+      scope.postMessage({ type: "ready" });
+      return;
+    }
+    if (message.type !== "build" || !state || !message.spec) return;
+    const result = buildTile(message.spec);
+    const response = {
+      type: "tile", token: message.token, spec: message.spec, workerMs: result.workerMs,
+      positions: result.positions.buffer, normals: result.normals.buffer,
+      colors: result.colors.buffer, indices: result.indices.buffer,
+    };
+    scope.postMessage(response, [response.positions, response.normals, response.colors, response.indices]);
+  };
+}
+
+export class TerrainStreamer {
+  readonly group = new THREE.Group();
+  private readonly settings: TerrainLodSettings;
+  private readonly workers: WorkerSlot[] = [];
+  private readonly active = new Map<string, THREE.Mesh>();
+  private readonly staging = new Map<string, THREE.Mesh>();
+  private desired = new Set<string>();
+  private queue: TerrainTileSpec[] = [];
+  private generation = 0;
+  private pending = 0;
+  private frozen = false;
+  private debugLod = false;
+  private lastSelectionX = Number.NaN;
+  private lastSelectionZ = Number.NaN;
+  private lastWorkerMs = 0;
+  private maxWorkerMs = 0;
+  private maxUpdateMs = 0;
+  private readonly normalMaterial = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.92, metalness: 0.02, side: THREE.DoubleSide });
+  private readonly debugMaterials = [0x42d4f4, 0x64e572, 0xf4dd4b, 0xf49a45, 0xe75d87, 0x9a72ed, 0x5669d8].map(
+    (color) => new THREE.MeshStandardMaterial({ color, roughness: 0.9, wireframe: true, side: THREE.DoubleSide }),
+  );
+  private readonly expandedBounds: { minX: number; minZ: number; maxX: number; maxZ: number };
+
+  constructor(private readonly world: WorldData, quality: "high" | "balanced" | "compatibility") {
+    this.settings = quality === "high"
+      ? { minTileSize: 128, splitDistance: 1.8, maxTiles: 240 }
+      : quality === "compatibility"
+        ? { minTileSize: 512, splitDistance: 1.55, maxTiles: 140 }
+        : { minTileSize: 256, splitDistance: 1.7, maxTiles: 200 };
+    const b = world.worldHeight.bounds;
+    this.expandedBounds = { minX: b.minX - SKIRT_REACH, minZ: b.minZ - SKIRT_REACH, maxX: b.maxX + SKIRT_REACH, maxZ: b.maxZ + SKIRT_REACH };
+
+    const colorMap = buildTerrainColorMap(world, quality === "compatibility" ? 512 : 1024);
+    const workerUrl = URL.createObjectURL(new Blob([`(${terrainWorkerMain.toString()})()`], { type: "text/javascript" }));
+    const workerCount = Math.max(1, Math.min(2, Math.floor((navigator.hardwareConcurrency || 4) / 4)));
+    for (let i = 0; i < workerCount; i++) {
+      const worker = new Worker(workerUrl);
+      const slot = { worker, busy: false };
+      worker.onmessage = (event) => this.onWorkerMessage(slot, event.data);
+      worker.onerror = (event) => {
+        slot.busy = false;
+        console.error("terrain worker failed", event.message);
+        this.dispatch();
+      };
+      const heights = world.worldHeight.data.slice().buffer;
+      const colors = colorMap.data.slice().buffer;
+      worker.postMessage({
+        type: "init",
+        state: {
+          heights, width: world.worldHeight.width, height: world.worldHeight.height,
+          bounds: world.worldHeight.bounds, colorData: colors,
+          colorWidth: colorMap.width, colorHeight: colorMap.height,
+          seed: world.manifest.seed, skirtReach: SKIRT_REACH,
+        },
+      }, [heights, colors]);
+      this.workers.push(slot);
+    }
+    URL.revokeObjectURL(workerUrl);
+  }
+
+  update(cameraWorldX: number, cameraWorldZ: number): void {
+    if (this.frozen) return;
+    const started = performance.now();
+    if (!Number.isFinite(this.lastSelectionX)
+      || Math.hypot(cameraWorldX - this.lastSelectionX, cameraWorldZ - this.lastSelectionZ) >= this.settings.minTileSize * 0.75) {
+      this.lastSelectionX = cameraWorldX;
+      this.lastSelectionZ = cameraWorldZ;
+      this.beginGeneration(selectTerrainTiles(this.expandedBounds, cameraWorldX, cameraWorldZ, this.settings));
+    }
+    this.maxUpdateMs = Math.max(this.maxUpdateMs, performance.now() - started);
+  }
+
+  setFrozen(frozen: boolean): void { this.frozen = frozen; }
+  get isFrozen(): boolean { return this.frozen; }
+
+  setDebugLod(enabled: boolean): void {
+    this.debugLod = enabled;
+    for (const mesh of [...this.active.values(), ...this.staging.values()]) this.applyMaterial(mesh);
+  }
+
+  setWireframe(enabled: boolean): void {
+    this.normalMaterial.wireframe = enabled;
+  }
+
+  get stats(): TerrainStreamingStats {
+    return {
+      active: this.active.size,
+      desired: this.desired.size,
+      queued: this.queue.length,
+      building: this.workers.filter((worker) => worker.busy).length,
+      generation: this.generation,
+      lastWorkerMs: this.lastWorkerMs,
+      maxWorkerMs: this.maxWorkerMs,
+      maxUpdateMs: this.maxUpdateMs,
+      frozen: this.frozen,
+      minSpacing: this.settings.minTileSize / 64,
+    };
+  }
+
+  dispose(): void {
+    for (const slot of this.workers) slot.worker.terminate();
+    for (const mesh of [...this.active.values(), ...this.staging.values()]) mesh.geometry.dispose();
+    this.active.clear(); this.staging.clear(); this.queue = [];
+    this.normalMaterial.dispose();
+    for (const material of this.debugMaterials) material.dispose();
+  }
+
+  private beginGeneration(specs: TerrainTileSpec[]): void {
+    const nextIds = new Set(specs.map((spec) => spec.id));
+    if (nextIds.size === this.desired.size && [...nextIds].every((id) => this.desired.has(id))) return;
+    this.generation++;
+    this.desired = nextIds;
+    this.queue = [];
+    for (const mesh of this.staging.values()) { this.group.remove(mesh); mesh.geometry.dispose(); }
+    this.staging.clear();
+    const missing = specs.filter((spec) => !this.active.has(spec.id));
+    this.pending = missing.length;
+    this.queue.push(...missing.slice(0, this.settings.maxTiles));
+    if (this.pending === 0) this.commitGeneration();
+    else this.dispatch();
+  }
+
+  private dispatch(): void {
+    for (const slot of this.workers) {
+      if (slot.busy) continue;
+      const spec = this.queue.shift();
+      if (!spec) continue;
+      slot.busy = true;
+      slot.worker.postMessage({ type: "build", token: this.generation, spec });
+    }
+  }
+
+  private onWorkerMessage(slot: WorkerSlot, message: { type: string } & Partial<TileResult>): void {
+    if (message.type === "ready") { this.dispatch(); return; }
+    if (message.type !== "tile") return;
+    slot.busy = false;
+    if (message.token === this.generation && message.spec && this.desired.has(message.spec.id)
+      && message.positions && message.normals && message.colors && message.indices) {
+      const mesh = this.createMesh(message as TileResult);
+      mesh.visible = false;
+      this.staging.set(message.spec.id, mesh);
+      this.group.add(mesh);
+      this.pending--;
+      this.lastWorkerMs = message.workerMs ?? 0;
+      this.maxWorkerMs = Math.max(this.maxWorkerMs, this.lastWorkerMs);
+      if (this.pending === 0) this.commitGeneration();
+    }
+    this.dispatch();
+  }
+
+  private createMesh(result: TileResult): THREE.Mesh {
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute("position", new THREE.BufferAttribute(new Float32Array(result.positions), 3));
+    geometry.setAttribute("normal", new THREE.BufferAttribute(new Float32Array(result.normals), 3));
+    geometry.setAttribute("color", new THREE.BufferAttribute(new Float32Array(result.colors), 3));
+    geometry.setIndex(new THREE.BufferAttribute(new Uint32Array(result.indices), 1));
+    geometry.computeBoundingSphere();
+    const mesh = new THREE.Mesh(geometry, this.normalMaterial);
+    mesh.position.set(result.spec.minX + result.spec.size * 0.5, 0, result.spec.minZ + result.spec.size * 0.5);
+    mesh.receiveShadow = true;
+    mesh.userData.terrainLevel = result.spec.level;
+    mesh.userData.terrainTileId = result.spec.id;
+    this.applyMaterial(mesh);
+    return mesh;
+  }
+
+  private applyMaterial(mesh: THREE.Mesh): void {
+    mesh.material = this.debugLod
+      ? this.debugMaterials[(mesh.userData.terrainLevel as number) % this.debugMaterials.length]
+      : this.normalMaterial;
+  }
+
+  private commitGeneration(): void {
+    for (const [id, mesh] of this.active) {
+      if (this.desired.has(id)) continue;
+      this.group.remove(mesh);
+      mesh.geometry.dispose();
+      this.active.delete(id);
+    }
+    for (const [id, mesh] of this.staging) {
+      mesh.visible = true;
+      this.active.set(id, mesh);
+    }
+    this.staging.clear();
+  }
+}

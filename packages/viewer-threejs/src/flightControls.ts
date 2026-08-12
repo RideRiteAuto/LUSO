@@ -1,4 +1,4 @@
-import * as THREE from "three";
+import * as THREE from "three/webgpu";
 
 // Free camera movement, in two modes:
 //  - "fly": unconstrained 3D movement at high speed, for scouting the whole
@@ -36,6 +36,8 @@ const MODE_SPEED: Record<MovementMode, { base: number; min: number; max: number;
 export interface FlightControllerOptions {
   /** Ground/seabed height at an arbitrary world (x,z), used only in "walk" mode. */
   getGroundHeight: (worldX: number, worldZ: number) => number;
+  /** Current camera-relative world origin. */
+  getWorldOffset: () => { x: number; z: number };
   /** World extent, used to clamp the camera so fly mode can't outrun the rendered geometry (docs/01 §5). */
   worldBounds: { minX: number; maxX: number; minZ: number; maxZ: number };
 }
@@ -94,7 +96,7 @@ export class FlightController {
    * rather than under a sensible point of interest left Walk mode standing
    * in the middle of nowhere with nothing in view.
    */
-  enable(onExit: () => void, mode: MovementMode = "fly", walkAnchor?: { x: number; z: number }) {
+  enable(onExit: () => void, mode: MovementMode = "fly", walkAnchorWorld?: { x: number; z: number }) {
     this.enabled = true;
     this.mode = mode;
     this.speed = MODE_SPEED[mode].base;
@@ -103,9 +105,10 @@ export class FlightController {
     this.yaw = euler.y;
     this.pitch = mode === "walk" ? Math.max(-0.6, Math.min(0.6, euler.x)) : euler.x; // walking shouldn't start looking straight up/down
     if (mode === "walk") {
-      const x = walkAnchor?.x ?? this.camera.position.x;
-      const z = walkAnchor?.z ?? this.camera.position.z;
-      this.camera.position.set(x, this.opts.getGroundHeight(x, z) + EYE_HEIGHT_M, z);
+      const offset = this.opts.getWorldOffset();
+      const x = walkAnchorWorld?.x ?? this.camera.position.x + offset.x;
+      const z = walkAnchorWorld?.z ?? this.camera.position.z + offset.z;
+      this.camera.position.set(x - offset.x, this.opts.getGroundHeight(x, z) + EYE_HEIGHT_M, z - offset.z);
       this.camera.quaternion.setFromEuler(new THREE.Euler(this.pitch, this.yaw, 0, "YXZ"));
     }
   }
@@ -195,9 +198,12 @@ export class FlightController {
       if (this.move.back) delta.addScaledVector(flatForward, -step);
       if (this.move.right) delta.addScaledVector(flatRight, step);
       if (this.move.left) delta.addScaledVector(flatRight, -step);
-      this.camera.position.x = Math.max(this.clampBounds.minX, Math.min(this.clampBounds.maxX, this.camera.position.x + delta.x));
-      this.camera.position.z = Math.max(this.clampBounds.minZ, Math.min(this.clampBounds.maxZ, this.camera.position.z + delta.z));
-      this.camera.position.y = this.opts.getGroundHeight(this.camera.position.x, this.camera.position.z) + EYE_HEIGHT_M;
+      const offset = this.opts.getWorldOffset();
+      const worldX = Math.max(this.clampBounds.minX, Math.min(this.clampBounds.maxX, this.camera.position.x + offset.x + delta.x));
+      const worldZ = Math.max(this.clampBounds.minZ, Math.min(this.clampBounds.maxZ, this.camera.position.z + offset.z + delta.z));
+      this.camera.position.x = worldX - offset.x;
+      this.camera.position.z = worldZ - offset.z;
+      this.camera.position.y = this.opts.getGroundHeight(worldX, worldZ) + EYE_HEIGHT_M;
       return;
     }
 
@@ -213,8 +219,11 @@ export class FlightController {
     // actual root cause of a blank "flew toward the mountains" screenshot
     // during scale verification (2.5s at old max*boost covered ~448km,
     // ~3.4x the world's own width).
-    this.camera.position.x = Math.max(this.clampBounds.minX, Math.min(this.clampBounds.maxX, this.camera.position.x));
-    this.camera.position.z = Math.max(this.clampBounds.minZ, Math.min(this.clampBounds.maxZ, this.camera.position.z));
+    const offset = this.opts.getWorldOffset();
+    const worldX = Math.max(this.clampBounds.minX, Math.min(this.clampBounds.maxX, this.camera.position.x + offset.x));
+    const worldZ = Math.max(this.clampBounds.minZ, Math.min(this.clampBounds.maxZ, this.camera.position.z + offset.z));
+    this.camera.position.x = worldX - offset.x;
+    this.camera.position.z = worldZ - offset.z;
 
     // Floor collision: fly mode has no ground clamp on Y at all, so pointing
     // down and holding forward tunnels straight through the terrain mesh --
@@ -224,7 +233,7 @@ export class FlightController {
     // pitch held for ~1.5s was enough to dive underground). Clamping to a
     // small clearance above the real terrain lets you swoop low without
     // being able to clip through it.
-    const floor = this.opts.getGroundHeight(this.camera.position.x, this.camera.position.z) + 5;
+    const floor = this.opts.getGroundHeight(worldX, worldZ) + 5;
     if (this.camera.position.y < floor) this.camera.position.y = floor;
   }
 
