@@ -6,7 +6,7 @@ test("review yard contains three variants per locked starter family within its s
   const yard = await ResourceReviewYard.create((x, z) => 10 + x * 0.001 + z * 0.002);
   yard.setAnchor({ x: 500, z: 800 });
   assert.equal(yard.stats.variants, 18);
-  assert.ok(yard.stats.triangles > 90_000 && yard.stats.triangles < 115_000);
+  assert.ok(yard.stats.triangles > 100_000 && yard.stats.triangles < 120_000);
   assert.ok(yard.stats.draws <= 36);
   assert.ok(yard.group.children.every((child) => child.position.y > 10));
   yard.visible = true;

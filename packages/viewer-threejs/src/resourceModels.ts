@@ -209,6 +209,72 @@ function foliageCard(start: THREE.Vector3, end: THREE.Vector3, width: number, ro
   return geometry;
 }
 
+interface AtlasRegion { u0: number; v0: number; u1: number; v1: number }
+
+// Poly Haven's pine texture is a packed atlas, not a tileable branch texture.
+// A card must address one authored sprig region or it will sample cones, bare
+// limbs, and empty atlas space together (the source of the old black bands).
+// The runtime card uses our derived single-sprig map (full UV range). The
+// packed source atlas is retained in provenance and never bound directly.
+const PINE_HORIZONTAL_SPRIG: AtlasRegion = { u0: 0, v0: 0, u1: 1, v1: 1 };
+
+function foliageAtlasCard(start: THREE.Vector3, end: THREE.Vector3, width: number, roll: number, region: AtlasRegion): THREE.BufferGeometry {
+  const geometry = foliageCard(start, end, width, roll);
+  const uv = geometry.getAttribute("uv") as THREE.BufferAttribute;
+  // PlaneGeometry's four UVs are top-left, top-right, bottom-left, bottom-right.
+  uv.setXY(0, region.u0, region.v1); uv.setXY(1, region.u1, region.v1);
+  uv.setXY(2, region.u0, region.v0); uv.setXY(3, region.u1, region.v0);
+  uv.needsUpdate = true;
+  return geometry;
+}
+
+function leafMesh(base: THREE.Vector3, direction: THREE.Vector3, length: number, width: number, roll: number, color: THREE.ColorRepresentation, random: () => number): THREE.BufferGeometry {
+  // Four triangles form an ovate, slightly cupped leaf. At gameplay distance
+  // this preserves a readable serrated-ish silhouette without alpha noise or
+  // the opaque oval blobs produced by the former branch-sized cards.
+  const outline: Array<[number, number]> = [
+    [0, 0], [0.46, 0.5], [1, 0], [0.46, -0.5],
+  ];
+  const positions: number[] = [length * 0.46, 0, length * 0.055];
+  const uvs: number[] = [0.46, 0.5];
+  for (const [x, y] of outline) {
+    positions.push(x * length, y * width * 2, Math.sin(x * Math.PI) * length * 0.045 + Math.abs(y) * length * 0.018);
+    uvs.push(x, y + 0.5);
+  }
+  const indices: number[] = [];
+  for (let i = 0; i < outline.length; i++) indices.push(0, i + 1, (i + 1) % outline.length + 1);
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+  geometry.setAttribute("uv", new THREE.Float32BufferAttribute(uvs, 2));
+  geometry.setIndex(indices); geometry.computeVertexNormals();
+  const axis = direction.clone().normalize();
+  geometry.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(1, 0, 0), axis));
+  geometry.applyQuaternion(new THREE.Quaternion().setFromAxisAngle(axis, roll));
+  geometry.translate(base.x, base.y, base.z);
+  return tintGeometry(geometry, color, 0.085, random);
+}
+
+function branchTipLeafCluster(parts: THREE.BufferGeometry[], anchor: THREE.Vector3, axis: THREE.Vector3, radius: number, count: number, palette: THREE.ColorRepresentation[], random: () => number): void {
+  const forward = axis.clone().normalize();
+  const lateralA = new THREE.Vector3().crossVectors(forward, Math.abs(forward.y) > 0.88 ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(0, 1, 0)).normalize();
+  const lateralB = new THREE.Vector3().crossVectors(forward, lateralA).normalize();
+  for (let i = 0; i < count; i++) {
+    const along = (random() - 0.28) * radius * 0.72;
+    const radial = Math.sqrt(random()) * radius * (0.2 + random() * 0.5);
+    const angle = random() * Math.PI * 2;
+    const base = anchor.clone()
+      .addScaledVector(forward, along)
+      .addScaledVector(lateralA, Math.cos(angle) * radial)
+      .addScaledVector(lateralB, Math.sin(angle) * radial);
+    const leafDirection = forward.clone().multiplyScalar(0.25 + random() * 0.45)
+      .addScaledVector(lateralA, Math.cos(angle) * (0.7 + random() * 0.4))
+      .addScaledVector(lateralB, Math.sin(angle) * (0.7 + random() * 0.4))
+      .add(new THREE.Vector3(0, 0.18 + random() * 0.34, 0)).normalize();
+    const length = radius * (0.2 + random() * 0.1);
+    parts.push(leafMesh(base, leafDirection, length, length * (0.34 + random() * 0.12), random() * Math.PI * 2, palette[Math.floor(random() * palette.length)], random));
+  }
+}
+
 function foliageSpray(parts: THREE.BufferGeometry[], start: THREE.Vector3, end: THREE.Vector3, width: number, random: () => number, planes = 2): void {
   for (let plane = 0; plane < planes; plane++) {
     const geometry = foliageCard(start, end, width * (0.88 + random() * 0.24), plane / planes * Math.PI + (random() - 0.5) * 0.3);
@@ -311,25 +377,53 @@ function buildPine(variant: number, lod: ResourceLod): THREE.Group {
       const reach = tierRadius * (0.68 + random() * 0.34);
       const start = new THREE.Vector3(0, y, 0);
       const end = new THREE.Vector3(Math.cos(angle) * reach, y - reach * (0.02 + random() * 0.08), Math.sin(angle) * reach);
-      if (lod < 2) woodParts.push(tintGeometry(between(branchBase, start, end, Math.max(0.04, height * (0.006 + taper * 0.004))), 0x67462f, 0.07, random));
-      const sprays = lod === 0 ? 9 : lod === 1 ? 6 : 3;
-      for (let spray = 0; spray < sprays; spray++) {
-        const from = start.clone().lerp(end, 0.25 + spray / sprays * 0.62);
-        const to = start.clone().lerp(end, 0.45 + spray / sprays * 0.55);
-        to.y += (random() - 0.5) * reach * 0.08;
-        foliageSpray(foliageParts, from, to, Math.max(0.82, reach * (0.34 + random() * 0.16)), random, lod === 2 ? 2 : 3);
+      woodParts.push(tintGeometry(between(branchBase, start, end, Math.max(0.035, height * (lod === 2 ? 0.0038 : 0.006 + taper * 0.004))), 0x67462f, 0.07, random));
+
+      // Pine needles belong to short terminal shoots, not the structural limb.
+      // Build a sparse secondary hierarchy and place cropped atlas sprigs only
+      // at its ends. This creates open negative space between branch whorls.
+      const twigs = lod === 0 ? [5, 5, 4][variant] : lod === 1 ? 2 : 1;
+      for (let twig = 0; twig < twigs; twig++) {
+        const along = 0.43 + twig / Math.max(1, twigs - 1) * 0.5;
+        const twigBase = start.clone().lerp(end, along);
+        const side = twig % 2 === 0 ? 1 : -1;
+        const tangent = end.clone().sub(start).normalize();
+        const lateral = new THREE.Vector3(-tangent.z, 0, tangent.x).multiplyScalar(side);
+        const twigLength = reach * (0.16 + random() * 0.12) * (0.65 + taper * 0.35);
+        const twigTip = twigBase.clone()
+          .addScaledVector(tangent, twigLength * (0.28 + random() * 0.28))
+          .addScaledVector(lateral, twigLength * (0.72 + random() * 0.28))
+          .add(new THREE.Vector3(0, twigLength * (0.12 + random() * 0.22), 0));
+        if (lod < 2) woodParts.push(tintGeometry(between(branchBase, twigBase, twigTip, Math.max(0.022, height * 0.0027)), 0x60422e, 0.08, random));
+        const cardStart = twigBase.clone().lerp(twigTip, 0.28);
+        const cardWidth = twigLength * (1.08 + random() * 0.28);
+        const cardPlanes = lod === 0 ? 3 : 2;
+        for (let plane = 0; plane < cardPlanes; plane++) {
+          const card = foliageAtlasCard(cardStart, twigTip, cardWidth, plane / cardPlanes * Math.PI + (random() - 0.5) * 0.22, PINE_HORIZONTAL_SPRIG);
+          foliageParts.push(tintGeometry(card, [0xd8f0c8, 0xc8e2b7, 0xe1edc4][Math.floor(random() * 3)], 0.055, random));
+        }
       }
     }
   }
-  for (let i = 0; i < (lod === 0 ? 7 : 4); i++) {
-    const y = height * (0.82 + i * 0.022);
-    foliageSpray(foliageParts, new THREE.Vector3(0, y, 0), new THREE.Vector3((random() - 0.5) * crownRadius * 0.28, y + height * 0.08, (random() - 0.5) * crownRadius * 0.28), crownRadius * 0.22, random, 3);
+  for (let i = 0; i < (lod === 0 ? 9 : lod === 1 ? 6 : 3); i++) {
+    const angle = i * 2.399 + random() * 0.35;
+    const y = height * (0.79 + i * 0.018);
+    const start = new THREE.Vector3(0, y, 0);
+    const end = new THREE.Vector3(Math.cos(angle) * crownRadius * (0.12 + random() * 0.12), y + height * (0.045 + random() * 0.045), Math.sin(angle) * crownRadius * (0.12 + random() * 0.12));
+    if (lod < 2) woodParts.push(tintGeometry(between(branchBase, start, end, height * 0.0028), 0x60422e, 0.08, random));
+    for (let plane = 0; plane < (lod === 0 ? 3 : 2); plane++) foliageParts.push(tintGeometry(
+      foliageAtlasCard(start, end, crownRadius * (0.15 + random() * 0.05), plane * Math.PI / (lod === 0 ? 3 : 2), PINE_HORIZONTAL_SPRIG),
+      0xd7edc4, 0.05, random,
+    ));
   }
-  const pineMap = photographicPineFoliage ?? proceduralTexture("pine-foliage");
+  // The licensed atlas remains a form/reference source, but its dark scanned
+  // pixels collapse in this viewer's outdoor exposure. The authored Navora
+  // sprig map retains the real needle silhouette while grading to our scene.
+  const pineMap = proceduralTexture("pine-foliage");
   const woodMaterial = new THREE.MeshStandardMaterial({ vertexColors: true, map: photographicPineBark ?? proceduralTexture("pine-bark"), roughness: 0.9, metalness: 0 });
-  const foliageMaterial = new THREE.MeshStandardMaterial({ color: 0xe4f1dc, vertexColors: true, map: pineMap, alphaMap: photographicPineFoliage?.userData.alphaMap ?? null, alphaTest: photographicPineFoliage ? 0.16 : 0.045, side: THREE.DoubleSide, roughness: 0.86, metalness: 0 });
+  const foliageMaterial = new THREE.MeshStandardMaterial({ color: 0xffffff, vertexColors: true, map: pineMap, alphaTest: 0.12, alphaToCoverage: true, side: THREE.DoubleSide, roughness: 0.91, metalness: 0, emissive: 0x071008, emissiveIntensity: 0.18 });
   const woodMesh = new THREE.Mesh(merged(woodParts), woodMaterial); woodMesh.name = "pine-trunk-branches-buried-roots-ground-blend";
-  const foliageMesh = new THREE.Mesh(merged(foliageParts), foliageMaterial); foliageMesh.name = "pine-needle-sprays"; foliageMesh.userData.windPart = true;
+  const foliageMesh = new THREE.Mesh(merged(foliageParts), foliageMaterial); foliageMesh.name = "pine-terminal-needle-sprigs"; foliageMesh.userData.windPart = true;
   group.add(woodMesh, foliageMesh); group.userData.collision = { type: "capsule", radius: height * 0.075, height: height * 0.82 };
   group.userData.wind = { amplitude: 0.018, frequency: 0.58, phase: random() * Math.PI * 2 };
   return group;
@@ -369,9 +463,8 @@ function buildBirch(variant: number, lod: ResourceLod): THREE.Group {
   }
   woodParts.push(tintGeometry(groundBlendGeometry(height * 0.055, random), 0x4d4435, 0.1, random));
 
-  const branchCount = lod === 0 ? [20, 22, 22][variant] : lod === 1 ? [15, 18, 20][variant] : [9, 10, 11][variant];
-  const foliageDetail = lod === 2 ? 0 : 1;
-  const foliageBase = new THREE.IcosahedronGeometry(1, foliageDetail);
+  const branchCount = lod === 0 ? 12 : lod === 1 ? [9, 10, 11][variant] : [6, 7, 8][variant];
+  const birchPalette = [0x719d43, 0x5f8b37, 0x82aa4d, 0x4f7a31];
   for (let i = 0; i < branchCount; i++) {
     const t = i / Math.max(1, branchCount - 1);
     const angle = i * 2.399 + variant * 0.61 + random() * 0.55;
@@ -383,24 +476,29 @@ function buildBirch(variant: number, lod: ResourceLod): THREE.Group {
       Math.sin(angle) * reach,
     );
     woodParts.push(tintGeometry(between(trunkBase, start, end, height * (0.006 + (1 - t) * 0.003)), 0x7f7466, 0.09, random));
-    if (lod < 2) {
-      const forkAngle = angle + (random() - 0.5) * 1.2;
-      const forkStart = start.clone().lerp(end, 0.62);
-      const forkEnd = end.clone().add(new THREE.Vector3(Math.cos(forkAngle) * reach * 0.28, height * 0.07, Math.sin(forkAngle) * reach * 0.28));
-      woodParts.push(tintGeometry(between(trunkBase, forkStart, forkEnd, height * 0.0045), 0x756b60, 0.08, random));
+    // Birch crown mass is formed by bifurcating terminal twigs. Keeping the
+    // inner half of each bough mostly bare produces the characteristic airy,
+    // light-permeable canopy and removes the old bottle-brush silhouette.
+    const forks = lod === 0 ? 2 : 1;
+    for (let fork = 0; fork < forks; fork++) {
+      const forkStart = start.clone().lerp(end, 0.58 + fork * 0.12);
+      const forkAngle = angle + (fork % 2 === 0 ? 1 : -1) * (0.38 + random() * 0.64);
+      const forkLength = reach * (0.22 + random() * 0.22);
+      const forkEnd = forkStart.clone().add(new THREE.Vector3(
+        Math.cos(forkAngle) * forkLength,
+        height * (0.045 + random() * 0.07),
+        Math.sin(forkAngle) * forkLength,
+      ));
+      if (lod < 2) woodParts.push(tintGeometry(between(trunkBase, forkStart, forkEnd, height * (0.0028 + random() * 0.0014)), 0x756b60, 0.08, random));
+      const leaves = lod === 0 ? 16 : lod === 1 ? 7 : 2;
+      branchTipLeafCluster(foliageParts, forkEnd, forkEnd.clone().sub(forkStart), crownWidth * (0.31 + random() * 0.08), leaves, birchPalette, random);
     }
-    const leafClusters = lod === 0 ? 7 : lod === 1 ? 4 : 2;
-    for (let cluster = 0; cluster < leafClusters; cluster++) {
-      const along = 0.48 + cluster / Math.max(1, leafClusters - 1) * 0.5;
-      const center = start.clone().lerp(end, Math.min(0.98, along));
-      const tip = center.clone().add(new THREE.Vector3(Math.cos(angle + (random() - 0.5) * 0.8) * crownWidth * 0.18, (random() - 0.35) * crownWidth * 0.12, Math.sin(angle + (random() - 0.5) * 0.8) * crownWidth * 0.18));
-      foliageSpray(foliageParts, center, tip, crownWidth * (lod === 2 ? 0.22 : 0.2 + random() * 0.07), random, lod === 2 ? 2 : 3);
-    }
+    if (random() > 0.12) branchTipLeafCluster(foliageParts, end, end.clone().sub(start), crownWidth * (0.32 + random() * 0.08), lod === 0 ? 24 : lod === 1 ? 9 : 2, birchPalette, random);
   }
   const woodMaterial = new THREE.MeshStandardMaterial({ vertexColors: true, map: proceduralTexture("birch-bark"), roughness: 0.91, metalness: 0 });
-  const foliageMaterial = new THREE.MeshStandardMaterial({ color: 0xc5dca2, vertexColors: true, map: proceduralTexture("birch-foliage"), alphaTest: 0.045, side: THREE.DoubleSide, roughness: 0.84, metalness: 0 });
+  const foliageMaterial = new THREE.MeshStandardMaterial({ color: 0xffffff, vertexColors: true, side: THREE.DoubleSide, roughness: 0.9, metalness: 0 });
   const woodMesh = new THREE.Mesh(merged(woodParts), woodMaterial); woodMesh.name = "birch-bark-branches-buried-roots-ground-blend";
-  const foliageMesh = new THREE.Mesh(merged(foliageParts), foliageMaterial); foliageMesh.name = "birch-leaf-sprays"; foliageMesh.userData.windPart = true;
+  const foliageMesh = new THREE.Mesh(merged(foliageParts), foliageMaterial); foliageMesh.name = "birch-bifurcated-twigs-and-leaves"; foliageMesh.userData.windPart = true;
   group.add(woodMesh, foliageMesh);
   group.userData.collision = { type: "capsule", radius: height * 0.05, height: height * 0.78 };
   group.userData.wind = { mode: "foliage-only", amplitude: 0.026, frequency: 0.78, phase: random() * Math.PI * 2 };
@@ -494,13 +592,16 @@ function buildRedberry(variant: number, lod: ResourceLod): THREE.Group {
     woodParts.push(tintGeometry(between(stemBase, base, end, height * (0.016 + random() * 0.007)), 0x5b3827, 0.1, random));
   }
   woodParts.push(tintGeometry(groundBlendGeometry(width * 0.38, random), 0x463a2b, 0.1, random));
-  const leafCount = lod === 0 ? [44, 60, 72][variant] : lod === 1 ? [24, 32, 38][variant] : [8, 10, 12][variant];
+  const leafCount = lod === 0 ? [140, 164, 188][variant] : lod === 1 ? [58, 70, 82][variant] : [14, 16, 18][variant];
+  const berryPalette = [0x2f6c35, 0x3e7d40, 0x285f31, 0x4a8747];
   for (let i = 0; i < leafCount; i++) {
     const anchor = endpoints[i % endpoints.length];
-    const center = anchor.clone().add(new THREE.Vector3((random() - 0.5) * width * 0.55, (random() - 0.65) * height * 0.42, (random() - 0.5) * width * 0.55));
-    const angle = random() * Math.PI * 2;
-    const tip = center.clone().add(new THREE.Vector3(Math.cos(angle) * width * (0.16 + random() * 0.12), (random() - 0.35) * height * 0.13, Math.sin(angle) * width * (0.16 + random() * 0.12)));
-    foliageSpray(foliageParts, center, tip, width * (0.13 + random() * 0.07), random, lod === 2 ? 2 : 3);
+    const radial = new THREE.Vector3(anchor.x, 0, anchor.z).normalize();
+    const center = anchor.clone().add(new THREE.Vector3((random() - 0.5) * width * 0.46, (random() - 0.72) * height * 0.42, (random() - 0.5) * width * 0.46));
+    const leafDirection = radial.multiplyScalar(0.45 + random() * 0.5)
+      .add(new THREE.Vector3((random() - 0.5) * 0.65, 0.15 + random() * 0.62, (random() - 0.5) * 0.65)).normalize();
+    const leafLength = width * (lod === 2 ? 0.13 : 0.095 + random() * 0.05);
+    foliageParts.push(leafMesh(center, leafDirection, leafLength, leafLength * (0.38 + random() * 0.1), random() * Math.PI * 2, berryPalette[Math.floor(random() * berryPalette.length)], random));
   }
   const berries = lod === 0 ? [18, 26, 30][variant] : lod === 1 ? [9, 12, 14][variant] : [5, 6, 7][variant];
   for (let i = 0; i < berries; i++) {
@@ -510,9 +611,9 @@ function buildRedberry(variant: number, lod: ResourceLod): THREE.Group {
     berryParts.push(tintGeometry(berry, i % 7 === 0 ? 0x8f171d : 0xc42b32, 0.12, random));
   }
   const woodMaterial = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.92, metalness: 0 });
-  const foliageMaterial = new THREE.MeshStandardMaterial({ color: 0xc3d8ad, vertexColors: true, map: proceduralTexture("redberry-foliage"), alphaTest: 0.07, side: THREE.DoubleSide, roughness: 0.84, metalness: 0 });
+  const foliageMaterial = new THREE.MeshStandardMaterial({ color: 0xffffff, vertexColors: true, side: THREE.DoubleSide, roughness: 0.9, metalness: 0 });
   const woodMesh = new THREE.Mesh(merged([...woodParts, ...berryParts]), woodMaterial); woodMesh.name = "redberry-buried-stems-ground-blend-and-fruit";
-  const foliageMesh = new THREE.Mesh(merged(foliageParts), foliageMaterial); foliageMesh.name = "redberry-leaf-sprays"; foliageMesh.userData.windPart = true;
+  const foliageMesh = new THREE.Mesh(merged(foliageParts), foliageMaterial); foliageMesh.name = "redberry-individual-ovate-leaves"; foliageMesh.userData.windPart = true;
   group.add(woodMesh, foliageMesh); group.userData.collision = { type: "convex-hull", radius: width * 0.48, height };
   group.userData.wind = { amplitude: 0.04, frequency: 1.05, phase: random() * Math.PI * 2 };
   return group;
