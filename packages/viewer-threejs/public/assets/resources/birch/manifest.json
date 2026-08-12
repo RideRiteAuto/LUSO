@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "familyId": "BIRCH_LOGS",
+  "displayName": "Birch Tree",
+  "status": "canon",
+  "deliveryStage": "review",
+  "profession": "woodcutting",
+  "sourceAuthority": "Navora Worldbuilding Bible v11, Sections 21 and 24-25; data/design/starter-resource-art.json",
+  "realWorldReference": "Temperate birch: pale peeling bark with charcoal lenticels, fine ascending branches and airy light-green crown",
+  "scaleMeters": { "minHeight": 10.5, "maxHeight": 19.5 },
+  "interactionDistanceMeters": 6,
+  "materials": 1,
+  "textureSet": { "maxResolution": 0, "runtimeFormat": "VERTEX_COLOR_PBR", "channels": ["color", "roughness"], "promotionTarget": "shared 2K KTX2 color + normal + ORM" },
+  "variants": [
+    { "id": "small", "lodTriangles": [12840, 3360, 660], "runtimeFiles": ["small-lod0.glb", "small-lod1.glb", "small-lod2.glb"] },
+    { "id": "standard", "lodTriangles": [13496, 3616, 730], "runtimeFiles": ["standard-lod0.glb", "standard-lod1.glb", "standard-lod2.glb"] },
+    { "id": "mature", "lodTriangles": [13496, 3872, 800], "runtimeFiles": ["mature-lod0.glb", "mature-lod1.glb", "mature-lod2.glb"] }
+  ],
+  "collision": { "type": "capsule", "embeddedMetadata": true },
+  "lodDistancesMeters": [55, 150],
+  "wind": { "mode": "foliage-only", "instancePhase": "stable-seed" },
+  "provenance": [],
+  "review": { "yardApproved": false, "crowdedSceneMeasured": false }
+}

@@ -2,11 +2,13 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { buildResourceModel, disposeResourceModel, type ResourceFamilyId, type ResourceLod } from "./resourceModels.js";
 
-const families: ResourceFamilyId[] = ["pine", "copper", "tin", "redberry"];
+const families: ResourceFamilyId[] = ["pine", "birch", "copper", "tin", "stone", "redberry"];
 const budgets: Record<ResourceFamilyId, [[number, number], [number, number], [number, number]]> = {
   pine: [[8000, 14000], [2500, 5000], [400, 1200]],
+  birch: [[8000, 14000], [2500, 5000], [400, 1200]],
   copper: [[2500, 6000], [700, 1800], [120, 400]],
   tin: [[2500, 6000], [700, 1800], [120, 400]],
+  stone: [[2500, 6000], [700, 1800], [120, 400]],
   redberry: [[2000, 5000], [600, 1500], [150, 400]],
 };
 

@@ -35,7 +35,7 @@ Object.assign(globalThis, { FileReader: NodeFileReader });
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const outputRoot = path.resolve(scriptDir, "../public/assets/resources");
-const families: ResourceFamilyId[] = ["pine", "copper", "tin", "redberry"];
+const families: ResourceFamilyId[] = ["pine", "birch", "copper", "tin", "stone", "redberry"];
 const variantNames = ["small", "standard", "mature"];
 const exporter = new GLTFExporter();
 const report: Record<string, unknown> = {

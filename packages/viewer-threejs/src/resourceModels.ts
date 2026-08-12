@@ -1,7 +1,7 @@
 import * as THREE from "three/webgpu";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 
-export type ResourceFamilyId = "pine" | "copper" | "tin" | "redberry";
+export type ResourceFamilyId = "pine" | "birch" | "copper" | "tin" | "stone" | "redberry";
 export type ResourceLod = 0 | 1 | 2;
 
 export interface ResourceModelInfo {
@@ -18,7 +18,9 @@ export interface ResourceModel {
   info: ResourceModelInfo;
 }
 
-const FAMILY_SEEDS: Record<ResourceFamilyId, number> = { pine: 17011, copper: 31013, tin: 47017, redberry: 59021 };
+const FAMILY_SEEDS: Record<ResourceFamilyId, number> = {
+  pine: 17011, birch: 23003, copper: 31013, tin: 47017, stone: 53009, redberry: 59021,
+};
 
 function rng(seed: number): () => number {
   let value = seed >>> 0;
@@ -168,6 +170,69 @@ function buildPine(variant: number, lod: ResourceLod): THREE.Group {
   return group;
 }
 
+function buildBirch(variant: number, lod: ResourceLod): THREE.Group {
+  const random = rng(FAMILY_SEEDS.birch + variant * 107 + lod * 1019);
+  const group = new THREE.Group(); group.name = `birch-v${variant + 1}-lod${lod}`;
+  const heights = [10.5, 15.5, 19.5], widths = [4.2, 6.1, 7.4];
+  const height = heights[variant], crownWidth = widths[variant];
+  const radial = lod === 0 ? 12 : lod === 1 ? 8 : 5;
+  const parts: THREE.BufferGeometry[] = [];
+  const trunkBase = new THREE.CylinderGeometry(1, 1, 1, radial, lod === 0 ? 6 : 2, false);
+  const trunk = trunkBase.clone();
+  trunk.scale(height * 0.043, height, height * 0.043);
+  trunk.translate(0, height / 2, 0);
+  parts.push(tintGeometry(trunk, 0xd8d3c4, 0.09, random));
+
+  // Sparse charcoal lenticels are geometry at review distance, then collapse
+  // into the vertex-color silhouette in cheaper LODs.
+  const lenticels = lod === 0 ? 12 : lod === 1 ? 5 : 0;
+  for (let i = 0; i < lenticels; i++) {
+    const y = height * (0.12 + i / Math.max(1, lenticels) * 0.64 + random() * 0.025);
+    const mark = new THREE.TorusGeometry(height * 0.044, height * 0.0032, 3, radial);
+    mark.rotateX(Math.PI / 2); mark.scale(1, 1, 0.35 + random() * 0.35); mark.translate(0, y, 0);
+    parts.push(tintGeometry(mark, 0x443f3a, 0.06, random));
+  }
+
+  const branchCount = lod === 0 ? [18, 19, 19][variant] : lod === 1 ? [12, 13, 14][variant] : [9, 10, 11][variant];
+  const foliageDetail = lod === 2 ? 0 : 1;
+  const foliageBase = new THREE.IcosahedronGeometry(1, foliageDetail);
+  for (let i = 0; i < branchCount; i++) {
+    const t = i / Math.max(1, branchCount - 1);
+    const angle = i * 2.399 + variant * 0.61 + random() * 0.55;
+    const start = new THREE.Vector3(0, height * (0.28 + t * 0.56), 0);
+    const reach = crownWidth * (0.38 + (1 - t) * 0.42) * (0.75 + random() * 0.38);
+    const end = new THREE.Vector3(
+      Math.cos(angle) * reach,
+      start.y + height * (0.08 + random() * 0.16),
+      Math.sin(angle) * reach,
+    );
+    parts.push(tintGeometry(between(trunkBase, start, end, height * (0.008 + (1 - t) * 0.004)), 0x7f7466, 0.11, random));
+    if (lod < 2) {
+      const forkAngle = angle + (random() - 0.5) * 1.2;
+      const forkStart = start.clone().lerp(end, 0.62);
+      const forkEnd = end.clone().add(new THREE.Vector3(Math.cos(forkAngle) * reach * 0.28, height * 0.07, Math.sin(forkAngle) * reach * 0.28));
+      parts.push(tintGeometry(between(trunkBase, forkStart, forkEnd, height * 0.0055), 0x756b60, 0.1, random));
+    }
+    const leafClusters = lod === 0 ? 4 : 2;
+    for (let cluster = 0; cluster < leafClusters; cluster++) {
+      const along = 0.48 + cluster / Math.max(1, leafClusters - 1) * 0.5;
+      const center = start.clone().lerp(end, Math.min(0.98, along));
+      const leaf = foliageBase.clone();
+      const scale = crownWidth * (lod === 2 ? 0.12 : 0.075 + random() * 0.035);
+      leaf.scale(scale * (1.1 + random() * 0.45), scale * (0.55 + random() * 0.24), scale * (0.85 + random() * 0.3));
+      leaf.rotateY(angle + random() * 0.8);
+      leaf.translate(center.x + (random() - 0.5) * scale, center.y + (random() - 0.5) * scale, center.z + (random() - 0.5) * scale);
+      parts.push(tintGeometry(leaf, variant === 0 ? 0x6e923f : 0x64863a, 0.18, random));
+    }
+  }
+  const material = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.91, metalness: 0, flatShading: lod === 2 });
+  const mesh = new THREE.Mesh(merged(parts), material); mesh.name = "birch-bark-branches-leaf-masses";
+  group.add(mesh);
+  group.userData.collision = { type: "capsule", radius: height * 0.05, height: height * 0.78 };
+  group.userData.wind = { mode: "foliage-only", phaseSeed: FAMILY_SEEDS.birch + variant * 107 };
+  return group;
+}
+
 function orePalette(family: "copper" | "tin") {
   return family === "copper"
     ? { host: 0x514b42, ore: 0xb76532, accent: 0x3f7664 }
@@ -221,6 +286,30 @@ function buildOre(family: "copper" | "tin", variant: number, lod: ResourceLod): 
   return group;
 }
 
+function buildStone(variant: number, lod: ResourceLod): THREE.Group {
+  const random = rng(FAMILY_SEEDS.stone + variant * 137 + lod * 1021);
+  const group = new THREE.Group(); group.name = `stone-v${variant + 1}-lod${lod}`;
+  const sizes = [1.2, 1.75, 2.35], size = sizes[variant];
+  const detail = lod === 0 ? 3 : lod === 1 ? 2 : 1;
+  const parts: THREE.BufferGeometry[] = [];
+  const boulders = lod === 0 ? 8 : lod === 1 ? 4 : 2;
+  for (let i = 0; i < boulders; i++) {
+    const angle = i / boulders * Math.PI * 2 + random() * 0.7;
+    const radius = size * (i === 0 ? 0.68 : 0.32 + random() * 0.18);
+    const squash = new THREE.Vector3(0.82 + random() * 0.42, 0.58 + random() * 0.35, 0.78 + random() * 0.46);
+    const rock = irregularRock(radius, detail, FAMILY_SEEDS.stone + variant * 79 + i * 23 + lod, squash);
+    const offset = i === 0 ? 0 : size * (0.38 + random() * 0.2);
+    rock.rotateY(angle + random() * 0.6);
+    rock.translate(Math.cos(angle) * offset, radius * squash.y * 0.8, Math.sin(angle) * offset);
+    const palette = [0x68665e, 0x5c615d, 0x746c5f];
+    parts.push(tintGeometry(rock, palette[(variant + i) % palette.length], 0.14, random));
+  }
+  const material = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.96, metalness: 0, flatShading: false });
+  const mesh = new THREE.Mesh(merged(parts), material); mesh.name = "weathered-fieldstone";
+  group.add(mesh); group.userData.collision = { type: "convex-hull", radius: size, height: size * 1.35 };
+  return group;
+}
+
 function buildRedberry(variant: number, lod: ResourceLod): THREE.Group {
   const random = rng(FAMILY_SEEDS.redberry + variant * 149 + lod * 1031);
   const group = new THREE.Group(); group.name = `redberry-v${variant + 1}-lod${lod}`;
@@ -264,6 +353,8 @@ function buildRedberry(variant: number, lod: ResourceLod): THREE.Group {
 export function buildResourceModel(family: ResourceFamilyId, variant: number, lod: ResourceLod): ResourceModel {
   if (!Number.isInteger(variant) || variant < 0 || variant > 2) throw new Error(`Invalid ${family} variant: ${variant}`);
   const group = family === "pine" ? buildPine(variant, lod)
+    : family === "birch" ? buildBirch(variant, lod)
+    : family === "stone" ? buildStone(variant, lod)
     : family === "redberry" ? buildRedberry(variant, lod)
       : buildOre(family, variant, lod);
   group.updateMatrixWorld(true);

@@ -10,7 +10,9 @@ const FAMILY_LAYOUT: Array<{ family: ResourceFamilyId; x: number; z: number }> =
   { family: "redberry", x: -12, z: -18 },
   { family: "copper", x: 9, z: -30 },
   { family: "tin", x: 9, z: -44 },
-  { family: "pine", x: -26, z: -62 },
+  { family: "stone", x: 9, z: -58 },
+  { family: "birch", x: -24, z: -74 },
+  { family: "pine", x: 14, z: -74 },
 ];
 
 export interface ResourceReviewStats {
@@ -20,7 +22,7 @@ export interface ResourceReviewStats {
 }
 
 /**
- * Fixed Phase-2 review arrangement. It is intentionally authored rather than
+ * Fixed starter-resource review arrangement. It is intentionally authored rather than
  * procedurally scattered so scale, silhouettes, and family differences are
  * judged at the same location after every rebuild.
  */
@@ -51,7 +53,7 @@ export class ResourceReviewYard {
     for (const layout of FAMILY_LAYOUT) {
       for (let variant = 0; variant < 3; variant++) {
         const model = buildResourceModel(layout.family, variant, 0);
-        const spacing = layout.family === "pine" ? 17 : layout.family === "redberry" ? 5.5 : 7;
+        const spacing = layout.family === "pine" || layout.family === "birch" ? 14 : layout.family === "redberry" ? 5.5 : 7;
         model.group.position.set(layout.x + variant * spacing, 0, layout.z);
         model.group.rotation.y = variant * 0.83 + (layout.family === "tin" ? 0.4 : 0);
         model.group.userData.reviewLabel = `${layout.family} ${["small", "standard", "mature"][variant]}`;
