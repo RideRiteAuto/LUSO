@@ -71,6 +71,12 @@ for (const layer of ["sand", "grass", "rock"]) {
   terrainAssets[layer].roughness = readTerrainTexture(layer, "roughness");
 }
 
+const environmentAssetIds = ["celandine_01", "shrub_03", "rock_07", "dead_tree_trunk"];
+const environmentAssets = Object.fromEntries(environmentAssetIds.map((id) => [
+  id,
+  readFileSync(path.join(packageRoot, "public", "environment", `${id}.glb`)).toString("base64"),
+]));
+
 console.log("Bundling viewer JS with esbuild…");
 const buildResult = await esbuild.build({
   entryPoints: [path.join(packageRoot, "src", "main.ts")],
@@ -84,9 +90,10 @@ const buildResult = await esbuild.build({
 const bundledJs = buildResult.outputFiles[0].text.replace(/<\/script/gi, "<\\/script");
 const embeddedJson = JSON.stringify(embedded).replace(/<\/script/gi, "<\\/script");
 const terrainJson = JSON.stringify(terrainAssets).replace(/<\/script/gi, "<\\/script");
+const environmentJson = JSON.stringify(environmentAssets).replace(/<\/script/gi, "<\\/script");
 
 const moduleTag = '<script type="module" src="/src/main.ts"></script>';
-const inlineScripts = `<script>window.__NEVORA_WORLD__ = ${embeddedJson};window.__NEVORA_TERRAIN_ASSETS__ = ${terrainJson};</script>\n<script>${bundledJs}</script>`;
+const inlineScripts = `<script>window.__NEVORA_WORLD__ = ${embeddedJson};window.__NEVORA_TERRAIN_ASSETS__ = ${terrainJson};window.__NAVORA_ENVIRONMENT_ASSETS__ = ${environmentJson};</script>\n<script>${bundledJs}</script>`;
 const sourceHtml = readFileSync(path.join(packageRoot, "index.html"), "utf-8");
 if (!sourceHtml.includes(moduleTag)) throw new Error(`Expected module tag not found in ${path.join(packageRoot, "index.html")}`);
 const html = sourceHtml.replace(moduleTag, inlineScripts);

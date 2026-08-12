@@ -1,4 +1,5 @@
 import * as THREE from "three/webgpu";
+import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import type { WorldData } from "./worldData.js";
 import { buildTerrainColorMap, SKIRT_REACH } from "./terrain.js";
 import { selectTerrainTiles, type TerrainLodSettings, type TerrainTileSpec } from "./terrainLod.js";
@@ -212,6 +213,7 @@ export class TerrainStreamer {
   private readonly workers: WorkerSlot[] = [];
   private readonly active = new Map<string, THREE.Mesh>();
   private readonly staging = new Map<string, THREE.Mesh>();
+  private mergedTerrain: THREE.Mesh | null = null;
   private desired = new Set<string>();
   private queue: TerrainTileSpec[] = [];
   private generation = 0;
@@ -289,6 +291,8 @@ export class TerrainStreamer {
   setDebugLod(enabled: boolean): void {
     this.debugLod = enabled;
     for (const mesh of [...this.active.values(), ...this.staging.values()]) this.applyMaterial(mesh);
+    if (this.mergedTerrain) this.mergedTerrain.visible = !enabled;
+    for (const mesh of this.active.values()) mesh.visible = enabled;
   }
 
   setWireframe(enabled: boolean): void {
@@ -317,6 +321,11 @@ export class TerrainStreamer {
     for (const slot of this.workers) slot.worker.terminate();
     for (const mesh of [...this.active.values(), ...this.staging.values()]) mesh.geometry.dispose();
     this.active.clear(); this.staging.clear(); this.queue = [];
+    if (this.mergedTerrain) {
+      this.group.remove(this.mergedTerrain);
+      this.mergedTerrain.geometry.dispose();
+      this.mergedTerrain = null;
+    }
     this.terrainMaterial.dispose();
     for (const material of this.debugMaterials) material.dispose();
   }
@@ -395,9 +404,39 @@ export class TerrainStreamer {
       this.active.delete(id);
     }
     for (const [id, mesh] of this.staging) {
-      mesh.visible = true;
+      mesh.visible = this.debugLod;
       this.active.set(id, mesh);
     }
     this.staging.clear();
+    this.rebuildMergedTerrain();
+  }
+
+  /**
+   * All committed tiles share one terrain material. Combining their geometry
+   * turns up to ~200 terrain submissions into one draw while the original
+   * tile meshes remain as an invisible streaming cache and LOD debug view.
+   */
+  private rebuildMergedTerrain(): void {
+    if (this.mergedTerrain) {
+      this.group.remove(this.mergedTerrain);
+      this.mergedTerrain.geometry.dispose();
+      this.mergedTerrain = null;
+    }
+    const translated = [...this.active.values()].map((mesh) => {
+      const geometry = mesh.geometry.clone();
+      geometry.translate(mesh.position.x, mesh.position.y, mesh.position.z);
+      return geometry;
+    });
+    if (!translated.length) return;
+    const merged = mergeGeometries(translated, false);
+    for (const geometry of translated) geometry.dispose();
+    if (!merged) throw new Error("Unable to batch terrain tile geometries");
+    merged.computeBoundingSphere();
+    const mesh = new THREE.Mesh(merged, this.terrainMaterial.material);
+    mesh.name = "terrain-batch";
+    mesh.receiveShadow = true;
+    mesh.visible = !this.debugLod;
+    this.group.add(mesh);
+    this.mergedTerrain = mesh;
   }
 }

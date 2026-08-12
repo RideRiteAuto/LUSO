@@ -1,0 +1,581 @@
+{
+  "generatedAt": "2026-08-12T16:32:23.961Z",
+  "resolution": "2k",
+  "source": {
+    "name": "Poly Haven",
+    "url": "https://polyhaven.com/models",
+    "license": "CC0",
+    "licenseUrl": "https://polyhaven.com/license",
+    "apiCredit": "Asset discovery/download metadata provided by the Poly Haven public API"
+  },
+  "assets": {
+    "grass_medium_01": {
+      "id": "grass_medium_01",
+      "role": "temperate meadow grass",
+      "targetZones": [
+        "alvora",
+        "valedouro"
+      ],
+      "sourceUrl": "https://polyhaven.com/a/grass_medium_01",
+      "license": "CC0",
+      "files": [
+        {
+          "path": "grass_medium_01.gltf",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Models/gltf/2k/grass_medium_01/grass_medium_01_2k.gltf",
+          "bytes": 27110,
+          "md5": "784c287f7828f8e30c4d28ebcbd90f6e",
+          "sha256": "aed63929a83fb694e6884e3a5c0fdb962ab8cf9153830247c8201a482ff02664"
+        },
+        {
+          "path": "textures/grass_medium_01_nor_gl_2k.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/2k/grass_medium_01/grass_medium_01_nor_gl_2k.jpg",
+          "bytes": 3530394,
+          "md5": "7c75ce52a121de1fc00422672584f757",
+          "sha256": "245349ce6d1910b3b7474da6013452a5be993f9058be78e17171a0866a6889e9"
+        },
+        {
+          "path": "textures/grass_medium_01_diff_2k.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/2k/grass_medium_01/grass_medium_01_diff_2k.jpg",
+          "bytes": 1166527,
+          "md5": "000814eb2149add70695cf71bfb52c4b",
+          "sha256": "f768aa68daf14f37a92dd96621628a5252b169f4d94b4d1cc830d62cd3ac9e68"
+        },
+        {
+          "path": "textures/grass_medium_01_arm_2k.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/2k/grass_medium_01/grass_medium_01_arm_2k.jpg",
+          "bytes": 2256355,
+          "md5": "a530c693ba3d08be15fcbce33dc5dabe",
+          "sha256": "7b593b1c470c1817b937bb3ca00da7e4b27ca00120e98b06b43bb3a7d5810aa1"
+        },
+        {
+          "path": "grass_medium_01.bin",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Models/gltf/8k/grass_medium_01/grass_medium_01.bin",
+          "bytes": 1006632,
+          "md5": "e0527a0561c2dae5b7b5c1b478d8c6bf",
+          "sha256": "f4587cabdb96a2e96d8be644923dc954a248edfaaa717a0ff224cacb898bee1f"
+        }
+      ]
+    },
+    "grass_medium_02": {
+      "id": "grass_medium_02",
+      "role": "mixed wild grass",
+      "targetZones": [
+        "alvora",
+        "valedouro",
+        "cavora"
+      ],
+      "sourceUrl": "https://polyhaven.com/a/grass_medium_02",
+      "license": "CC0",
+      "files": [
+        {
+          "path": "grass_medium_02.gltf",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Models/gltf/2k/grass_medium_02/grass_medium_02_2k.gltf",
+          "bytes": 8864,
+          "md5": "fc24d97b602c74c1a9357a7570ae2b87",
+          "sha256": "6966503de862fd46d5525ac56e0e3f7ca6a45cc8989c80af97d39f1b37ef480f"
+        },
+        {
+          "path": "textures/grass_medium_02_nor_gl_2k.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/2k/grass_medium_02/grass_medium_02_nor_gl_2k.jpg",
+          "bytes": 353362,
+          "md5": "9ca6e2499ce71446f0cd8a3fc8c54a1b",
+          "sha256": "98ab154f35798b1e28660c28016e9a9f768859efbe86dbcb2c5bff1aebcd6318"
+        },
+        {
+          "path": "textures/grass_medium_02_diff_2k.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/2k/grass_medium_02/grass_medium_02_diff_2k.jpg",
+          "bytes": 456989,
+          "md5": "3431e6de76f40f25bef48755f4c6a76a",
+          "sha256": "70c0e294fd94b980d01ed91bde30ab19fe7eeed1f2717088cc88ab20bb115c87"
+        },
+        {
+          "path": "textures/grass_medium_02_arm_2k.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/2k/grass_medium_02/grass_medium_02_arm_2k.jpg",
+          "bytes": 698115,
+          "md5": "66eb24d4e6dbda01faad666a3517dcd1",
+          "sha256": "8878f8c5a6287c265231f0818c437a6f9dcf1d9fc01d085decf07324ecba1fd9"
+        },
+        {
+          "path": "grass_medium_02.bin",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Models/gltf/4k/grass_medium_02/grass_medium_02.bin",
+          "bytes": 272048,
+          "md5": "145041ae03fe02783a0adbd1cdcb4988",
+          "sha256": "aa8493bc1544a89e08bf440c7ba361042bfe6ea48b1fefc7e4af2dfff42fdf4a"
+        }
+      ]
+    },
+    "nettle_plant": {
+      "id": "nettle_plant",
+      "role": "moist undergrowth",
+      "targetZones": [
+        "valedouro",
+        "solmara"
+      ],
+      "sourceUrl": "https://polyhaven.com/a/nettle_plant",
+      "license": "CC0",
+      "files": [
+        {
+          "path": "nettle_plant.gltf",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Models/gltf/2k/nettle_plant/nettle_plant_2k.gltf",
+          "bytes": 10450,
+          "md5": "b684bcbe68aa98aa7988e3fa3b40ffd1",
+          "sha256": "75e1debf2fce510fb119847ec4a427d6dea4de33a1aac3e6484d880845e4047b"
+        },
+        {
+          "path": "textures/nettle_plant_nor_gl_2k.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/2k/nettle_plant/nettle_plant_nor_gl_2k.jpg",
+          "bytes": 2356297,
+          "md5": "f9c7a2f400685159583a75221e06bfa8",
+          "sha256": "90d75c7ac70df26d6abb938e14676b0ecc08e35a596034a47f54865a5ab283a2"
+        },
+        {
+          "path": "nettle_plant.bin",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Models/gltf/8k/nettle_plant/nettle_plant.bin",
+          "bytes": 956560,
+          "md5": "975cb59d9f42871bb448de70aeecbc01",
+          "sha256": "24810f9d80b5fafdd71e1599b0cc81afa3eb9b744cfa8bf388c5e9f30271ba46"
+        },
+        {
+          "path": "textures/nettle_plant_diff_2k.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/2k/nettle_plant/nettle_plant_diff_2k.jpg",
+          "bytes": 1197929,
+          "md5": "bd08db8a634d02c12a0cf4f4daac8937",
+          "sha256": "7baf0c5bf0695ddbba590baba686e284803244703959092526eb2bc226724351"
+        },
+        {
+          "path": "textures/nettle_plant_arm_2k.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/2k/nettle_plant/nettle_plant_arm_2k.jpg",
+          "bytes": 1566589,
+          "md5": "dee323f552417bf65614c1f9bbb73214",
+          "sha256": "94a5bcfdb6c00f3f44105e06eef9cc759e6826bf30bd3ef56c4991b18691d230"
+        }
+      ]
+    },
+    "fern_02": {
+      "id": "fern_02",
+      "role": "woodland undergrowth",
+      "targetZones": [
+        "valedouro"
+      ],
+      "sourceUrl": "https://polyhaven.com/a/fern_02",
+      "license": "CC0",
+      "files": [
+        {
+          "path": "fern_02.gltf",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Models/gltf/2k/fern_02/fern_02_2k.gltf",
+          "bytes": 6899,
+          "md5": "904c73900125e017f5e76ac1cdd906fe",
+          "sha256": "50540d37531f93fd693d5340d5b3095c9d6d2834fa05c74bea797d54f290cb6a"
+        },
+        {
+          "path": "textures/fern_02_diff_2k.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/2k/fern_02/fern_02_diff_2k.jpg",
+          "bytes": 993703,
+          "md5": "ba8bbb9dc9ff55bdc081565cd926d776",
+          "sha256": "9ee18172170728050871772e2cd6d8d37b52f9138e61b49b04486623f9caf84b"
+        },
+        {
+          "path": "textures/fern_02_arm_2k.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/2k/fern_02/fern_02_arm_2k.jpg",
+          "bytes": 850856,
+          "md5": "7f7b46e813a3cb4811405191de0ecdce",
+          "sha256": "1eaf9bd29e2d83a77ca5d89bdddebcd9216b8b4ba244644580fe5b89bbe713f1"
+        },
+        {
+          "path": "fern_02.bin",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Models/gltf/8k/fern_02/fern_02.bin",
+          "bytes": 176176,
+          "md5": "c061e9255f7d36ae9ce0e92ef3e100b2",
+          "sha256": "fe1abb762bcbbc7ad9e86925c8080437a62add257d9280e9142fdc85c226e64c"
+        },
+        {
+          "path": "textures/fern_02_nor_gl_2k.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/2k/fern_02/fern_02_nor_gl_2k.jpg",
+          "bytes": 1365615,
+          "md5": "00936dff4661dc9fe1f2fbe6c000615a",
+          "sha256": "dfe1ac4a428d21f7c134411500177d66b8dd800c8fec6f0040c50f44414a777b"
+        }
+      ]
+    },
+    "shrub_03": {
+      "id": "shrub_03",
+      "role": "low scrub bush",
+      "targetZones": [
+        "alvora",
+        "cavora",
+        "serravela"
+      ],
+      "sourceUrl": "https://polyhaven.com/a/shrub_03",
+      "license": "CC0",
+      "files": [
+        {
+          "path": "shrub_03.gltf",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Models/gltf/2k/shrub_03/shrub_03_2k.gltf",
+          "bytes": 7296,
+          "md5": "9423a0213b3450e5d7a47dc728a98467",
+          "sha256": "68c6c0d1f0866a08ade5cdcd0e7db4c70416415c95e719d4ae38d119402d1fd4"
+        },
+        {
+          "path": "shrub_03.bin",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Models/gltf/4k/shrub_03/shrub_03.bin",
+          "bytes": 238684,
+          "md5": "c26c6ed23b0034664eab5a0e3ee00f6a",
+          "sha256": "bf4df21e6d2a2bc5f00b4c9142f776171fe7da00cf960001825748067af542b6"
+        },
+        {
+          "path": "textures/shrub_03_nor_gl_2k.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/2k/shrub_03/shrub_03_nor_gl_2k.jpg",
+          "bytes": 1526365,
+          "md5": "731088ec8f2a4e57e7e959876e667509",
+          "sha256": "d6ca015d7a283c772be266925fa4a4de6b133791c1f54a7606f6349f2fd9d451"
+        },
+        {
+          "path": "textures/shrub_03_diff_2k.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/2k/shrub_03/shrub_03_diff_2k.jpg",
+          "bytes": 1520137,
+          "md5": "27f9a6beb620a60bd5036e8d3bfff0af",
+          "sha256": "66290b6c5366dd0259f5a2a7d84deaac1dfe35f6be661c97752d98dbcdb427ed"
+        },
+        {
+          "path": "textures/shrub_03_arm_2k.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/2k/shrub_03/shrub_03_arm_2k.jpg",
+          "bytes": 1205240,
+          "md5": "f8fd965fc3fd25dc1e7f47ece82d0139",
+          "sha256": "008b06b8dc1f49a4b38aa7c5b3fdd70754a66009645283fed921ddc178dab067"
+        }
+      ]
+    },
+    "celandine_01": {
+      "id": "celandine_01",
+      "role": "temperate wildflower",
+      "targetZones": [
+        "alvora",
+        "valedouro"
+      ],
+      "sourceUrl": "https://polyhaven.com/a/celandine_01",
+      "license": "CC0",
+      "files": [
+        {
+          "path": "celandine_01.gltf",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Models/gltf/2k/celandine_01/celandine_01_2k.gltf",
+          "bytes": 8770,
+          "md5": "c074619944bc0a852e6b4c6be4d49b8f",
+          "sha256": "c4506e16ee6cb87556f5834cb222e0e4f495b582b6010710e1083e6e6dd58101"
+        },
+        {
+          "path": "textures/celandine_01_nor_gl_2k.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/2k/celandine_01/celandine_01_nor_gl_2k.jpg",
+          "bytes": 1316330,
+          "md5": "84a7b7b1a14957e640862479c8c87cbd",
+          "sha256": "4d28da6f9939d55ddc1ed03bf8e3188014ff09a2f6feda9c1452e1cf370afe24"
+        },
+        {
+          "path": "textures/celandine_01_diff_2k.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/2k/celandine_01/celandine_01_diff_2k.jpg",
+          "bytes": 1245607,
+          "md5": "b0c1ba37fcdd0b3defe988a426e59130",
+          "sha256": "2f602608fcc2d00da1ba65043c6c125f93db226b952db22add1e9396fde3c60e"
+        },
+        {
+          "path": "textures/celandine_01_arm_2k.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/2k/celandine_01/celandine_01_arm_2k.jpg",
+          "bytes": 1252878,
+          "md5": "a26f86f41255d409f41e73e8bc84a93c",
+          "sha256": "7c3b0d3ef3a1352a95453c900903f31a0d7649cbad126438d46841f8ca1fca9b"
+        },
+        {
+          "path": "celandine_01.bin",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Models/gltf/8k/celandine_01/celandine_01.bin",
+          "bytes": 325768,
+          "md5": "ee7bd43b52b65b9e2aaa0ae8cf6e8042",
+          "sha256": "7d2c6d2cc44da3a0c08e0fea725af42becdcbb06635d968f42892a1a3dfae7d6"
+        }
+      ]
+    },
+    "dandelion_01": {
+      "id": "dandelion_01",
+      "role": "meadow wildflower",
+      "targetZones": [
+        "alvora",
+        "valedouro"
+      ],
+      "sourceUrl": "https://polyhaven.com/a/dandelion_01",
+      "license": "CC0",
+      "files": [
+        {
+          "path": "dandelion_01.gltf",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Models/gltf/2k/dandelion_01/dandelion_01_2k.gltf",
+          "bytes": 8915,
+          "md5": "4bf8d20857e23781978a238d0552e3bf",
+          "sha256": "06f560226c9a54fa29c60cb7cb3f6b508c07f5787ceaf0ab9146da291d00ed57"
+        },
+        {
+          "path": "dandelion_01.bin",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Models/gltf/8k/dandelion_01/dandelion_01.bin",
+          "bytes": 1676648,
+          "md5": "a44fda5ce48c4f194791dc0d2e2b1312",
+          "sha256": "ccff5a564f56a69374c09c25ae86c3684c46329309b4eef4569255b1ad54bdd0"
+        },
+        {
+          "path": "textures/dandelion_01_arm_2k.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/2k/dandelion_01/dandelion_01_arm_2k.jpg",
+          "bytes": 1499438,
+          "md5": "4dd92440607d04ba33a63fa6f851fe90",
+          "sha256": "3bee6803f9b0775901524da1a7feb711c0857c0305eef4cd2d721ae3d3e50a60"
+        },
+        {
+          "path": "textures/dandelion_01_nor_gl_2k.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/2k/dandelion_01/dandelion_01_nor_gl_2k.jpg",
+          "bytes": 1684671,
+          "md5": "1a949a215faea1ff3a8a34d11cb552e6",
+          "sha256": "d709fa1f58abc1d3e6c3b5b023122a06bf10f7b3e32f6ea547dd7e2e1c155f96"
+        },
+        {
+          "path": "textures/dandelion_01_diff_2k.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/2k/dandelion_01/dandelion_01_diff_2k.jpg",
+          "bytes": 1466191,
+          "md5": "e8336416dbb341895680642f0cea619a",
+          "sha256": "565a926562a7a2e7b4af99b85da2a7aabff70d7e2238511245a601901fab182f"
+        }
+      ]
+    },
+    "boulder_01": {
+      "id": "boulder_01",
+      "role": "weathered lichen boulder",
+      "targetZones": [
+        "valedouro",
+        "serravela"
+      ],
+      "sourceUrl": "https://polyhaven.com/a/boulder_01",
+      "license": "CC0",
+      "files": [
+        {
+          "path": "boulder_01.gltf",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Models/gltf/2k/boulder_01/boulder_01_2k.gltf",
+          "bytes": 2773,
+          "md5": "3ef4b3c88c898e12b096eeb40f1edbb9",
+          "sha256": "52d118b56748a18509e4ec0075d07b254d72a0401793f22363c0bb3a682e7361"
+        },
+        {
+          "path": "textures/boulder_01_nor_gl_2k.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/2k/boulder_01/boulder_01_nor_gl_2k.jpg",
+          "bytes": 4649207,
+          "md5": "73ee1783fca7605fd454f0af3e5b85fa",
+          "sha256": "5174b318712ac7725cbcb55d422607f9c66d7f8d035c5412ab897b5939e2db6b"
+        },
+        {
+          "path": "textures/boulder_01_diff_2k.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/2k/boulder_01/boulder_01_diff_2k.jpg",
+          "bytes": 3672483,
+          "md5": "63571077317c9a2d1db95894e0268a07",
+          "sha256": "90bbaa17c1fe0254d2b0b6e5148264fa834953a72724d566f14af029eebe3ca3"
+        },
+        {
+          "path": "boulder_01.bin",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Models/gltf/8k/boulder_01/boulder_01.bin",
+          "bytes": 2938808,
+          "md5": "27a19fa031d8b4c3a09261f19c444dc5",
+          "sha256": "7f5b06503d62bd95bfe9c6b8a354a5cc8ff04a4d271a8cf87a3e3125db4232d7"
+        },
+        {
+          "path": "textures/boulder_01_arm_2k.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/2k/boulder_01/boulder_01_arm_2k.jpg",
+          "bytes": 2273068,
+          "md5": "94c796dfd73f72b11e557cb2c05ff51e",
+          "sha256": "ab52859dde519b4822111aa60916b6d21f8a6966c67b6cec44d1cd0775b8a86a"
+        }
+      ]
+    },
+    "rock_07": {
+      "id": "rock_07",
+      "role": "weathered field rock",
+      "targetZones": [
+        "alvora",
+        "serravela",
+        "cavora"
+      ],
+      "sourceUrl": "https://polyhaven.com/a/rock_07",
+      "license": "CC0",
+      "files": [
+        {
+          "path": "rock_07.gltf",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Models/gltf/2k/rock_07/rock_07_2k.gltf",
+          "bytes": 2979,
+          "md5": "903924785f3c43703b77ffd692897814",
+          "sha256": "b0ff2386f1225784707df0a07b8bfb0e35e220a42b89a2be5e9e6ac035aa2a85"
+        },
+        {
+          "path": "rock_07.bin",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Models/gltf/8k/rock_07/rock_07.bin",
+          "bytes": 468936,
+          "md5": "817b2cfd1626cb06f18a825f87f58ec3",
+          "sha256": "e4a532a6d6cf4a08c288f501b790f32cba0528136a29959ce774c3cd39369e7e"
+        },
+        {
+          "path": "textures/rock_07_arm_2k.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/2k/rock_07/rock_07_arm_2k.jpg",
+          "bytes": 829879,
+          "md5": "b61dd56e72420bd1e08cc8f63c5e7e0e",
+          "sha256": "d083f995ad460c53f436b335493e66d08d911df67a3106293a62521f49131fa6"
+        },
+        {
+          "path": "textures/rock_07_diff_2k.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/2k/rock_07/rock_07_diff_2k.jpg",
+          "bytes": 2227207,
+          "md5": "21dec6e230e78a4a3758a93f1963e6a1",
+          "sha256": "f83d8439faccbda1c74a37421ef9bada9719eff790db000d87ba34c21bce6f72"
+        },
+        {
+          "path": "textures/rock_07_nor_gl_2k.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/2k/rock_07/rock_07_nor_gl_2k.jpg",
+          "bytes": 2781907,
+          "md5": "a0842c476bfbb004d6e1a1f479f4512c",
+          "sha256": "9d5c4dc97891ceb04861ae1194caad64b99b0b486e59572d84537e4e0df4183f"
+        }
+      ]
+    },
+    "coast_land_rocks_02": {
+      "id": "coast_land_rocks_02",
+      "role": "coastal rock cluster",
+      "targetZones": [
+        "alvora",
+        "cavora"
+      ],
+      "sourceUrl": "https://polyhaven.com/a/coast_land_rocks_02",
+      "license": "CC0",
+      "files": [
+        {
+          "path": "coast_land_rocks_02.gltf",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Models/gltf/2k/coast_land_rocks_02/coast_land_rocks_02_2k.gltf",
+          "bytes": 2851,
+          "md5": "1037125c41dfd454d51120d7da84e04c",
+          "sha256": "976262bd7e645710ae85d94b76f5c84538684a0fede22ccfcdda5c49a6e21c4b"
+        },
+        {
+          "path": "textures/coast_land_rocks_02_diff_2k.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/2k/coast_land_rocks_02/coast_land_rocks_02_diff_2k.jpg",
+          "bytes": 3236496,
+          "md5": "1ea7931f92ae9cd9db4c5f886270a8d9",
+          "sha256": "a8561f7a988646fb76d2d837c11fa76dbc88c52c7d9ed615ac6eb094cf47a666"
+        },
+        {
+          "path": "coast_land_rocks_02.bin",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Models/gltf/8k/coast_land_rocks_02/coast_land_rocks_02.bin",
+          "bytes": 36700376,
+          "md5": "bdb0028f3b0d57deadab130fc34135a3",
+          "sha256": "e981af395c1a546c2244d95954b8d4406bd11e26047975772b88418f3728adc6"
+        },
+        {
+          "path": "textures/coast_land_rocks_02_arm_2k.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/2k/coast_land_rocks_02/coast_land_rocks_02_arm_2k.jpg",
+          "bytes": 2946981,
+          "md5": "62722e6fa0d54f7e50a8d702fcf3771c",
+          "sha256": "e2271f9b0db4646b5d38586495c7ecba627d880f80706048751e5a61ec7736bd"
+        },
+        {
+          "path": "textures/coast_land_rocks_02_nor_gl_2k.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/2k/coast_land_rocks_02/coast_land_rocks_02_nor_gl_2k.jpg",
+          "bytes": 4651001,
+          "md5": "695217c8729de25609c71433c4228c24",
+          "sha256": "cd2090efca0ec0faa94d67bd1c1e188b6452910d67a756244ef91fc19066b56d"
+        }
+      ]
+    },
+    "dead_tree_trunk": {
+      "id": "dead_tree_trunk",
+      "role": "driftwood and deadfall",
+      "targetZones": [
+        "alvora",
+        "cavora",
+        "valedouro"
+      ],
+      "sourceUrl": "https://polyhaven.com/a/dead_tree_trunk",
+      "license": "CC0",
+      "files": [
+        {
+          "path": "dead_tree_trunk.gltf",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Models/gltf/2k/dead_tree_trunk/dead_tree_trunk_2k.gltf",
+          "bytes": 2812,
+          "md5": "0101cc9b4167fee9872c4153602c1179",
+          "sha256": "63133e2cd4c8c9d08114ef158284403ba4fad802b7f1162f73a8323b509a1b53"
+        },
+        {
+          "path": "textures/dead_tree_trunk_diff_2k.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/2k/dead_tree_trunk/dead_tree_trunk_diff_2k.jpg",
+          "bytes": 2580084,
+          "md5": "c75e5dc80be2e5d4bc873db388e2093c",
+          "sha256": "57b3f04a2b9b1017abfefbbca1b5d4f5421960fefd964a0b9dd4036be4d58d0c"
+        },
+        {
+          "path": "textures/dead_tree_trunk_arm_2k.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/2k/dead_tree_trunk/dead_tree_trunk_arm_2k.jpg",
+          "bytes": 2608763,
+          "md5": "908ade4a274dd887658eb055415ad61b",
+          "sha256": "f244cfbfab760d877980065593710f74947bb70eac9d47d9a189537d23ba1f6b"
+        },
+        {
+          "path": "textures/dead_tree_trunk_nor_gl_2k.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/2k/dead_tree_trunk/dead_tree_trunk_nor_gl_2k.jpg",
+          "bytes": 3804907,
+          "md5": "c09438c886b3327dca4f61b758dbd570",
+          "sha256": "9447959386aa3ee0e3552bd095c3dbbcb13c58cc6a87cb4b51cc4517b695040c"
+        },
+        {
+          "path": "dead_tree_trunk.bin",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Models/gltf/8k/dead_tree_trunk/dead_tree_trunk.bin",
+          "bytes": 2293788,
+          "md5": "2a2b05e67a5c51fba5fc7591a7857957",
+          "sha256": "c1ac6b3195246e8647a28eee2fbfdd4712a045c7cf2dcb4f5abcc2d40a446ca6"
+        }
+      ]
+    },
+    "dry_branches_medium_01": {
+      "id": "dry_branches_medium_01",
+      "role": "forest and shore debris",
+      "targetZones": [
+        "alvora",
+        "cavora",
+        "valedouro"
+      ],
+      "sourceUrl": "https://polyhaven.com/a/dry_branches_medium_01",
+      "license": "CC0",
+      "files": [
+        {
+          "path": "dry_branches_medium_01.gltf",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Models/gltf/2k/dry_branches_medium_01/dry_branches_medium_01_2k.gltf",
+          "bytes": 5844,
+          "md5": "48cebd47ff47f1c166e32bf2846fc5f8",
+          "sha256": "95d29c7dc5cf55b6b06ac0999ffc6773d4929ac3a77d0e9c8e2e2dcfa68894df"
+        },
+        {
+          "path": "textures/dry_branches_medium_01_nor_gl_2k.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/2k/dry_branches_medium_01/dry_branches_medium_01_nor_gl_2k.jpg",
+          "bytes": 4559165,
+          "md5": "385022548e1a3b84be6c4ab2e103aa4f",
+          "sha256": "62c2352a8b194889cb6a9430e74fff044a6fa0b34c579d8d5be1b3fd539b7f14"
+        },
+        {
+          "path": "textures/dry_branches_medium_01_arm_2k.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/2k/dry_branches_medium_01/dry_branches_medium_01_arm_2k.jpg",
+          "bytes": 2959483,
+          "md5": "7610240aa1aafb3c6cfa5c7f89051c33",
+          "sha256": "53cf4afec248f49ccea0a49975ec9ba0a91bae2124adc802fd80568e17019751"
+        },
+        {
+          "path": "textures/dry_branches_medium_01_diff_2k.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/2k/dry_branches_medium_01/dry_branches_medium_01_diff_2k.jpg",
+          "bytes": 2815859,
+          "md5": "5f7ca4d25884545bd9b2063e43c0595c",
+          "sha256": "dcabdd1c0c4d801f5c0ce6376f42daba2a632a5433ea679d38bf4e44e5b4ead2"
+        },
+        {
+          "path": "dry_branches_medium_01.bin",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Models/gltf/8k/dry_branches_medium_01/dry_branches_medium_01.bin",
+          "bytes": 465172,
+          "md5": "10de852c8bf38e3f3ca5fb1d6c8de9d0",
+          "sha256": "969da1e8cbb2d8201e7fa0fc0dac5b19ef354b32c3d8c62dd9faa7cb3833d8ca"
+        }
+      ]
+    }
+  }
+}

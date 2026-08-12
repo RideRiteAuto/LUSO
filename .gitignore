@@ -6,3 +6,4 @@ output/
 .DS_Store
 .tools/
 packages/viewer-threejs/assets/terrain/source/*.jpg
+packages/viewer-threejs/assets/environment/source/

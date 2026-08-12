@@ -10,6 +10,7 @@
     "test": "tsx --test src/**/*.test.ts",
     "textures:download": "node scripts/download-terrain-pbr.mjs",
     "textures:ktx2": "node scripts/prepare-terrain-textures.mjs",
+    "assets:environment": "node scripts/download-environment-assets.mjs",
     "build:artifact": "node scripts/build-artifact.mjs"
   },
   "dependencies": {

@@ -1,0 +1,32 @@
+{
+  "version": 1,
+  "licensePolicy": "CC0 assets with recorded source URL, creator, acquisition date, and SHA-256",
+  "sourceLibrary": {
+    "name": "Poly Haven",
+    "url": "https://polyhaven.com/models",
+    "license": "CC0",
+    "licenseUrl": "https://polyhaven.com/license",
+    "apiCredit": "Asset discovery/download metadata provided by the Poly Haven public API"
+  },
+  "selected": [
+    { "id": "grass_medium_01", "role": "temperate meadow grass", "targetZones": ["alvora", "valedouro"] },
+    { "id": "grass_medium_02", "role": "mixed wild grass", "targetZones": ["alvora", "valedouro", "cavora"] },
+    { "id": "nettle_plant", "role": "moist undergrowth", "targetZones": ["valedouro", "solmara"] },
+    { "id": "fern_02", "role": "woodland undergrowth", "targetZones": ["valedouro"] },
+    { "id": "shrub_03", "role": "low scrub bush", "targetZones": ["alvora", "cavora", "serravela"] },
+    { "id": "celandine_01", "role": "temperate wildflower", "targetZones": ["alvora", "valedouro"] },
+    { "id": "dandelion_01", "role": "meadow wildflower", "targetZones": ["alvora", "valedouro"] },
+    { "id": "boulder_01", "role": "weathered lichen boulder", "targetZones": ["valedouro", "serravela"] },
+    { "id": "rock_07", "role": "weathered field rock", "targetZones": ["alvora", "serravela", "cavora"] },
+    { "id": "coast_land_rocks_02", "role": "coastal rock cluster", "targetZones": ["alvora", "cavora"] },
+    { "id": "dead_tree_trunk", "role": "driftwood and deadfall", "targetZones": ["alvora", "cavora", "valedouro"] },
+    { "id": "dry_branches_medium_01", "role": "forest and shore debris", "targetZones": ["alvora", "cavora", "valedouro"] }
+  ],
+  "qualityGates": {
+    "sourceTextures": "2K PBR working master, KTX2/UASTC or ETC1S shipping derivatives",
+    "nearLod": "silhouette and normal-map inspection at 1–10 m",
+    "midLod": "meshopt-simplified GLB with preserved alpha cards and silhouette",
+    "farLod": "cluster card or material integration; no full mesh beyond its measured screen-size threshold",
+    "required": ["correct real-world scale", "grounded pivot", "no baked lighting", "valid normals/tangents", "license record", "content hash"]
+  }
+}

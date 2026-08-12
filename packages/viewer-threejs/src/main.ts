@@ -10,6 +10,7 @@ import { FlightController } from "./flightControls.js";
 import { CameraRelativeOrigin } from "./worldOrigin.js";
 import { buildTraversalBookmarks, findSafeTraversalPoint, type TraversalBookmark } from "./traversalSpawns.js";
 import type { TerrainMaterialDebugMode } from "./terrainMaterial.js";
+import { EnvironmentDressing } from "./environmentDressing.js";
 
 const params = new URLSearchParams(location.search);
 const seed = Number(params.get("seed") ?? 48291);
@@ -19,9 +20,9 @@ const qualityName = params.get("quality") === "high" || params.get("quality") ==
   ? params.get("quality")!
   : "balanced";
 const quality = {
-  high: { pixelRatioCap: 2 },
-  balanced: { pixelRatioCap: 1.5 },
-  compatibility: { pixelRatioCap: 1 },
+  high: { pixelRatioCap: 1.5, pixelRatioFloor: 0.8 },
+  balanced: { pixelRatioCap: 1.1, pixelRatioFloor: 0.7 },
+  compatibility: { pixelRatioCap: 0.9, pixelRatioFloor: 0.65 },
 }[qualityName];
 
 const statusEl = document.getElementById("status")!;
@@ -36,6 +37,7 @@ const rendererBackendEl = document.getElementById("rendererBackend")!;
 const performanceEl = document.getElementById("performance")!;
 const sceneStatsEl = document.getElementById("sceneStats")!;
 const streamingStatsEl = document.getElementById("streamingStats")!;
+const dressingStatsEl = document.getElementById("dressingStats")!;
 const legendEl = document.getElementById("legend")!;
 
 seedValEl.textContent = String(seed);
@@ -46,7 +48,8 @@ const renderer = new THREE.WebGPURenderer({
   forceWebGL: requestedRenderer === "webgl",
 });
 renderer.setSize(window.innerWidth, window.innerHeight);
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, quality.pixelRatioCap));
+let renderPixelRatio = Math.min(window.devicePixelRatio, quality.pixelRatioCap);
+renderer.setPixelRatio(renderPixelRatio);
 renderer.shadowMap.enabled = false;
 app.appendChild(renderer.domElement);
 
@@ -110,6 +113,7 @@ let roadOverlay: THREE.Group | null = null;
 let settlementOverlay: THREE.Group | null = null;
 let worldFrame: { center: THREE.Vector3; distance: number } | null = null;
 let terrainStreamer: TerrainStreamer | null = null;
+let environmentDressing: EnvironmentDressing | null = null;
 let collisionHeights: CollisionHeightCache | null = null;
 let traversalBookmarks: TraversalBookmark[] = [];
 let loadedWorld: Awaited<ReturnType<typeof loadWorld>> | null = null;
@@ -127,6 +131,9 @@ async function boot() {
   collisionHeights = new CollisionHeightCache(world.worldHeight, manifest.seed, sampleHeightWithSkirt);
   terrainStreamer = await TerrainStreamer.create(world, qualityName, renderer);
   worldRoot.add(terrainStreamer.group);
+  statusEl.textContent = "loading environmental models…";
+  environmentDressing = await EnvironmentDressing.create(world, (x, z) => collisionHeights!.sample(x, z), qualityName);
+  worldRoot.add(environmentDressing.group);
   traversalBookmarks = buildTraversalBookmarks(world, (x, z) => collisionHeights!.sample(x, z));
   const bookmarkSelect = document.getElementById("bookmarkSelect") as HTMLSelectElement;
   bookmarkSelect.replaceChildren(...traversalBookmarks.map((bookmark) => {
@@ -213,6 +220,7 @@ async function boot() {
 
 const frameSamples: number[] = [];
 let telemetryElapsed = 0;
+let scaleAdjustmentElapsed = 0;
 let streamTourDistance = 0;
 
 function animate(timestamp: number) {
@@ -238,22 +246,44 @@ function animate(timestamp: number) {
     terrainStreamer.updateWorldOrigin(worldOrigin.offset);
     terrainStreamer.update(worldOrigin.worldX(camera.position.x), worldOrigin.worldZ(camera.position.z));
   }
+  if (environmentDressing) environmentDressing.update(
+    worldOrigin.worldX(camera.position.x), worldOrigin.worldZ(camera.position.z),
+  );
   renderer.render(scene, camera);
   frameSamples.push(rawDelta * 1000);
   if (frameSamples.length > 180) frameSamples.shift();
   telemetryElapsed += rawDelta;
+  scaleAdjustmentElapsed += rawDelta;
   if (telemetryElapsed >= 0.25 && frameSamples.length > 0) {
     telemetryElapsed = 0;
     const sorted = [...frameSamples].sort((a, b) => a - b);
     const medianMs = sorted[Math.floor(sorted.length * 0.5)];
     const p95Ms = sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * 0.95))];
-    performanceEl.textContent = `${(1000 / medianMs).toFixed(0)} fps · ${medianMs.toFixed(1)} ms med · ${p95Ms.toFixed(1)} ms p95`;
+    const streamSettled = !terrainStreamer || (terrainStreamer.stats.queued === 0 && terrainStreamer.stats.building === 0);
+    if (scaleAdjustmentElapsed >= 3 && streamSettled && frameSamples.length >= 120) {
+      scaleAdjustmentElapsed = 0;
+      const nextRatio = medianMs > 22
+        ? Math.max(quality.pixelRatioFloor, renderPixelRatio - 0.1)
+        : medianMs < 13.8
+          ? Math.min(Math.min(window.devicePixelRatio, quality.pixelRatioCap), renderPixelRatio + 0.05)
+          : renderPixelRatio;
+      if (Math.abs(nextRatio - renderPixelRatio) > 0.001) {
+        renderPixelRatio = nextRatio;
+        renderer.setPixelRatio(renderPixelRatio);
+        frameSamples.length = 0;
+      }
+    }
+    performanceEl.textContent = `${(1000 / medianMs).toFixed(0)} fps · ${medianMs.toFixed(1)} ms med · ${p95Ms.toFixed(1)} ms p95 · ${renderPixelRatio.toFixed(2)}x`;
     const info = renderer.info;
     sceneStatsEl.textContent = `${info.render.drawCalls} draws · ${info.render.triangles.toLocaleString()} tris · ${info.memory.geometries} geo · ${info.memory.textures} tex`;
     if (terrainStreamer) {
       const stream = terrainStreamer.stats;
       const tour = streamTourRequested ? ` · tour ${(streamTourDistance / 1000).toFixed(1)}/10km` : "";
       streamingStatsEl.textContent = `${stream.active}/${stream.desired} tiles · g${stream.generation}/o${worldOrigin.rebaseCount} · q${stream.queued}+${stream.building} · ${stream.minSpacing}m near · ${stream.maxUpdateMs.toFixed(1)}ms main/${stream.maxWorkerMs.toFixed(1)}ms worker${stream.frozen ? " · frozen" : ""}${tour}`;
+    }
+    if (environmentDressing) {
+      const dress = environmentDressing.stats;
+      dressingStatsEl.textContent = `${dress.instances.toLocaleString()} items / ${dress.cells} cells · ${dress.grass} grass · ${dress.bushes} bush · ${dress.rocks} rock${environmentDressing.isEnabled ? "" : " · hidden"}`;
     }
   }
   if (loadedWorld) {
@@ -436,6 +466,12 @@ wireToggle("toggleZones", () => zoneOverlay);
 wireToggle("toggleRivers", () => riverOverlay);
 wireToggle("toggleLakes", () => lakeOverlay);
 wireToggle("toggleSettlements", () => settlementOverlay);
+document.getElementById("toggleDressing")!.addEventListener("click", (event) => {
+  if (!environmentDressing) return;
+  const enabled = !environmentDressing.isEnabled;
+  environmentDressing.setEnabled(enabled);
+  (event.currentTarget as HTMLElement).classList.toggle("active", enabled);
+});
 document.getElementById("toggleWireframe")!.addEventListener("click", (event) => {
   if (!terrainStreamer) return;
   const active = !(event.currentTarget as HTMLElement).classList.contains("active");

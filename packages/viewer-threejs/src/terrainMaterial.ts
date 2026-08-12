@@ -103,15 +103,23 @@ export class AlvoraTerrainMaterial {
     const shore = smoothstep(-3, 5, height);
     const macro = mx_noise_float(worldPosition.xz.mul(0.00042)).mul(0.5).add(0.5);
     const fineMacro = mx_noise_float(worldPosition.xz.mul(0.0021).add(vec2(31.7, -14.2))).mul(0.5).add(0.5);
-    const regionalGreen = smoothstep(0.12, 0.88,
-      mx_noise_float(worldPosition.xz.mul(0.0018).add(vec2(-83.1, 47.6))).mul(0.5).add(0.5));
-    const localPatch = smoothstep(0.18, 0.82,
-      mx_noise_float(worldPosition.xz.mul(0.011).add(vec2(19.4, 91.7))).mul(0.5).add(0.5));
-    const groundMottle = smoothstep(0.46, 0.84,
-      mx_noise_float(worldPosition.xz.mul(0.027).add(vec2(-27.8, 64.3))).mul(0.5).add(0.5));
-    const fineWarp = mx_noise_vec3(worldPosition.mul(0.018).add(vec3(17.3, -41.8, 73.1))).mul(1.8);
-    const broadWarp = mx_noise_vec3(worldPosition.mul(0.0032).add(vec3(-59.2, 11.6, 28.4))).mul(7.5);
-    const warpedPosition = worldPosition.add(fineWarp).add(broadWarp);
+    // High keeps independent stochastic fields and spatial warping. Balanced
+    // reuses its two macro fields, cutting five expensive procedural-noise
+    // evaluations per terrain fragment while preserving large-scale breakup.
+    const regionalGreen = quality === "high"
+      ? smoothstep(0.12, 0.88, mx_noise_float(worldPosition.xz.mul(0.0018).add(vec2(-83.1, 47.6))).mul(0.5).add(0.5))
+      : smoothstep(0.1, 0.9, macro);
+    const localPatch = quality === "high"
+      ? smoothstep(0.18, 0.82, mx_noise_float(worldPosition.xz.mul(0.011).add(vec2(19.4, 91.7))).mul(0.5).add(0.5))
+      : smoothstep(0.14, 0.86, fineMacro);
+    const groundMottle = quality === "high"
+      ? smoothstep(0.46, 0.84, mx_noise_float(worldPosition.xz.mul(0.027).add(vec2(-27.8, 64.3))).mul(0.5).add(0.5))
+      : smoothstep(0.5, 0.86, fineMacro);
+    const warpedPosition = quality === "high"
+      ? worldPosition
+        .add(mx_noise_vec3(worldPosition.mul(0.018).add(vec3(17.3, -41.8, 73.1))).mul(1.8))
+        .add(mx_noise_vec3(worldPosition.mul(0.0032).add(vec3(-59.2, 11.6, 28.4))).mul(7.5))
+      : worldPosition;
 
     // Horizontal surfaces use two differently oriented projections of the
     // same map. This costs fewer samples than full triplanar mapping while
@@ -122,11 +130,13 @@ export class AlvoraTerrainMaterial {
         : warpedPosition.xz;
       return texture(map, coordinates.mul(repeatsPerMeter));
     };
-    const planarAlbedo = (layer: TerrainLayer, scale: number, blendNode: any) => mix(
-      planarSample(layers[layer].albedo!, scale).rgb,
-      planarSample(layers[layer].albedo!, scale * 0.73, true).rgb,
-      blendNode,
-    );
+    const planarAlbedo = (layer: TerrainLayer, scale: number, blendNode: any) => quality === "high"
+      ? mix(
+        planarSample(layers[layer].albedo!, scale).rgb,
+        planarSample(layers[layer].albedo!, scale * 0.73, true).rgb,
+        blendNode,
+      )
+      : planarSample(layers[layer].albedo!, scale).rgb;
     const triplanarSample = (map: THREE.Texture, repeatsPerMeter: number) => triplanarTexture(
       texture(map), null, null, float(repeatsPerMeter), warpedPosition, normalWorld,
     );
@@ -138,11 +148,13 @@ export class AlvoraTerrainMaterial {
     const soil = planarAlbedo("soil", 1 / 1.3, fineMacro);
     const forest = planarAlbedo("forest", 1 / 2, localPatch);
     const rockDetail = triplanarSample(layers.rock.albedo!, 1 / 12).rgb;
-    const rockMacro = triplanarSample(layers.rock.albedo!, 1 / 52).rgb;
-    const rock = mix(rockMacro, rockDetail, microVisibility.mul(0.72));
+    const rock = quality === "high"
+      ? mix(triplanarSample(layers.rock.albedo!, 1 / 52).rgb, rockDetail, microVisibility.mul(0.72))
+      : rockDetail;
     const screeDetail = triplanarSample(layers.scree.albedo!, 1 / 18).rgb;
-    const screeMacro = triplanarSample(layers.scree.albedo!, 1 / 80).rgb;
-    const scree = mix(screeMacro, screeDetail, microVisibility.mul(0.62));
+    const scree = quality === "high"
+      ? mix(triplanarSample(layers.scree.albedo!, 1 / 80).rgb, screeDetail, microVisibility.mul(0.62))
+      : screeDetail;
     const snow = planarAlbedo("snow", 1 / 2, fineMacro);
 
     const landMask = smoothstep(1, 9, height);
@@ -194,8 +206,14 @@ export class AlvoraTerrainMaterial {
     // grazing angles and saves the corresponding fragment work.
     material.side = THREE.FrontSide;
 
-    if (quality === "compatibility") {
+    if (quality !== "high") {
       material.roughnessNode = mix(float(0.96), float(0.78), rockMask).sub(wetMask.mul(0.14));
+      if (quality === "balanced") {
+        const grassNormal = planarSample(layers.grass.normal!, 1 / 1.4).rgb;
+        const rockNormal = triplanarSample(layers.rock.normal!, 1 / 18).rgb;
+        const normalSample = mix(grassNormal, rockNormal, rockMask.add(screeMask).clamp(0, 1));
+        material.normalNode = normalMap(normalSample, vec2(microVisibility.mul(0.42)));
+      }
     } else {
       const grassRoughness = planarSample(layers.grass.roughness!, 1 / 1.4).r;
       const sandRoughness = planarSample(layers.sand.roughness!, 1 / 30).r;

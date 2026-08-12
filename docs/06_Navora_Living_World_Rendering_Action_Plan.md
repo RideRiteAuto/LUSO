@@ -394,3 +394,43 @@ Bible fidelity: the Alvora palette is deliberately temperate, agricultural, wood
 rather than generic high-fantasy terrain. Sand/wet-sand/soil/grass/forest-floor continuity supports
 the Crownlands coast-to-farm-to-settlement identity and preserves permanent low-band gathering,
 fishing, farming, trade-route, and housing value without placing gameplay trees or resource nodes.
+
+## 11. Phase 6 environmental-dressing milestone and frame-time remediation â€” 2026-08-12
+
+Status: implemented as a deterministic presentation baseline; gameplay trees and harvest/mining
+resources remain intentionally reserved.
+
+Living-ground system delivered:
+
+- camera-streamed deterministic cells for grass, wildflowers, low bushes, reeds, field rocks,
+  deadfall, and shore debris;
+- zone-specific ecology profiles for Alvora, Valedouro, Serravela, Cavora, and Solmara driven by
+  the Bible's moisture, elevation, exposure, coast, and regional-identity constraints;
+- slope, water, road, and settlement exclusions, leaving explicit space for later trees and
+  gameplay resource nodes;
+- one near and one distant instance batch per dressing class, preventing per-cell draw-call growth;
+- licensed 2K PBR hero assets for celandine, shrub, field rock, and deadfall, with source URL,
+  CC0 license, MD5, and SHA-256 records in `assets/environment/asset-lock.json`;
+- a lightweight authored seven-blade grass clump for dense coverage. The scanned grass remains an
+  art reference, not a mass-instanced shipping mesh, after profiling demonstrated its excessive
+  triangle/overdraw cost;
+- Ground life toggle and live item/cell/class telemetry.
+
+Frame-time remediation delivered:
+
+- balanced terrain shading now reuses macro fields, removes five procedural-noise evaluations,
+  drops duplicate stochastic texture projections, and reserves dual-scale cliff sampling for High;
+- Balanced uses a two-map detail-normal path and scalar roughness response; the full multi-layer
+  normal/roughness blend remains available in High;
+- all committed terrain tiles are merged into one visible GPU mesh, reducing the normal terrain
+  pass from as many as 200 renderer submissions to one; source tile meshes remain invisible for
+  streaming state and the Tile LOD diagnostic view;
+- balanced pixel density is capped at 1.1 device pixels per CSS pixel and adapts in 0.1 steps after
+  streaming settles, bounded at 0.7; High and Compatibility have separate caps/floors;
+- adaptive-resolution samples are reset after every scale change, preventing stale pre-change
+  frame times from repeatedly forcing resolution downward.
+
+The local headless Chromium run is a software-rendered WebGL fallback and is therefore not a valid
+GPU FPS prediction. It is retained as a regression harness: after streaming settles it reports one
+terrain batch, bounded dressing batches, no queue backlog, and stable triangle/texture counters.
+Final hardware FPS must be read from the inspector HUD on the target laptop's actual WebGPU backend.
