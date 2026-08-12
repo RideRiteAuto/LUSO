@@ -54,11 +54,20 @@ def validate(path: pathlib.Path) -> list[str]:
                     fail(f"{variant_id}: LOD{lod} triangles {count} outside {limits[0]}-{limits[1]}", errors)
             if not isinstance(files, list) or len(files) != 3:
                 fail(f"{variant_id}: exactly three runtimeFiles are required", errors)
+            else:
+                for runtime_file in files:
+                    runtime_path = path.parent / runtime_file
+                    if not runtime_path.is_file():
+                        fail(f"{variant_id}: missing runtime file {runtime_file}", errors)
+                    elif runtime_path.read_bytes()[:4] != b"glTF":
+                        fail(f"{variant_id}: {runtime_file} is not a binary glTF file", errors)
     if data.get("materials", 0) < 1 or data.get("materials", 0) > 2:
         fail("materials must be between 1 and 2", errors)
     textures = data["textureSet"]
-    if textures.get("runtimeFormat") != "KTX2":
-        fail("textureSet.runtimeFormat must be KTX2", errors)
+    runtime_format = textures.get("runtimeFormat")
+    review_vertex_color = data.get("deliveryStage") == "review" and runtime_format == "VERTEX_COLOR_PBR"
+    if runtime_format != "KTX2" and not review_vertex_color:
+        fail("textureSet.runtimeFormat must be KTX2 (VERTEX_COLOR_PBR is allowed only for review candidates)", errors)
     if textures.get("maxResolution", 0) > budget[3]:
         fail(f"texture resolution exceeds {budget[3]} for {data['profession']}", errors)
     if data["collision"].get("type") not in {"capsule", "convex-hull", "compound"}:

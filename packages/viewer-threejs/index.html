@@ -58,6 +58,12 @@
       #hud button:focus-visible { outline: 2px solid var(--teal); outline-offset: 1px; }
       #hud button.active { background: rgba(217, 167, 92, 0.16); border-color: var(--gold); color: #ffe3b0; }
       #legend { margin-top: 10px; font-size: 11px; color: var(--ink-dim); line-height: 1.5; }
+      #reviewLegend {
+        display: none; margin-top: 8px; padding: 9px 10px; border-left: 2px solid var(--teal);
+        background: rgba(79, 209, 192, 0.07); color: var(--ink-dim); font-size: 11px; line-height: 1.45;
+      }
+      #reviewLegend.visible { display: block; }
+      #reviewLegend strong { color: var(--ink); font-weight: 600; }
 
       #status {
         position: absolute; bottom: 14px; left: 14px; z-index: 10; color: var(--ink-dim);
@@ -114,6 +120,10 @@
           <select id="bookmarkSelect" aria-label="Traversal bookmark"></select>
           <button id="teleportBookmark">Teleport</button>
           <button id="resourceReview">Resource review yard</button>
+          <aside id="reviewLegend" aria-live="polite">
+            <strong>Phase 2 candidates</strong><br />
+            Forward rows: redberry &rarr; copper &rarr; tin &rarr; pine. Each row presents small, standard, and mature variants left-to-right. Redberry is provisional pending the final Foraging ladder.
+          </aside>
           <select id="materialDebug" aria-label="Terrain material debug">
             <option value="final">Material: Final</option>
             <option value="biome">Debug: Biome</option>

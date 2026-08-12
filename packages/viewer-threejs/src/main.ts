@@ -12,6 +12,7 @@ import { buildTraversalBookmarks, findSafeTraversalPoint, type TraversalBookmark
 import type { TerrainMaterialDebugMode } from "./terrainMaterial.js";
 import { EnvironmentDressing } from "./environmentDressing.js";
 import { NavoraAtmosphere } from "./atmosphere.js";
+import { ResourceReviewYard } from "./resourceReviewYard.js";
 
 const params = new URLSearchParams(location.search);
 const seed = Number(params.get("seed") ?? 48291);
@@ -123,6 +124,7 @@ let environmentDressing: EnvironmentDressing | null = null;
 let collisionHeights: CollisionHeightCache | null = null;
 let traversalBookmarks: TraversalBookmark[] = [];
 let loadedWorld: Awaited<ReturnType<typeof loadWorld>> | null = null;
+let resourceReviewYard: ResourceReviewYard | null = null;
 
 async function boot() {
   statusEl.textContent = "loading manifest…";
@@ -150,6 +152,10 @@ async function boot() {
   environmentDressing = await EnvironmentDressing.create(world, sampleDressingGround, qualityName);
   worldRoot.add(environmentDressing.group);
   traversalBookmarks = buildTraversalBookmarks(world, (x, z) => collisionHeights!.sample(x, z));
+  const reviewBookmark = traversalBookmarks.find((candidate) => candidate.id === "alvora-resource-review");
+  resourceReviewYard = new ResourceReviewYard(sampleDressingGround);
+  if (reviewBookmark) resourceReviewYard.setAnchor(reviewBookmark);
+  worldRoot.add(resourceReviewYard.group);
   const bookmarkSelect = document.getElementById("bookmarkSelect") as HTMLSelectElement;
   bookmarkSelect.replaceChildren(...traversalBookmarks.map((bookmark) => {
     const option = document.createElement("option");
@@ -161,6 +167,9 @@ async function boot() {
   resourceReview.addEventListener("click", () => {
     const bookmark = traversalBookmarks.find((candidate) => candidate.id === "alvora-resource-review");
     if (!bookmark || !flight) return;
+    resourceReviewYard!.visible = true;
+    resourceReview.classList.add("active");
+    document.getElementById("reviewLegend")!.classList.add("visible");
     controls.enabled = false;
     setActiveView(viewWalkBtn);
     flying = true;
@@ -486,6 +495,11 @@ document.getElementById("teleportBookmark")!.addEventListener("click", () => {
   const selected = (document.getElementById("bookmarkSelect") as HTMLSelectElement).value;
   const bookmark = traversalBookmarks.find((candidate) => candidate.id === selected);
   if (!bookmark) return;
+  if (resourceReviewYard) {
+    resourceReviewYard.visible = bookmark.id === "alvora-resource-review";
+    document.getElementById("resourceReview")!.classList.toggle("active", resourceReviewYard.visible);
+    document.getElementById("reviewLegend")!.classList.toggle("visible", resourceReviewYard.visible);
+  }
   controls.enabled = false;
   setActiveView(viewWalkBtn);
   flying = true;

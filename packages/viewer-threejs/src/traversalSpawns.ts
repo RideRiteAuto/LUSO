@@ -63,7 +63,7 @@ export function buildTraversalBookmarks(world: WorldData, sampleHeight: (x: numb
       id: "alvora-resource-review",
       label: "Alvora — Resource Review Yard",
       ...review,
-      heading: Math.PI * 1.25,
+      heading: 0,
     });
   }
   return bookmarks;
