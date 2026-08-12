@@ -71,7 +71,10 @@ for (const layer of ["sand", "grass", "rock"]) {
   terrainAssets[layer].roughness = readTerrainTexture(layer, "roughness");
 }
 
-const environmentAssetIds = ["celandine_01", "shrub_03", "rock_07", "dead_tree_trunk"];
+const environmentAssetIds = [
+  "celandine_01", "shrub_03", "rock_07", "dead_tree_trunk",
+  "fern_02",
+];
 const environmentAssets = Object.fromEntries(environmentAssetIds.map((id) => [
   id,
   readFileSync(path.join(packageRoot, "public", "environment", `${id}.glb`)).toString("base64"),

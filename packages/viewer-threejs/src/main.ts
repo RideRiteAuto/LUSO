@@ -2,7 +2,7 @@ import * as THREE from "three/webgpu";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { loadWorld, loadEmbeddedWorld } from "./worldData.js";
 import { sampleHeightWithSkirt, SKIRT_REACH } from "./terrain.js";
-import { CollisionHeightCache } from "./terrainLod.js";
+import { CollisionHeightCache, sampleLocalTerrainDetail } from "./terrainLod.js";
 import { TerrainStreamer } from "./terrainStreaming.js";
 import { buildZoneBoundaries, buildRivers, buildLakes, buildRoads, buildSettlements, buildSeaRegions } from "./overlays.js";
 import { uvToWorld } from "./layout.js";
@@ -17,9 +17,13 @@ const params = new URLSearchParams(location.search);
 const seed = Number(params.get("seed") ?? 48291);
 const streamTourRequested = params.get("streamTour") === "1";
 const requestedRenderer = params.get("renderer") === "webgl" ? "webgl" : "auto";
-const qualityName = params.get("quality") === "high" || params.get("quality") === "compatibility"
-  ? params.get("quality")!
-  : "balanced";
+const requestedQuality = params.get("quality");
+const qualityExplicit = requestedQuality === "high" || requestedQuality === "balanced" || requestedQuality === "compatibility";
+// The portable artifact opens at the frame-paced tier. Balanced and High stay
+// available as explicit review tiers via ?quality=balanced and ?quality=high.
+const qualityName = qualityExplicit
+  ? requestedQuality!
+  : "compatibility";
 const quality = {
   high: { pixelRatioCap: 1.5, pixelRatioFloor: 0.8 },
   balanced: { pixelRatioCap: 1.1, pixelRatioFloor: 0.7 },
@@ -134,7 +138,16 @@ async function boot() {
   terrainStreamer = await TerrainStreamer.create(world, qualityName, renderer);
   worldRoot.add(terrainStreamer.group);
   statusEl.textContent = "loading environmental models…";
-  environmentDressing = await EnvironmentDressing.create(world, (x, z) => collisionHeights!.sample(x, z), qualityName);
+  // Dressing only needs exact deterministic surface samples; routing hundreds
+  // of placement probes through CollisionHeightCache synchronously constructed
+  // a 33x33 collision patch at cell boundaries and caused the visible hitch.
+  // Sampling the same macro height + local detail formula directly preserves
+  // placement while keeping each admitted dressing cell cheap.
+  const sampleDressingGround = (x: number, z: number) => {
+    const macro = sampleHeightWithSkirt(world.worldHeight, x, z);
+    return macro + sampleLocalTerrainDetail(x, z, manifest.seed, macro);
+  };
+  environmentDressing = await EnvironmentDressing.create(world, sampleDressingGround, qualityName);
   worldRoot.add(environmentDressing.group);
   traversalBookmarks = buildTraversalBookmarks(world, (x, z) => collisionHeights!.sample(x, z));
   const bookmarkSelect = document.getElementById("bookmarkSelect") as HTMLSelectElement;
@@ -297,7 +310,7 @@ function animate(timestamp: number) {
     }
     if (environmentDressing) {
       const dress = environmentDressing.stats;
-      dressingStatsEl.textContent = `${dress.instances.toLocaleString()} items / ${dress.cells} cells · ${dress.grass} grass · ${dress.bushes} bush · ${dress.rocks} rock${environmentDressing.isEnabled ? "" : " · hidden"}`;
+      dressingStatsEl.textContent = `${dress.instances.toLocaleString()} items / ${dress.cells} cells · ${dress.grass} grass · ${dress.bushes} bush · ${dress.rocks} rock · q${dress.queued} · ${dress.maxStreamMs.toFixed(1)}ms max${environmentDressing.isEnabled ? "" : " · hidden"}`;
     }
   }
   if (loadedWorld) {

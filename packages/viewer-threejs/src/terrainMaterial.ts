@@ -178,8 +178,15 @@ export class AlvoraTerrainMaterial {
     const meadowGreen = mix(grass, color(0x328c38), 0.72);
     const lushGreen = mix(grass, color(0x45b84c), 0.78);
     const variedGrass = mix(meadowGreen, lushGreen, regionalGreen.mul(0.68).add(localPatch.mul(0.32)));
-    const dappledGrass = mix(variedGrass, color(0x2c6e32), groundMottle.mul(0.18));
-    const wornGround = mix(dappledGrass, soil, smoothstep(0.76, 0.94, fineMacro).mul(0.28));
+    const dappledGrass = mix(variedGrass, color(0x2c6e32), groundMottle.mul(0.3));
+    // Broad overlapping organic and exposed-soil patches fill the visual gap
+    // between meshes without adding geometry. Balanced deliberately reuses
+    // macro/fineMacro, so the richer coverage is effectively free.
+    const dryPatch = smoothstep(0.64, 0.9, fineMacro.add(macro.mul(0.18)));
+    const heathPatch = smoothstep(0.58, 0.86, macro.sub(fineMacro.mul(0.22)));
+    const dirtyGrass = mix(dappledGrass, soil.mul(color(0x8b7e68)), dryPatch.mul(0.48));
+    const heathGrass = mix(dirtyGrass, color(0x536c36), heathPatch.mul(0.22));
+    const wornGround = mix(heathGrass, soil, smoothstep(0.78, 0.96, fineMacro).mul(0.34));
     const grassCoverage = moisture.mul(0.12).add(regionalGreen.mul(0.1)).add(0.78).clamp(0, 1);
     const grassSoil = mix(soil, wornGround, grassCoverage);
     const lowland = mix(mud, grassSoil, smoothstep(1.5, 12, height));
@@ -208,12 +215,9 @@ export class AlvoraTerrainMaterial {
 
     if (quality !== "high") {
       material.roughnessNode = mix(float(0.96), float(0.78), rockMask).sub(wetMask.mul(0.14));
-      if (quality === "balanced") {
-        const grassNormal = planarSample(layers.grass.normal!, 1 / 1.4).rgb;
-        const rockNormal = triplanarSample(layers.rock.normal!, 1 / 18).rgb;
-        const normalSample = mix(grassNormal, rockNormal, rockMask.add(screeMask).clamp(0, 1));
-        material.normalNode = normalMap(normalSample, vec2(microVisibility.mul(0.42)));
-      }
+      // Balanced keeps geometry normals. Its former four-extra-sample detail
+      // normal path dominated GPU time at the laptop's 0.70x resolution
+      // floor; scanned albedo and scalar roughness retain surface identity.
     } else {
       const grassRoughness = planarSample(layers.grass.roughness!, 1 / 1.4).r;
       const sandRoughness = planarSample(layers.sand.roughness!, 1 / 30).r;

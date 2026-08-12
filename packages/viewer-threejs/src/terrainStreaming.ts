@@ -225,6 +225,7 @@ export class TerrainStreamer {
   private debugLod = false;
   private lastSelectionX = Number.NaN;
   private lastSelectionZ = Number.NaN;
+  private lastSelectionAt = Number.NEGATIVE_INFINITY;
   private lastWorkerMs = 0;
   private maxWorkerMs = 0;
   private maxUpdateMs = 0;
@@ -282,10 +283,13 @@ export class TerrainStreamer {
   update(cameraWorldX: number, cameraWorldZ: number): void {
     if (this.frozen) return;
     const started = performance.now();
+    const now = performance.now();
     if (!Number.isFinite(this.lastSelectionX)
-      || Math.hypot(cameraWorldX - this.lastSelectionX, cameraWorldZ - this.lastSelectionZ) >= this.settings.minTileSize * 0.75) {
+      || (now - this.lastSelectionAt >= 500
+        && Math.hypot(cameraWorldX - this.lastSelectionX, cameraWorldZ - this.lastSelectionZ) >= this.settings.minTileSize * 1.5)) {
       this.lastSelectionX = cameraWorldX;
       this.lastSelectionZ = cameraWorldZ;
+      this.lastSelectionAt = now;
       this.beginGeneration(selectTerrainTiles(this.expandedBounds, cameraWorldX, cameraWorldZ, this.settings));
     }
     this.maxUpdateMs = Math.max(this.maxUpdateMs, performance.now() - started);
@@ -315,6 +319,7 @@ export class TerrainStreamer {
     this.settings.viewDistance = next;
     this.lastSelectionX = Number.NaN;
     this.lastSelectionZ = Number.NaN;
+    this.lastSelectionAt = Number.NEGATIVE_INFINITY;
   }
 
   get stats(): TerrainStreamingStats {

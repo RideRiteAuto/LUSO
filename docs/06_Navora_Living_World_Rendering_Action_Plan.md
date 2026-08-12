@@ -459,3 +459,35 @@ Status: implemented and verified in the WebGPU inspector with seed `48291`.
 - The production-art gate for Phase 6 remains open: authored scatter control maps, additional
   flora species, far-terrain vegetation integration, and final water-coupled shore dressing are
   still required.
+
+## 13. Deterministic dressing streaming and portable frame pacing — 2026-08-12
+
+Status: implemented after the first moving-ground review exposed cell-boundary stalls and
+camera-relative prop changes.
+
+- Dressing records are owned by deterministic world cells and immutable for a given world seed,
+  cell coordinate, and layer version. Camera distance no longer selects a different random prop
+  record, so returning to a location restores the same position, scale, rotation, and variant.
+- Incoming cells are queued, generated incrementally, and admitted before obsolete cells retire.
+  Only one sector batch is rebuilt per frame; movement can no longer synchronously reconstruct the
+  complete dressing bubble.
+- Placement probes now sample the same macro-height plus deterministic local-detail formula used
+  by terrain generation directly. They no longer trigger construction of a full 33x33 collision
+  cache patch at every newly crossed dressing boundary.
+- Road and settlement exclusions are spatially indexed by dressing cell instead of scanning every
+  exclusion for every candidate.
+- Rocks, bushes, debris, flowers, reeds, and grass use the sampled surface normal plus a stable
+  normal-axis twist, with rocks partially buried. Props therefore follow the slope rather than
+  appearing globally level or hovering above inclined ground.
+- Terrain selection is movement- and time-throttled, and nearest-first tile refinement no longer
+  clones and rebalances the full leaf set for every split candidate.
+- Compatibility is the portable artifact's default tier. Balanced and High remain opt-in review
+  modes through `?quality=balanced` and `?quality=high`.
+- Balanced terrain removes the extra detail-normal texture path while retaining scanned albedo,
+  geometry normals, macro/micro color breakup, and roughness response; High retains full PBR detail.
+- `fern_02` is the first additional CC0 foliage family accepted into the runtime. Its shipping mesh
+  was simplified to 2,496 render vertices (825 uploaded vertices). Higher-density nettle and
+  dandelion candidates were rejected from this pass after measured simplification still exceeded
+  the mass-scatter budget.
+- The inspector reports pending dressing cells and last/maximum incremental streaming cost. The
+  maximum excludes initial population so it identifies movement hitches rather than startup work.

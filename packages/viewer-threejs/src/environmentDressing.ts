@@ -14,6 +14,9 @@ export interface DressingStats {
   reeds: number;
   rocks: number;
   debris: number;
+  queued: number;
+  lastStreamMs: number;
+  maxStreamMs: number;
 }
 
 type DressingKind = "grass" | "flowers" | "bushes" | "reeds" | "rocks" | "debris";
@@ -28,7 +31,8 @@ interface DressingProfile {
 
 interface InstanceRecord {
   x: number; y: number; z: number; rotation: number; scale: number; tint: number;
-  variant: number; zoneId: string;
+  variant: number; zoneId: string; normalX: number; normalY: number; normalZ: number;
+  sectorX: number; sectorZ: number;
 }
 
 interface DressingCell {
@@ -38,6 +42,21 @@ interface DressingCell {
   instances: number;
   lastUse: number;
 }
+
+interface BatchState {
+  key: string;
+  kind: DressingKind;
+  variant: number;
+  tier: "hero" | "distant";
+  mesh: THREE.InstancedMesh;
+  owners: string[];
+  records: InstanceRecord[];
+  capacity: number;
+}
+
+type ExclusionShape =
+  | { type: "circle"; x: number; z: number; radius: number }
+  | { type: "segment"; ax: number; az: number; bx: number; bz: number; radius: number };
 
 const KIND_ORDER: DressingKind[] = ["grass", "flowers", "bushes", "reeds", "rocks", "debris"];
 
@@ -79,6 +98,10 @@ const ASSET_BINDINGS: Record<DressingKind, { id: string; targetSize: number; siz
   rocks: { id: "rock_07", targetSize: 1.4 },
   debris: { id: "dead_tree_trunk", targetSize: 3.2 },
 };
+
+const FOLIAGE_FAMILY_BINDINGS = [
+  { id: "fern_02", targetSize: 1.15, zones: new Set(["valedouro", "solmara"]) },
+] as const;
 
 // Photogrammetry-grade assets are reserved for the immediate play space. The
 // same deterministic records use light silhouettes farther out, where terrain
@@ -244,13 +267,23 @@ export class EnvironmentDressing {
   readonly group = new THREE.Group();
   private readonly cells = new Map<string, DressingCell>();
   private readonly cellRecords = new Map<string, Record<DressingKind, InstanceRecord[]>>();
+  private readonly desiredCells = new Set<string>();
+  private readonly pendingCells: Array<{ key: string; x: number; z: number; distance: number }> = [];
+  private readonly batches = new Map<string, BatchState>();
+  private readonly dirtyBatches = new Set<string>();
+  private readonly exclusions = new Map<string, ExclusionShape[]>();
   private readonly fallbackGeometries = createGeometries();
   private readonly fallbackMaterials = createMaterials();
   private readonly heroGeometries: Partial<Record<DressingKind, THREE.BufferGeometry>> = {};
   private readonly heroMaterials: Partial<Record<DressingKind, THREE.Material>> = {};
+  private readonly foliageFamilies: Array<{ id: string; zones: Set<string>; geometry: THREE.BufferGeometry; material: THREE.Material }> = [];
   private readonly fallbackRockVariants: THREE.BufferGeometry[];
   private heroRockVariants: THREE.BufferGeometry[] = [];
   private readonly dummy = new THREE.Object3D();
+  private readonly up = new THREE.Vector3(0, 1, 0);
+  private readonly normal = new THREE.Vector3();
+  private readonly twist = new THREE.Quaternion();
+  private readonly tintColor = new THREE.Color();
   private enabled = true;
   private lastCenterX = Number.NaN;
   private lastCenterZ = Number.NaN;
@@ -261,6 +294,9 @@ export class EnvironmentDressing {
   private readonly radius: number;
   private readonly maxCells: number;
   private readonly density: number;
+  private lastStreamMs = 0;
+  private maxStreamMs = 0;
+  private assetsReady = false;
 
   static async create(
     world: WorldData,
@@ -271,7 +307,10 @@ export class EnvironmentDressing {
     // Do not make first paint or terrain streaming wait for model parsing.
     // Fallback silhouettes appear immediately and hot-swap to hero assets as
     // each pack becomes ready.
-    void dressing.loadProductionAssets().then(() => { dressing.lastCenterX = Number.NaN; });
+    void dressing.loadProductionAssets().then(() => {
+      dressing.assetsReady = true;
+      for (const key of dressing.batches.keys()) dressing.dirtyBatches.add(key);
+    });
     return dressing;
   }
 
@@ -288,37 +327,28 @@ export class EnvironmentDressing {
     this.radius = quality === "high" ? 430 : quality === "compatibility" ? 260 : 350;
     this.maxCells = quality === "high" ? 96 : quality === "compatibility" ? 32 : 64;
     this.density = quality === "high" ? 1.1 : quality === "compatibility" ? 0.42 : 0.72;
+    this.indexExclusions();
   }
 
   update(cameraX: number, cameraZ: number): void {
     if (!this.enabled) return;
-    // Rebuilding thousands of instance matrices several times per cell was a
-    // visible CPU hitch while sprinting. Keep the dressing bubble centered on
-    // stable cell boundaries and only regenerate after crossing one.
-    if (Number.isFinite(this.lastCenterX)
-      && Math.floor(cameraX / this.cellSize) === Math.floor(this.lastCenterX / this.cellSize)
-      && Math.floor(cameraZ / this.cellSize) === Math.floor(this.lastCenterZ / this.cellSize)) return;
-    this.lastCenterX = cameraX; this.lastCenterZ = cameraZ; this.tick++;
-    const centerX = Math.floor(cameraX / this.cellSize);
-    const centerZ = Math.floor(cameraZ / this.cellSize);
-    const cellRadius = Math.ceil(this.radius / this.cellSize);
-    const desired: Array<{ x: number; z: number; d: number }> = [];
-    for (let dz = -cellRadius; dz <= cellRadius; dz++) {
-      for (let dx = -cellRadius; dx <= cellRadius; dx++) {
-        const x = centerX + dx, z = centerZ + dz;
-        const wx = (x + 0.5) * this.cellSize, wz = (z + 0.5) * this.cellSize;
-        const d = Math.hypot(wx - cameraX, wz - cameraZ);
-        if (d <= this.radius + this.cellSize * 0.75) desired.push({ x, z, d });
-      }
+    const centerX = Math.floor(cameraX / this.cellSize), centerZ = Math.floor(cameraZ / this.cellSize);
+    if (!Number.isFinite(this.lastCenterX)
+      || centerX !== Math.floor(this.lastCenterX / this.cellSize)
+      || centerZ !== Math.floor(this.lastCenterZ / this.cellSize)) {
+      this.lastCenterX = cameraX; this.lastCenterZ = cameraZ; this.tick++;
+      this.queueDesiredCells(centerX, centerZ, cameraX, cameraZ);
     }
-    desired.sort((a, b) => a.d - b.d);
-    const retained = new Set<string>();
-    for (const candidate of desired.slice(0, this.maxCells)) {
-      const key = `${candidate.x}:${candidate.z}`;
-      retained.add(key);
-      if (!this.cellRecords.has(key)) this.cellRecords.set(key, this.generateCellRecords(candidate.x, candidate.z));
-    }
-    this.rebuildBatches(retained);
+    const started = performance.now();
+    // At most one deterministic cell and one batch are admitted per frame.
+    // The first frame is allowed to fill synchronously so tests/first paint
+    // have content; later motion never repeats the old whole-bubble rebuild.
+    const firstFill = this.cells.size === 0;
+    const cellBudget = firstFill ? Math.min(10, this.maxCells) : 1;
+    for (let i = 0; i < cellBudget && this.pendingCells.length; i++) this.admitCell(this.pendingCells.shift()!);
+    this.rebuildOneDirtyBatch();
+    this.lastStreamMs = performance.now() - started;
+    if (!firstFill) this.maxStreamMs = Math.max(this.maxStreamMs, this.lastStreamMs);
   }
 
   setEnabled(enabled: boolean): void {
@@ -330,15 +360,20 @@ export class EnvironmentDressing {
   get isEnabled(): boolean { return this.enabled; }
 
   get stats(): DressingStats {
-    return { cells: this.cells.size, instances: this.totalInstances, ...this.counts };
+    return {
+      cells: this.cells.size, instances: this.totalInstances, ...this.counts,
+      queued: this.pendingCells.length + this.dirtyBatches.size,
+      lastStreamMs: this.lastStreamMs, maxStreamMs: this.maxStreamMs,
+    };
   }
 
   dispose(): void {
-    this.group.clear(); this.cells.clear();
+    this.group.clear(); this.cells.clear(); this.batches.clear();
     for (const geometry of Object.values(this.fallbackGeometries)) geometry.dispose();
     for (const material of Object.values(this.fallbackMaterials)) material.dispose();
     for (const geometry of Object.values(this.heroGeometries)) geometry?.dispose();
     for (const material of Object.values(this.heroMaterials)) material?.dispose();
+    for (const family of this.foliageFamilies) { family.geometry.dispose(); family.material.dispose(); }
     for (const geometry of this.fallbackRockVariants) geometry.dispose();
     for (const geometry of this.heroRockVariants) geometry.dispose();
   }
@@ -395,6 +430,40 @@ export class EnvironmentDressing {
         console.warn(`Environment asset ${binding.id} failed; using calibrated fallback`, error);
       }
     }));
+    await Promise.all(FOLIAGE_FAMILY_BINDINGS.map(async (binding) => {
+      try {
+        const gltf = embedded?.[binding.id]
+          ? await loader.parseAsync(this.decodeBase64(embedded[binding.id]), "")
+          : await loader.loadAsync(new URL(`environment/${binding.id}.glb`, document.baseURI).href);
+        gltf.scene.updateMatrixWorld(true);
+        let selected: THREE.Mesh | null = null;
+        gltf.scene.traverse((object) => {
+          if (!(object as THREE.Mesh).isMesh) return;
+          const mesh = object as THREE.Mesh;
+          if (!selected || (mesh.geometry.getAttribute("position")?.count ?? 0) > (selected.geometry.getAttribute("position")?.count ?? 0)) selected = mesh;
+        });
+        if (!selected) return;
+        const source = selected as THREE.Mesh;
+        const geometry = source.geometry.clone().applyMatrix4(source.matrixWorld);
+        geometry.computeBoundingBox();
+        const box = geometry.boundingBox!;
+        const size = box.getSize(new THREE.Vector3());
+        const scale = binding.targetSize / Math.max(0.001, size.y);
+        geometry.scale(scale, scale, scale);
+        geometry.computeBoundingBox();
+        const normalized = geometry.boundingBox!;
+        const center = normalized.getCenter(new THREE.Vector3());
+        geometry.translate(-center.x, -normalized.min.y, -center.z);
+        geometry.computeBoundingSphere();
+        const sourceMaterial = Array.isArray(source.material) ? source.material[0] : source.material;
+        const material = sourceMaterial.clone() as THREE.MeshStandardMaterial;
+        material.side = THREE.DoubleSide; material.alphaTest = Math.max(0.36, material.alphaTest); material.transparent = false;
+        material.roughness = Math.max(0.9, material.roughness); material.metalness = 0;
+        this.foliageFamilies.push({ id: binding.id, zones: binding.zones, geometry, material });
+      } catch (error) {
+        console.warn(`Foliage family ${binding.id} failed; continuing with procedural ground cover`, error);
+      }
+    }));
   }
 
   private decodeBase64(value: string): ArrayBuffer {
@@ -434,66 +503,30 @@ export class EnvironmentDressing {
       else if (shore && y < 8 && slope < 14 && choice < 0.22 * profile.reeds * moisture) kind = "reeds";
       else if (slope > 29 && choice < 0.09 * profile.rocks) kind = "rocks";
       else if (slope > 18 && choice < 0.045 * profile.rocks) kind = "rocks";
-      else if (slope < 24 && choice < 0.025 * profile.scrub) kind = "bushes";
+      else if (slope < 24 && choice < 0.04 * profile.scrub) kind = "bushes";
       else if (slope < 16 && choice < 0.05 * profile.flowers * moisture) kind = "flowers";
       else if (slope < 22 && choice < 0.68 * profile.lushness * (0.38 + moisture * 0.62)) kind = "grass";
       else if (choice < 0.016 * profile.rocks) kind = "rocks";
       if (!kind) continue;
       const tint = random01(cellX, cellZ, this.world.manifest.seed, i * 17 + 5);
       const scale = kind === "rocks" ? 0.28 + Math.pow(sizeRandom, 2.8) * 2.8 : variation;
+      const rawVariant = hash32(cellX, cellZ, this.world.manifest.seed, i * 31 + 7) % 4;
+      const zoneId = zone?.id ?? "alvora";
+      const variant = kind === "bushes" && (zoneId === "valedouro" || zoneId === "solmara")
+        ? rawVariant % 2
+        : rawVariant;
       records[kind].push({
         x, y, z, rotation, scale, tint,
-        variant: hash32(cellX, cellZ, this.world.manifest.seed, i * 31 + 7) % 4,
-        zoneId: zone?.id ?? "alvora",
+        variant, zoneId,
+        normalX: hL - hR,
+        normalY: 4,
+        normalZ: hD - hU,
+        sectorX: Math.floor(cellX / 8),
+        sectorZ: Math.floor(cellZ / 8),
       });
     }
 
     return records;
-  }
-
-  private rebuildBatches(retained: Set<string>): void {
-    this.group.clear();
-    this.totalInstances = 0;
-    this.counts = { grass: 0, flowers: 0, bushes: 0, reeds: 0, rocks: 0, debris: 0 };
-    for (const key of [...this.cellRecords.keys()]) if (!retained.has(key)) this.cellRecords.delete(key);
-    for (const kind of KIND_ORDER) {
-      const list: InstanceRecord[] = [];
-      for (const key of retained) list.push(...(this.cellRecords.get(key)?.[kind] ?? []));
-      if (!list.length) continue;
-      if (kind === "rocks") {
-        const heroRadiusSq = HERO_RADIUS.rocks ** 2;
-        for (let variant = 0; variant < 4; variant++) {
-          const records = list.filter((record) => record.variant === variant);
-          const hero = records.filter((record) => (record.x - this.lastCenterX) ** 2 + (record.z - this.lastCenterZ) ** 2 <= heroRadiusSq);
-          const distant = records.filter((record) => !hero.includes(record));
-          this.addBatch(kind, distant, this.fallbackRockVariants[variant], this.fallbackMaterials.rocks, "distant");
-          const heroGeometry = this.heroRockVariants[variant] ?? this.fallbackRockVariants[variant];
-          const heroMaterial = this.heroMaterials.rocks ?? this.fallbackMaterials.rocks;
-          this.addBatch(kind, hero, heroGeometry, heroMaterial, "hero");
-        }
-        this.totalInstances += list.length; this.counts[kind] = list.length;
-        continue;
-      }
-      const heroGeometry = this.heroGeometries[kind];
-      const heroMaterial = this.heroMaterials[kind];
-      const hero: InstanceRecord[] = [];
-      const distant: InstanceRecord[] = [];
-      const heroRadiusSq = HERO_RADIUS[kind] ** 2;
-      for (const record of list) {
-        const distanceSq = (record.x - this.lastCenterX) ** 2 + (record.z - this.lastCenterZ) ** 2;
-        (heroGeometry && heroMaterial && distanceSq <= heroRadiusSq ? hero : distant).push(record);
-      }
-      this.addBatch(kind, distant, this.fallbackGeometries[kind], this.fallbackMaterials[kind], "distant");
-      if (heroGeometry && heroMaterial) this.addBatch(kind, hero, heroGeometry, heroMaterial, "hero");
-      else this.addBatch(kind, hero, this.fallbackGeometries[kind], this.fallbackMaterials[kind], "hero");
-      this.totalInstances += list.length; this.counts[kind] = list.length;
-    }
-    this.cells.clear();
-    for (const key of retained) {
-      const [x, z] = key.split(":").map(Number);
-      const instances = KIND_ORDER.reduce((sum, kind) => sum + (this.cellRecords.get(key)?.[kind].length ?? 0), 0);
-      this.cells.set(key, { x, z, group: this.group, instances, lastUse: this.tick });
-    }
   }
 
   private addBatch(
@@ -502,26 +535,29 @@ export class EnvironmentDressing {
     geometry: THREE.BufferGeometry,
     material: THREE.Material,
     tier: "hero" | "distant",
-  ): void {
-      if (!list.length) return;
-      const mesh = new THREE.InstancedMesh(geometry, material, list.length);
+    existing?: THREE.InstancedMesh,
+  ): THREE.InstancedMesh | null {
+      if (!list.length) return null;
+      const mesh = existing
+        ? existing
+        : new THREE.InstancedMesh(geometry, material, Math.max(list.length, Math.ceil(list.length * 1.25)));
+      mesh.geometry = geometry; mesh.material = material; mesh.count = list.length;
       mesh.name = `${kind}-${tier}`; mesh.userData.kind = kind; mesh.userData.tier = tier; mesh.frustumCulled = true;
       const color = new THREE.Color();
       list.forEach((record, index) => {
-        const scale = kind === "rocks" ? new THREE.Vector3(record.scale, record.scale, record.scale)
-          : kind === "bushes" ? new THREE.Vector3(record.scale * 1.4, record.scale, record.scale * 1.25)
-            : new THREE.Vector3(record.scale, record.scale, record.scale);
-        this.dummy.position.set(record.x, kind === "rocks" ? record.y - record.scale * 0.12 : record.y, record.z);
-        this.dummy.rotation.set(
-          kind === "rocks" ? (record.tint - 0.5) * 0.14 : 0,
-          record.rotation,
-          kind === "debris" ? (record.tint - 0.5) * 0.25 : kind === "rocks" ? (record.variant - 1.5) * 0.035 : 0,
-        );
-        this.dummy.scale.copy(scale); this.dummy.updateMatrix();
+        if (kind === "bushes") this.dummy.scale.set(record.scale * 1.4, record.scale, record.scale * 1.25);
+        else this.dummy.scale.setScalar(record.scale);
+        this.dummy.position.set(record.x, record.y - (kind === "rocks" ? record.scale * 0.16 : 0.015), record.z);
+        this.normal.set(record.normalX, record.normalY, record.normalZ).normalize();
+        this.dummy.quaternion.setFromUnitVectors(this.up, this.normal);
+        this.twist.setFromAxisAngle(this.normal, record.rotation);
+        this.dummy.quaternion.premultiply(this.twist);
+        if (kind === "debris") this.dummy.rotateZ((record.tint - 0.5) * 0.25);
+        this.dummy.updateMatrix();
         mesh.setMatrixAt(index, this.dummy.matrix);
         if (kind === "grass") {
           const palette = GRASS_PALETTES[record.zoneId] ?? GRASS_PALETTES.alvora;
-          color.set(palette[0]).lerp(new THREE.Color(palette[1]), record.tint);
+          color.set(palette[0]).lerp(this.tintColor.set(palette[1]), record.tint);
         }
         else if (kind === "flowers") color.setHSL(0.08 + record.tint * 0.72, 0.68, 0.58);
         else if (kind === "bushes") color.setRGB(0.12 + record.tint * 0.08, 0.29 + record.tint * 0.16, 0.11 + record.tint * 0.07);
@@ -541,7 +577,144 @@ export class EnvironmentDressing {
       // can either pop a batch or keep it alive forever.
       mesh.computeBoundingSphere();
       mesh.frustumCulled = true;
-      this.group.add(mesh);
+      if (!mesh.parent) this.group.add(mesh);
+      return mesh;
+  }
+
+  private queueDesiredCells(centerX: number, centerZ: number, cameraX: number, cameraZ: number): void {
+    const cellRadius = Math.ceil(this.radius / this.cellSize);
+    const desired: Array<{ key: string; x: number; z: number; distance: number }> = [];
+    for (let dz = -cellRadius; dz <= cellRadius; dz++) {
+      for (let dx = -cellRadius; dx <= cellRadius; dx++) {
+        const x = centerX + dx, z = centerZ + dz;
+        const distance = Math.hypot((x + 0.5) * this.cellSize - cameraX, (z + 0.5) * this.cellSize - cameraZ);
+        if (distance <= this.radius + this.cellSize * 0.75) desired.push({ key: `${x}:${z}`, x, z, distance });
+      }
+    }
+    desired.sort((a, b) => a.distance - b.distance);
+    this.desiredCells.clear();
+    for (const candidate of desired.slice(0, this.maxCells)) this.desiredCells.add(candidate.key);
+    this.pendingCells.length = 0;
+    for (const candidate of desired.slice(0, this.maxCells)) {
+      if (!this.cells.has(candidate.key)) this.pendingCells.push(candidate);
+      else this.cells.get(candidate.key)!.lastUse = this.tick;
+    }
+    // Keep old sectors alive until replacements have been admitted. We only
+    // retire over-capacity cells, farthest first, so movement cannot reveal a
+    // simultaneous empty ring.
+    // Obsolete cells are retired only after each incoming cell is ready.
+  }
+
+  private admitCell(candidate: { key: string; x: number; z: number }): void {
+    if (this.cells.has(candidate.key)) return;
+    const records = this.generateCellRecords(candidate.x, candidate.z);
+    this.cellRecords.set(candidate.key, records);
+    const instances = KIND_ORDER.reduce((sum, kind) => sum + records[kind].length, 0);
+    this.cells.set(candidate.key, { x: candidate.x, z: candidate.z, group: this.group, instances, lastUse: this.tick });
+    this.totalInstances += instances;
+    for (const kind of KIND_ORDER) {
+      this.counts[kind] += records[kind].length;
+      for (const key of this.batchKeysForRecords(kind, records[kind])) this.dirtyBatches.add(key);
+    }
+    if (this.cells.size > this.maxCells) {
+      const obsolete = [...this.cells.entries()]
+        .filter(([key]) => !this.desiredCells.has(key))
+        .sort((a, b) => a[1].lastUse - b[1].lastUse);
+      if (obsolete[0]) this.retireCell(obsolete[0][0]);
+    }
+  }
+
+  private retireCell(key: string): void {
+    const records = this.cellRecords.get(key);
+    if (records) {
+      for (const kind of KIND_ORDER) {
+        this.counts[kind] -= records[kind].length;
+        this.totalInstances -= records[kind].length;
+        for (const batchKey of this.batchKeysForRecords(kind, records[kind])) this.dirtyBatches.add(batchKey);
+      }
+    }
+    this.cellRecords.delete(key);
+    this.cells.delete(key);
+  }
+
+  private batchKeysForRecords(kind: DressingKind, records: InstanceRecord[]): string[] {
+    const hasFamilyVariants = kind === "rocks" || kind === "bushes";
+    return [...new Set(records.map((record) =>
+      `${record.sectorX},${record.sectorZ}:${kind}:${hasFamilyVariants ? record.variant : 0}`,
+    ))];
+  }
+
+  private rebuildOneDirtyBatch(): void {
+    const key = this.dirtyBatches.values().next().value as string | undefined;
+    if (!key) return;
+    this.dirtyBatches.delete(key);
+    const [sectorValue, kindValue, variantValue] = key.split(":");
+    const [sectorX, sectorZ] = sectorValue.split(",").map(Number);
+    const kind = kindValue as DressingKind;
+    const tier = "distant" as const;
+    const variant = Number(variantValue);
+    const records: InstanceRecord[] = [];
+    for (const cell of this.cellRecords.values()) {
+      for (const record of cell[kind]) {
+        const hasFamilyVariants = kind === "rocks" || kind === "bushes";
+        if (record.sectorX === sectorX && record.sectorZ === sectorZ && (!hasFamilyVariants || record.variant === variant)) records.push(record);
+      }
+    }
+    const previous = this.batches.get(key);
+    if (!records.length) {
+      if (previous) { this.group.remove(previous.mesh); previous.mesh.dispose(); this.batches.delete(key); }
+      return;
+    }
+    // Stable world-space records always remain in the same LOD tier during
+    // movement. A hero hot-swap happens once after the licensed asset loads,
+    // never at a camera-distance boundary.
+    let geometry = this.fallbackGeometries[kind], material = this.fallbackMaterials[kind];
+    if (kind === "rocks") {
+      // Keep the scan's calibrated PBR material, but use the lightweight
+      // silhouette variants for mass scatter. The full scan is reserved for
+      // later authored landmarks, never thousands of mountain instances.
+      geometry = this.fallbackRockVariants[variant];
+      material = this.fallbackMaterials.rocks;
+    } else if (this.assetsReady && kind === "bushes" && variant > 0) {
+      const family = this.foliageFamilies.find((candidate) => candidate.id === "fern_02" && records.some((record) => candidate.zones.has(record.zoneId)));
+      if (family) { geometry = family.geometry; material = family.material; }
+    } else if (kind === "debris" && this.assetsReady && this.heroGeometries[kind] && this.heroMaterials[kind]) {
+      geometry = this.heroGeometries[kind]!; material = this.heroMaterials[kind]!;
+    }
+    const reusable = previous && previous.capacity >= records.length ? previous.mesh : undefined;
+    if (previous && !reusable) { this.group.remove(previous.mesh); previous.mesh.dispose(); }
+    const mesh = this.addBatch(kind, records, geometry, material, tier, reusable);
+    if (!mesh) return;
+    this.batches.set(key, { key, kind, variant, tier, mesh, owners: [...this.cells.keys()], records, capacity: mesh.instanceMatrix.count });
+  }
+
+  private indexExclusions(): void {
+    const tileSize = this.world.manifest.worldScale.continentTileSize;
+    const add = (shape: ExclusionShape, minX: number, minZ: number, maxX: number, maxZ: number) => {
+      const minCellX = Math.floor(minX / this.cellSize), maxCellX = Math.floor(maxX / this.cellSize);
+      const minCellZ = Math.floor(minZ / this.cellSize), maxCellZ = Math.floor(maxZ / this.cellSize);
+      for (let z = minCellZ; z <= maxCellZ; z++) for (let x = minCellX; x <= maxCellX; x++) {
+        const key = `${x}:${z}`;
+        const list = this.exclusions.get(key) ?? [];
+        list.push(shape); this.exclusions.set(key, list);
+      }
+    };
+    for (const settlement of this.world.settlements) {
+      const zone = this.world.zones.find((candidate) => candidate.id === settlement.zoneId);
+      if (!zone) continue;
+      const x = continentOriginX(zone.continent, this.world.manifest) + settlement.position[0] * tileSize;
+      const z = continentOriginZ(zone.continent, this.world.manifest) + settlement.position[1] * tileSize;
+      const radius = settlement.tier === 1 ? 260 : settlement.tier === 2 ? 180 : 120;
+      add({ type: "circle", x, z, radius }, x - radius, z - radius, x + radius, z + radius);
+    }
+    for (const continent of Object.values(this.world.continents)) {
+      const ox = continentOriginX(continent.id, this.world.manifest), oz = continentOriginZ(continent.id, this.world.manifest);
+      for (const road of continent.roads) for (let i = 1; i < road.path.length; i++) {
+        const a = road.path[i - 1], b = road.path[i];
+        const shape: ExclusionShape = { type: "segment", ax: ox + a[0] * tileSize, az: oz + a[1] * tileSize, bx: ox + b[0] * tileSize, bz: oz + b[1] * tileSize, radius: 9 };
+        add(shape, Math.min(shape.ax, shape.bx) - 9, Math.min(shape.az, shape.bz) - 9, Math.max(shape.ax, shape.bx) + 9, Math.max(shape.az, shape.bz) + 9);
+      }
+    }
   }
 
   private zoneAt(x: number, z: number): ZoneRecord | null {
@@ -556,23 +729,11 @@ export class EnvironmentDressing {
   }
 
   private excluded(x: number, z: number): boolean {
-    const tileSize = this.world.manifest.worldScale.continentTileSize;
-    for (const settlement of this.world.settlements) {
-      const zone = this.world.zones.find((candidate) => candidate.id === settlement.zoneId);
-      if (!zone) continue;
-      const sx = continentOriginX(zone.continent, this.world.manifest) + settlement.position[0] * tileSize;
-      const sz = continentOriginZ(zone.continent, this.world.manifest) + settlement.position[1] * tileSize;
-      const radius = settlement.tier === 1 ? 260 : settlement.tier === 2 ? 180 : 120;
-      if ((x - sx) ** 2 + (z - sz) ** 2 < radius * radius) return true;
-    }
-    for (const continent of Object.values(this.world.continents)) {
-      const ox = continentOriginX(continent.id, this.world.manifest), oz = continentOriginZ(continent.id, this.world.manifest);
-      for (const road of continent.roads) {
-        for (let i = 1; i < road.path.length; i++) {
-          const a = road.path[i - 1], b = road.path[i];
-          if (distanceToSegmentSquared(x, z, ox + a[0] * tileSize, oz + a[1] * tileSize, ox + b[0] * tileSize, oz + b[1] * tileSize) < 9 * 9) return true;
-        }
-      }
+    const shapes = this.exclusions.get(`${Math.floor(x / this.cellSize)}:${Math.floor(z / this.cellSize)}`) ?? [];
+    for (const shape of shapes) {
+      if (shape.type === "circle") {
+        if ((x - shape.x) ** 2 + (z - shape.z) ** 2 < shape.radius ** 2) return true;
+      } else if (distanceToSegmentSquared(x, z, shape.ax, shape.az, shape.bx, shape.bz) < shape.radius ** 2) return true;
     }
     return false;
   }

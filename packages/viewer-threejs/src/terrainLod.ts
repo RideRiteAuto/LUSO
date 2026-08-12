@@ -115,7 +115,13 @@ export function selectTerrainTiles(
   // the tile budget inside whichever far quadrant happened to be pushed
   // last, leaving the player's own leaf coarse despite reporting a 4 m
   // profile. Nearest-first makes the quality guarantee real.
-  while (leaves.length + 3 <= settings.maxTiles) {
+  // Reserve a small tail budget for 2:1 balancing. The previous algorithm
+  // cloned and fully re-balanced the complete leaf array for every candidate
+  // split, which becomes cubic enough to create 30–50 ms walking hitches at
+  // ~200 tiles. Nearest-first refinement is safe to perform once, followed by
+  // a single balance pass.
+  const refinementLimit = Math.max(4, Math.floor(settings.maxTiles * 0.58));
+  while (leaves.length + 3 <= refinementLimit) {
     const candidates: Array<{ index: number; priority: number }> = [];
     for (let i = 0; i < leaves.length; i++) {
       const tile = leaves[i];
@@ -126,15 +132,10 @@ export function selectTerrainTiles(
       candidates.push({ index: i, priority });
     }
     candidates.sort((a, b) => a.priority - b.priority || leaves[b.index].size - leaves[a.index].size);
-    let accepted: QuadtreeLeaf[] | null = null;
-    for (const candidate of candidates) {
-      const trial = leaves.map((tile) => ({ ...tile }));
-      splitLeaf(trial, candidate.index);
-      if (balanceLeaves(trial, settings.maxTiles)) { accepted = trial; break; }
-    }
-    if (!accepted) break;
-    leaves = accepted;
+    if (!candidates.length) break;
+    splitLeaf(leaves, candidates[0].index);
   }
+  balanceLeaves(leaves, settings.maxTiles);
 
   const prepared = leaves.map((tile) => {
     const level = Math.max(0, Math.round(Math.log2(tile.size / settings.minTileSize)));
