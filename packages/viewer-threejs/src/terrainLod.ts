@@ -24,6 +24,8 @@ export interface TerrainLodSettings {
   minTileSize: number;
   splitDistance: number;
   maxTiles: number;
+  /** Ground-view render bubble radius. Omit for the full-world inspector. */
+  viewDistance?: number;
 }
 
 function distanceToSquare(x: number, z: number, minX: number, minZ: number, size: number): number {
@@ -139,11 +141,14 @@ export function selectTerrainTiles(
     const segments = level <= 1 ? 64 : level <= 3 ? 32 : 16;
     return { ...tile, level, segments };
   });
-  return prepared.map((tile, tileIndex) => {
+  const visible = settings.viewDistance
+    ? prepared.filter((tile) => distanceToSquare(cameraX, cameraZ, tile.minX, tile.minZ, tile.size) <= settings.viewDistance!)
+    : prepared;
+  return visible.map((tile, tileIndex) => {
     let stitchMask = 0;
     const stitchRatios: [number, number, number, number] = [1, 1, 1, 1];
-    for (let neighborIndex = 0; neighborIndex < prepared.length; neighborIndex++) {
-      const neighbor = prepared[neighborIndex];
+    for (let neighborIndex = 0; neighborIndex < visible.length; neighborIndex++) {
+      const neighbor = visible[neighborIndex];
       if (neighborIndex === tileIndex || neighbor.size <= tile.size) continue;
       const edges = sharedEdge(tile, neighbor);
       if (edges && neighbor.size <= tile.size * 2 + EDGE_EPSILON) {

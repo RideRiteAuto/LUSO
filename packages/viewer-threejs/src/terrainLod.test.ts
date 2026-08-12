@@ -36,6 +36,23 @@ test("local terrain detail is deterministic and seed-dependent", () => {
   assert.notEqual(a, c);
 });
 
+test("ground render bubble excludes the remote continent", () => {
+  const cameraX = 42000, cameraZ = 31000, viewDistance = 22000;
+  const tiles = selectTerrainTiles(
+    { minX: -60000, minZ: -60000, maxX: 260000, maxZ: 130000 },
+    cameraX,
+    cameraZ,
+    { minTileSize: 256, splitDistance: 1.7, maxTiles: 200, viewDistance },
+  );
+  const distanceToTile = (tile: typeof tiles[number]) => Math.hypot(
+    Math.max(tile.minX - cameraX, 0, cameraX - (tile.minX + tile.size)),
+    Math.max(tile.minZ - cameraZ, 0, cameraZ - (tile.minZ + tile.size)),
+  );
+  assert.ok(tiles.length > 0 && tiles.length < 200);
+  assert.ok(tiles.every((tile) => distanceToTile(tile) <= viewDistance));
+  assert.ok(tiles.every((tile) => tile.minX < 100000));
+});
+
 test("collision heights remain stable and the patch cache stays bounded", () => {
   const worldHeight = {
     data: new Float32Array([0, 0, 0, 0]),

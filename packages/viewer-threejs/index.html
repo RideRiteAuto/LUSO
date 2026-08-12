@@ -39,6 +39,8 @@
       }
       #hud .row { display: flex; justify-content: space-between; gap: 12px; padding: 1px 0; }
       #hud .row .val { font-family: var(--font-mono); font-variant-numeric: tabular-nums; color: var(--teal); }
+      #hud .row.telemetry { display: block; }
+      #hud .row.telemetry .val { display: block; text-align: right; font-size: 11px; }
       #hud .muted { color: var(--ink-dim); }
       #hud .group { margin-top: 10px; }
       #hud .group-label {
@@ -95,6 +97,7 @@
         <div class="row"><span class="muted">Locomotion</span><span id="locomotion" class="val">—</span></div>
         <div class="row"><span class="muted">Renderer</span><span id="rendererBackend" class="val">initializing…</span></div>
         <div class="row"><span class="muted">Performance</span><span id="performance" class="val">sampling…</span></div>
+        <div class="row telemetry"><span class="muted">Frame pacing</span><span id="framePacing" class="val">sampling hitches…</span></div>
         <div class="row"><span class="muted">Scene</span><span id="sceneStats" class="val">—</span></div>
         <div class="row"><span class="muted">Streaming</span><span id="streamingStats" class="val">waiting…</span></div>
         <div class="row"><span class="muted">Dressing</span><span id="dressingStats" class="val">waiting…</span></div>

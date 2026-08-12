@@ -1,6 +1,7 @@
 # Navora Living World Rendering Action Plan
 
-Status: approved direction; Phase 1 implementation started 2026-08-12.
+Status: approved direction. Phases 1–4 are implemented; the first Phase 6 dressing and
+Phase 7 atmosphere/performance pass landed 2026-08-12. Phase 5 production water remains next.
 
 ## 1. Outcome
 
@@ -434,3 +435,27 @@ The local headless Chromium run is a software-rendered WebGL fallback and is the
 GPU FPS prediction. It is retained as a regression harness: after streaming settles it reports one
 terrain batch, bounded dressing batches, no queue backlog, and stable triangle/texture counters.
 Final hardware FPS must be read from the inspector HUD on the target laptop's actual WebGPU backend.
+
+## 12. Ground-travel render bubble, geology, wind, and honest frame pacing — 2026-08-12
+
+Status: implemented and verified in the WebGPU inspector with seed `48291`.
+
+- Walk mode selects a quality-tiered local terrain bubble (22 km Balanced) instead of keeping
+  the full 229 km world active; Flight uses a larger bubble and World/Orbit retains the
+  cartographic overview.
+- Per-tile frustum culling replaces the single whole-world merged terrain mesh. This restores
+  spatial rejection and avoids rebuilding one enormous GPU geometry when the LOD selection moves.
+- TSL distance plus lowland height fog hides the render-bubble boundary and prevents an opposing
+  continent from appearing across open ocean. This is the atmosphere foundation, not the final
+  production sky/water pass.
+- Grass now uses denser near/mid clumps, zone-specific green palettes, and unsynchronised GPU
+  vertex wind. Instance batches rebuild on stable cell crossings rather than every few metres.
+- Rocks now use four deformed scan-derived silhouettes, rare-size weighting, partial burial,
+  matte response, and zone-specific geology palettes. Hero range and steep-slope density are
+  bounded to prevent mountain regions from multiplying scan triangles.
+- The HUD now reports median/p95 plus 1% low, p99, >50 ms hitches, >100 ms hitches, terrain
+  selection/commit/worker maxima, and active bubble distance. Dynamic resolution responds to
+  p95/p99 frame time rather than median alone.
+- The production-art gate for Phase 6 remains open: authored scatter control maps, additional
+  flora species, far-terrain vegetation integration, and final water-coupled shore dressing are
+  still required.

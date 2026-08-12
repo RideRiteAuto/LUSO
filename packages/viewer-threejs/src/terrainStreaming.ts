@@ -1,5 +1,4 @@
 import * as THREE from "three/webgpu";
-import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import type { WorldData } from "./worldData.js";
 import { buildTerrainColorMap, SKIRT_REACH } from "./terrain.js";
 import { selectTerrainTiles, type TerrainLodSettings, type TerrainTileSpec } from "./terrainLod.js";
@@ -16,6 +15,10 @@ export interface TerrainStreamingStats {
   maxUpdateMs: number;
   frozen: boolean;
   minSpacing: number;
+  visible: number;
+  viewDistance: number;
+  lastCommitMs: number;
+  maxCommitMs: number;
 }
 
 interface TileResult {
@@ -210,10 +213,10 @@ function terrainWorkerMain() {
 export class TerrainStreamer {
   readonly group = new THREE.Group();
   private readonly settings: TerrainLodSettings;
+  private readonly groundViewDistance: number;
   private readonly workers: WorkerSlot[] = [];
   private readonly active = new Map<string, THREE.Mesh>();
   private readonly staging = new Map<string, THREE.Mesh>();
-  private mergedTerrain: THREE.Mesh | null = null;
   private desired = new Set<string>();
   private queue: TerrainTileSpec[] = [];
   private generation = 0;
@@ -225,6 +228,8 @@ export class TerrainStreamer {
   private lastWorkerMs = 0;
   private maxWorkerMs = 0;
   private maxUpdateMs = 0;
+  private lastCommitMs = 0;
+  private maxCommitMs = 0;
   private readonly terrainMaterial: AlvoraTerrainMaterial;
   private readonly debugMaterials = [0x42d4f4, 0x64e572, 0xf4dd4b, 0xf49a45, 0xe75d87, 0x9a72ed, 0x5669d8].map(
     (color) => new THREE.MeshStandardMaterial({ color, roughness: 0.9, wireframe: true, side: THREE.FrontSide }),
@@ -242,6 +247,7 @@ export class TerrainStreamer {
       : quality === "compatibility"
         ? { minTileSize: 512, splitDistance: 1.55, maxTiles: 140 }
         : { minTileSize: 256, splitDistance: 1.7, maxTiles: 200 };
+    this.groundViewDistance = quality === "high" ? 30000 : quality === "compatibility" ? 16000 : 22000;
     const b = world.worldHeight.bounds;
     this.expandedBounds = { minX: b.minX - SKIRT_REACH, minZ: b.minZ - SKIRT_REACH, maxX: b.maxX + SKIRT_REACH, maxZ: b.maxZ + SKIRT_REACH };
 
@@ -291,8 +297,7 @@ export class TerrainStreamer {
   setDebugLod(enabled: boolean): void {
     this.debugLod = enabled;
     for (const mesh of [...this.active.values(), ...this.staging.values()]) this.applyMaterial(mesh);
-    if (this.mergedTerrain) this.mergedTerrain.visible = !enabled;
-    for (const mesh of this.active.values()) mesh.visible = enabled;
+    for (const mesh of this.active.values()) mesh.visible = true;
   }
 
   setWireframe(enabled: boolean): void {
@@ -301,6 +306,16 @@ export class TerrainStreamer {
 
   setMaterialDebugMode(mode: TerrainMaterialDebugMode): void { this.terrainMaterial.setDebugMode(mode); }
   updateWorldOrigin(offset: THREE.Vector3): void { this.terrainMaterial.updateOrigin(offset); }
+
+  setViewMode(mode: "ground" | "flight" | "overview"): void {
+    const next = mode === "ground" ? this.groundViewDistance
+      : mode === "flight" ? this.groundViewDistance * 2.5
+        : undefined;
+    if (this.settings.viewDistance === next) return;
+    this.settings.viewDistance = next;
+    this.lastSelectionX = Number.NaN;
+    this.lastSelectionZ = Number.NaN;
+  }
 
   get stats(): TerrainStreamingStats {
     return {
@@ -314,6 +329,10 @@ export class TerrainStreamer {
       maxUpdateMs: this.maxUpdateMs,
       frozen: this.frozen,
       minSpacing: this.settings.minTileSize / 64,
+      visible: this.active.size,
+      viewDistance: this.settings.viewDistance ?? Infinity,
+      lastCommitMs: this.lastCommitMs,
+      maxCommitMs: this.maxCommitMs,
     };
   }
 
@@ -321,11 +340,6 @@ export class TerrainStreamer {
     for (const slot of this.workers) slot.worker.terminate();
     for (const mesh of [...this.active.values(), ...this.staging.values()]) mesh.geometry.dispose();
     this.active.clear(); this.staging.clear(); this.queue = [];
-    if (this.mergedTerrain) {
-      this.group.remove(this.mergedTerrain);
-      this.mergedTerrain.geometry.dispose();
-      this.mergedTerrain = null;
-    }
     this.terrainMaterial.dispose();
     for (const material of this.debugMaterials) material.dispose();
   }
@@ -397,6 +411,7 @@ export class TerrainStreamer {
   }
 
   private commitGeneration(): void {
+    const started = performance.now();
     for (const [id, mesh] of this.active) {
       if (this.desired.has(id)) continue;
       this.group.remove(mesh);
@@ -404,39 +419,11 @@ export class TerrainStreamer {
       this.active.delete(id);
     }
     for (const [id, mesh] of this.staging) {
-      mesh.visible = this.debugLod;
+      mesh.visible = true;
       this.active.set(id, mesh);
     }
     this.staging.clear();
-    this.rebuildMergedTerrain();
-  }
-
-  /**
-   * All committed tiles share one terrain material. Combining their geometry
-   * turns up to ~200 terrain submissions into one draw while the original
-   * tile meshes remain as an invisible streaming cache and LOD debug view.
-   */
-  private rebuildMergedTerrain(): void {
-    if (this.mergedTerrain) {
-      this.group.remove(this.mergedTerrain);
-      this.mergedTerrain.geometry.dispose();
-      this.mergedTerrain = null;
-    }
-    const translated = [...this.active.values()].map((mesh) => {
-      const geometry = mesh.geometry.clone();
-      geometry.translate(mesh.position.x, mesh.position.y, mesh.position.z);
-      return geometry;
-    });
-    if (!translated.length) return;
-    const merged = mergeGeometries(translated, false);
-    for (const geometry of translated) geometry.dispose();
-    if (!merged) throw new Error("Unable to batch terrain tile geometries");
-    merged.computeBoundingSphere();
-    const mesh = new THREE.Mesh(merged, this.terrainMaterial.material);
-    mesh.name = "terrain-batch";
-    mesh.receiveShadow = true;
-    mesh.visible = !this.debugLod;
-    this.group.add(mesh);
-    this.mergedTerrain = mesh;
+    this.lastCommitMs = performance.now() - started;
+    this.maxCommitMs = Math.max(this.maxCommitMs, this.lastCommitMs);
   }
 }

@@ -1,5 +1,6 @@
 import * as THREE from "three/webgpu";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import { float, instanceIndex, positionLocal, sin, smoothstep, time, vec3 } from "three/tsl";
 import type { WorldData, ZoneRecord } from "./worldData.js";
 import type { TerrainQuality } from "./terrainMaterial.js";
 import { continentOriginX, continentOriginZ } from "./layout.js";
@@ -25,7 +26,10 @@ interface DressingProfile {
   rocks: number;
 }
 
-interface InstanceRecord { x: number; y: number; z: number; rotation: number; scale: number; tint: number }
+interface InstanceRecord {
+  x: number; y: number; z: number; rotation: number; scale: number; tint: number;
+  variant: number; zoneId: string;
+}
 
 interface DressingCell {
   x: number;
@@ -46,6 +50,22 @@ const PROFILES: Record<string, DressingProfile> = {
 };
 
 const DEFAULT_PROFILE: DressingProfile = { lushness: 0.9, flowers: 0.55, scrub: 0.9, reeds: 0.65, rocks: 0.8 };
+
+const ROCK_PALETTES: Record<string, [number, number, number]> = {
+  alvora: [0x77766e, 0x898477, 0x5f675d],
+  valedouro: [0x4d5750, 0x60685e, 0x39443e],
+  serravela: [0x717a80, 0x8b8e8a, 0x555e64],
+  cavora: [0x806f59, 0x69635a, 0x957e5f],
+  solmara: [0x485553, 0x59645e, 0x394844],
+};
+
+const GRASS_PALETTES: Record<string, [number, number]> = {
+  alvora: [0x377a32, 0x67a747],
+  valedouro: [0x2d6e35, 0x55944b],
+  serravela: [0x4f6c3e, 0x728251],
+  cavora: [0x62713a, 0x8a8d4a],
+  solmara: [0x2d7443, 0x4d9a59],
+};
 
 const ASSET_BINDINGS: Record<DressingKind, { id: string; targetSize: number; sizeByHeight?: boolean; foliage?: boolean }> = {
   // Dense meadow coverage uses the deliberately authored blade clump below.
@@ -69,7 +89,7 @@ const HERO_RADIUS: Record<DressingKind, number> = {
   flowers: 96,
   bushes: 138,
   reeds: 92,
-  rocks: 155,
+  rocks: 105,
   debris: 175,
 };
 
@@ -113,15 +133,15 @@ function crossedPlanes(width: number, height: number): THREE.BufferGeometry {
   return geometry;
 }
 
-function grassClump(): THREE.BufferGeometry {
+function grassClump(blades = 7, spread = 0.22): THREE.BufferGeometry {
   const positions: number[] = [];
   const uvs: number[] = [];
   const indices: number[] = [];
-  for (let i = 0; i < 7; i++) {
+  for (let i = 0; i < blades; i++) {
     const angle = i * 2.39996;
-    const offset = 0.08 + (i % 3) * 0.065;
+    const offset = 0.06 + (i % 5) / 4 * spread;
     const cx = Math.cos(angle) * offset, cz = Math.sin(angle) * offset;
-    const width = 0.11 + (i % 2) * 0.035;
+    const width = 0.026 + (i % 3) * 0.009;
     const height = 0.62 + (i % 4) * 0.12;
     const dx = Math.cos(angle) * width, dz = Math.sin(angle) * width;
     const leanX = Math.cos(angle + 0.7) * height * 0.16;
@@ -144,13 +164,53 @@ function grassClump(): THREE.BufferGeometry {
   return geometry;
 }
 
+function grassMaterial(colorValue: number): THREE.MeshStandardNodeMaterial {
+  const material = new THREE.MeshStandardNodeMaterial({
+    color: colorValue, roughness: 1, metalness: 0, side: THREE.DoubleSide, vertexColors: true,
+  });
+  const phase = time.mul(1.45).add(float(instanceIndex).mul(2.399963));
+  const tipWeight = smoothstep(0.08, 0.9, positionLocal.y);
+  const gust = sin(time.mul(0.29).add(float(instanceIndex).mul(0.173))).mul(0.035);
+  const swayX = sin(phase.add(positionLocal.x.mul(2.7))).mul(0.075).add(gust).mul(tipWeight);
+  const swayZ = sin(phase.mul(0.73).add(positionLocal.z.mul(3.1))).mul(0.055).mul(tipWeight);
+  material.positionNode = positionLocal.add(vec3(swayX, 0, swayZ));
+  return material;
+}
+
+function rockVariants(source: THREE.BufferGeometry): THREE.BufferGeometry[] {
+  const profiles = [
+    [1.12, 0.74, 0.96, 0.08],
+    [1.48, 0.48, 0.84, 0.16],
+    [0.82, 1.28, 0.92, 0.11],
+    [1.18, 0.82, 1.42, 0.2],
+  ] as const;
+  return profiles.map(([sx, sy, sz, warp], variant) => {
+    const geometry = source.clone();
+    const position = geometry.getAttribute("position") as THREE.BufferAttribute;
+    for (let i = 0; i < position.count; i++) {
+      const x = position.getX(i), y = position.getY(i), z = position.getZ(i);
+      const irregular = 1 + Math.sin(x * 3.7 + z * 2.9 + variant * 1.8) * warp
+        + Math.sin(y * 5.3 - x * 1.7 + variant) * warp * 0.45;
+      position.setXYZ(i, x * sx * irregular, y * sy * (0.94 + irregular * 0.06), z * sz * irregular);
+    }
+    position.needsUpdate = true;
+    geometry.computeVertexNormals();
+    geometry.computeBoundingBox();
+    const box = geometry.boundingBox!;
+    const center = box.getCenter(new THREE.Vector3());
+    geometry.translate(-center.x, -box.min.y, -center.z);
+    geometry.computeBoundingSphere();
+    return geometry;
+  });
+}
+
 function createMaterials(): Record<DressingKind, THREE.Material> {
   return {
-    grass: new THREE.MeshStandardMaterial({ color: 0x4f8e3b, roughness: 0.98, side: THREE.DoubleSide, alphaTest: 0.25, vertexColors: true }),
+    grass: grassMaterial(0x4f8e3b),
     flowers: new THREE.MeshStandardMaterial({ color: 0xe6c768, emissive: 0x251c08, emissiveIntensity: 0.12, roughness: 0.9, side: THREE.DoubleSide, vertexColors: true }),
     bushes: new THREE.MeshStandardMaterial({ color: 0x315f2e, roughness: 1, flatShading: true, vertexColors: true }),
     reeds: new THREE.MeshStandardMaterial({ color: 0x6d873c, roughness: 0.95, side: THREE.DoubleSide, vertexColors: true }),
-    rocks: new THREE.MeshStandardMaterial({ color: 0x777971, roughness: 0.96, flatShading: true, vertexColors: true }),
+    rocks: new THREE.MeshStandardMaterial({ color: 0x777971, roughness: 1, metalness: 0, flatShading: true, vertexColors: true }),
     debris: new THREE.MeshStandardMaterial({ color: 0x73523a, roughness: 1, flatShading: true, vertexColors: true }),
   };
 }
@@ -188,6 +248,8 @@ export class EnvironmentDressing {
   private readonly fallbackMaterials = createMaterials();
   private readonly heroGeometries: Partial<Record<DressingKind, THREE.BufferGeometry>> = {};
   private readonly heroMaterials: Partial<Record<DressingKind, THREE.Material>> = {};
+  private readonly fallbackRockVariants: THREE.BufferGeometry[];
+  private heroRockVariants: THREE.BufferGeometry[] = [];
   private readonly dummy = new THREE.Object3D();
   private enabled = true;
   private lastCenterX = Number.NaN;
@@ -219,6 +281,9 @@ export class EnvironmentDressing {
     quality: TerrainQuality,
   ) {
     this.group.name = "environmentDressing";
+    this.heroGeometries.grass = grassClump(15, 0.52);
+    this.heroMaterials.grass = grassMaterial(0x4f8e3b);
+    this.fallbackRockVariants = rockVariants(this.fallbackGeometries.rocks);
     this.cellSize = quality === "high" ? 96 : quality === "compatibility" ? 128 : 112;
     this.radius = quality === "high" ? 430 : quality === "compatibility" ? 260 : 350;
     this.maxCells = quality === "high" ? 96 : quality === "compatibility" ? 32 : 64;
@@ -227,7 +292,12 @@ export class EnvironmentDressing {
 
   update(cameraX: number, cameraZ: number): void {
     if (!this.enabled) return;
-    if (Number.isFinite(this.lastCenterX) && Math.hypot(cameraX - this.lastCenterX, cameraZ - this.lastCenterZ) < this.cellSize * 0.35) return;
+    // Rebuilding thousands of instance matrices several times per cell was a
+    // visible CPU hitch while sprinting. Keep the dressing bubble centered on
+    // stable cell boundaries and only regenerate after crossing one.
+    if (Number.isFinite(this.lastCenterX)
+      && Math.floor(cameraX / this.cellSize) === Math.floor(this.lastCenterX / this.cellSize)
+      && Math.floor(cameraZ / this.cellSize) === Math.floor(this.lastCenterZ / this.cellSize)) return;
     this.lastCenterX = cameraX; this.lastCenterZ = cameraZ; this.tick++;
     const centerX = Math.floor(cameraX / this.cellSize);
     const centerZ = Math.floor(cameraZ / this.cellSize);
@@ -269,6 +339,8 @@ export class EnvironmentDressing {
     for (const material of Object.values(this.fallbackMaterials)) material.dispose();
     for (const geometry of Object.values(this.heroGeometries)) geometry?.dispose();
     for (const material of Object.values(this.heroMaterials)) material?.dispose();
+    for (const geometry of this.fallbackRockVariants) geometry.dispose();
+    for (const geometry of this.heroRockVariants) geometry.dispose();
   }
 
   private async loadProductionAssets(): Promise<void> {
@@ -304,14 +376,20 @@ export class EnvironmentDressing {
         geometry.computeBoundingSphere();
         const sourceMaterial = Array.isArray(source.material) ? source.material[0] : source.material;
         const material = sourceMaterial.clone() as THREE.MeshStandardMaterial;
-        material.roughness = Math.max(material.roughness ?? 0.8, binding.foliage ? 0.82 : 0.72);
+        material.roughness = kind === "rocks" ? 1 : Math.max(material.roughness ?? 0.8, binding.foliage ? 0.82 : 0.82);
+        material.metalness = 0;
+        if (kind === "rocks") {
+          material.roughnessMap = null;
+          material.envMapIntensity = 0.18;
+        }
         if (binding.foliage) {
           material.side = THREE.DoubleSide;
           material.transparent = false;
           material.alphaTest = Math.max(material.alphaTest, 0.32);
           material.depthWrite = true;
         }
-        this.heroGeometries[kind] = geometry;
+        if (kind === "rocks") this.heroRockVariants = rockVariants(geometry);
+        else this.heroGeometries[kind] = geometry;
         this.heroMaterials[kind] = material;
       } catch (error) {
         console.warn(`Environment asset ${binding.id} failed; using calibrated fallback`, error);
@@ -329,7 +407,11 @@ export class EnvironmentDressing {
   private generateCellRecords(cellX: number, cellZ: number): Record<DressingKind, InstanceRecord[]> {
     const records: Record<DressingKind, InstanceRecord[]> = { grass: [], flowers: [], bushes: [], reeds: [], rocks: [], debris: [] };
     const originX = cellX * this.cellSize, originZ = cellZ * this.cellSize;
-    const candidates = Math.round(190 * this.density);
+    // One instance represents a multi-blade patch. The former 190 candidates
+    // left tens of metres between patches, so the ground read as empty even
+    // with perfect textures. This target keeps the GPU submission count fixed
+    // while providing a continuous meadow in the immediate play space.
+    const candidates = Math.round(520 * this.density);
     for (let i = 0; i < candidates; i++) {
       const x = originX + random01(cellX, cellZ, this.world.manifest.seed, i * 17 + 1) * this.cellSize;
       const z = originZ + random01(cellX, cellZ, this.world.manifest.seed, i * 17 + 2) * this.cellSize;
@@ -344,20 +426,26 @@ export class EnvironmentDressing {
       const moisture = Math.max(0, Math.min(1, (zone?.climate.avgMoisture ?? 0.55) + (shore ? 0.18 : 0) - Math.max(0, y - 900) / 3200));
       const choice = random01(cellX, cellZ, this.world.manifest.seed, i * 17 + 3);
       const rotation = choice * Math.PI * 2;
-      const variation = 0.72 + random01(cellX, cellZ, this.world.manifest.seed, i * 17 + 4) * 0.7;
+      const sizeRandom = random01(cellX, cellZ, this.world.manifest.seed, i * 17 + 4);
+      const variation = 0.72 + sizeRandom * 0.7;
 
       let kind: DressingKind | null = null;
       if (shore && y < 4.5 && choice < 0.035 * profile.reeds) kind = "debris";
       else if (shore && y < 8 && slope < 14 && choice < 0.22 * profile.reeds * moisture) kind = "reeds";
-      else if (slope > 29 && choice < 0.29 * profile.rocks) kind = "rocks";
-      else if (slope > 18 && choice < 0.11 * profile.rocks) kind = "rocks";
+      else if (slope > 29 && choice < 0.09 * profile.rocks) kind = "rocks";
+      else if (slope > 18 && choice < 0.045 * profile.rocks) kind = "rocks";
       else if (slope < 24 && choice < 0.025 * profile.scrub) kind = "bushes";
       else if (slope < 16 && choice < 0.05 * profile.flowers * moisture) kind = "flowers";
       else if (slope < 22 && choice < 0.68 * profile.lushness * (0.38 + moisture * 0.62)) kind = "grass";
       else if (choice < 0.016 * profile.rocks) kind = "rocks";
       if (!kind) continue;
       const tint = random01(cellX, cellZ, this.world.manifest.seed, i * 17 + 5);
-      records[kind].push({ x, y, z, rotation, scale: variation, tint });
+      const scale = kind === "rocks" ? 0.28 + Math.pow(sizeRandom, 2.8) * 2.8 : variation;
+      records[kind].push({
+        x, y, z, rotation, scale, tint,
+        variant: hash32(cellX, cellZ, this.world.manifest.seed, i * 31 + 7) % 4,
+        zoneId: zone?.id ?? "alvora",
+      });
     }
 
     return records;
@@ -372,6 +460,20 @@ export class EnvironmentDressing {
       const list: InstanceRecord[] = [];
       for (const key of retained) list.push(...(this.cellRecords.get(key)?.[kind] ?? []));
       if (!list.length) continue;
+      if (kind === "rocks") {
+        const heroRadiusSq = HERO_RADIUS.rocks ** 2;
+        for (let variant = 0; variant < 4; variant++) {
+          const records = list.filter((record) => record.variant === variant);
+          const hero = records.filter((record) => (record.x - this.lastCenterX) ** 2 + (record.z - this.lastCenterZ) ** 2 <= heroRadiusSq);
+          const distant = records.filter((record) => !hero.includes(record));
+          this.addBatch(kind, distant, this.fallbackRockVariants[variant], this.fallbackMaterials.rocks, "distant");
+          const heroGeometry = this.heroRockVariants[variant] ?? this.fallbackRockVariants[variant];
+          const heroMaterial = this.heroMaterials.rocks ?? this.fallbackMaterials.rocks;
+          this.addBatch(kind, hero, heroGeometry, heroMaterial, "hero");
+        }
+        this.totalInstances += list.length; this.counts[kind] = list.length;
+        continue;
+      }
       const heroGeometry = this.heroGeometries[kind];
       const heroMaterial = this.heroMaterials[kind];
       const hero: InstanceRecord[] = [];
@@ -406,26 +508,39 @@ export class EnvironmentDressing {
       mesh.name = `${kind}-${tier}`; mesh.userData.kind = kind; mesh.userData.tier = tier; mesh.frustumCulled = true;
       const color = new THREE.Color();
       list.forEach((record, index) => {
-        const scale = kind === "rocks" ? new THREE.Vector3(record.scale * 1.6, record.scale, record.scale * 1.35)
+        const scale = kind === "rocks" ? new THREE.Vector3(record.scale, record.scale, record.scale)
           : kind === "bushes" ? new THREE.Vector3(record.scale * 1.4, record.scale, record.scale * 1.25)
             : new THREE.Vector3(record.scale, record.scale, record.scale);
-        this.dummy.position.set(record.x, record.y, record.z);
-        this.dummy.rotation.set(0, record.rotation, kind === "debris" ? (record.tint - 0.5) * 0.25 : 0);
+        this.dummy.position.set(record.x, kind === "rocks" ? record.y - record.scale * 0.12 : record.y, record.z);
+        this.dummy.rotation.set(
+          kind === "rocks" ? (record.tint - 0.5) * 0.14 : 0,
+          record.rotation,
+          kind === "debris" ? (record.tint - 0.5) * 0.25 : kind === "rocks" ? (record.variant - 1.5) * 0.035 : 0,
+        );
         this.dummy.scale.copy(scale); this.dummy.updateMatrix();
         mesh.setMatrixAt(index, this.dummy.matrix);
-        if (kind === "grass") color.setRGB(0.18 + record.tint * 0.12, 0.38 + record.tint * 0.18, 0.12 + record.tint * 0.08);
+        if (kind === "grass") {
+          const palette = GRASS_PALETTES[record.zoneId] ?? GRASS_PALETTES.alvora;
+          color.set(palette[0]).lerp(new THREE.Color(palette[1]), record.tint);
+        }
         else if (kind === "flowers") color.setHSL(0.08 + record.tint * 0.72, 0.68, 0.58);
         else if (kind === "bushes") color.setRGB(0.12 + record.tint * 0.08, 0.29 + record.tint * 0.16, 0.11 + record.tint * 0.07);
         else if (kind === "reeds") color.setRGB(0.31 + record.tint * 0.13, 0.4 + record.tint * 0.18, 0.12);
-        else if (kind === "rocks") color.setRGB(0.34 + record.tint * 0.18, 0.35 + record.tint * 0.16, 0.32 + record.tint * 0.13);
+        else if (kind === "rocks") {
+          const palette = ROCK_PALETTES[record.zoneId] ?? ROCK_PALETTES.alvora;
+          color.set(palette[record.variant % palette.length]);
+          color.offsetHSL((record.tint - 0.5) * 0.025, -0.08, (record.tint - 0.5) * 0.12);
+        }
         else color.setRGB(0.3 + record.tint * 0.12, 0.21 + record.tint * 0.07, 0.13 + record.tint * 0.04);
         mesh.setColorAt(index, color);
       });
       mesh.instanceMatrix.needsUpdate = true;
       if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
-      // At most two InstancedMeshes per kind keeps the whole dressing pass
-      // near twelve submissions instead of six submissions for every cell.
-      mesh.frustumCulled = false;
+      // InstancedMesh does not automatically refresh its aggregate bounds
+      // after setMatrixAt(). Without this call, opting into frustum culling
+      // can either pop a batch or keep it alive forever.
+      mesh.computeBoundingSphere();
+      mesh.frustumCulled = true;
       this.group.add(mesh);
   }
 

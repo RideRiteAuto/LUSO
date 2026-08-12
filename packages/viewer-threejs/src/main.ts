@@ -11,6 +11,7 @@ import { CameraRelativeOrigin } from "./worldOrigin.js";
 import { buildTraversalBookmarks, findSafeTraversalPoint, type TraversalBookmark } from "./traversalSpawns.js";
 import type { TerrainMaterialDebugMode } from "./terrainMaterial.js";
 import { EnvironmentDressing } from "./environmentDressing.js";
+import { NavoraAtmosphere } from "./atmosphere.js";
 
 const params = new URLSearchParams(location.search);
 const seed = Number(params.get("seed") ?? 48291);
@@ -35,6 +36,7 @@ const movementEl = document.getElementById("movement")!;
 const locomotionEl = document.getElementById("locomotion")!;
 const rendererBackendEl = document.getElementById("rendererBackend")!;
 const performanceEl = document.getElementById("performance")!;
+const framePacingEl = document.getElementById("framePacing")!;
 const sceneStatsEl = document.getElementById("sceneStats")!;
 const streamingStatsEl = document.getElementById("streamingStats")!;
 const dressingStatsEl = document.getElementById("dressingStats")!;
@@ -71,10 +73,10 @@ scene.background = new THREE.Color(0x0a1626);
 // World units are true meters now (docs/01 §5) and the world is ~131km
 // across, so fog/camera-far distances are scaled up accordingly from the
 // pre-rescale version of this file.
-scene.fog = new THREE.Fog(0x0a1626, 70000, 280000);
 
 const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 4, 500000);
 camera.position.set(-12000, 16000, 36000);
+const atmosphere = new NavoraAtmosphere(scene, camera);
 
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.target.set(16000, 0, 16000);
@@ -219,6 +221,7 @@ async function boot() {
 }
 
 const frameSamples: number[] = [];
+const hitchWindow: number[] = [];
 let telemetryElapsed = 0;
 let scaleAdjustmentElapsed = 0;
 let streamTourDistance = 0;
@@ -252,6 +255,8 @@ function animate(timestamp: number) {
   renderer.render(scene, camera);
   frameSamples.push(rawDelta * 1000);
   if (frameSamples.length > 180) frameSamples.shift();
+  hitchWindow.push(rawDelta * 1000);
+  if (hitchWindow.length > 600) hitchWindow.shift();
   telemetryElapsed += rawDelta;
   scaleAdjustmentElapsed += rawDelta;
   if (telemetryElapsed >= 0.25 && frameSamples.length > 0) {
@@ -259,12 +264,19 @@ function animate(timestamp: number) {
     const sorted = [...frameSamples].sort((a, b) => a - b);
     const medianMs = sorted[Math.floor(sorted.length * 0.5)];
     const p95Ms = sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * 0.95))];
+    const p99Ms = sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * 0.99))];
+    const onePercentLow = 1000 / Math.max(0.01, p99Ms);
+    const hitches = hitchWindow.filter((sample) => sample >= 50).length;
+    const severeHitches = hitchWindow.filter((sample) => sample >= 100).length;
     const streamSettled = !terrainStreamer || (terrainStreamer.stats.queued === 0 && terrainStreamer.stats.building === 0);
     if (scaleAdjustmentElapsed >= 3 && streamSettled && frameSamples.length >= 120) {
       scaleAdjustmentElapsed = 0;
-      const nextRatio = medianMs > 22
+      // Median-only scaling allowed a nominal 60 FPS readout while every
+      // second/third frame missed v-sync. Drive resolution from the tail as
+      // well so the renderer reacts to the choppiness the player feels.
+      const nextRatio = p95Ms > 24 || p99Ms > 30
         ? Math.max(quality.pixelRatioFloor, renderPixelRatio - 0.1)
-        : medianMs < 13.8
+        : medianMs < 13.8 && p95Ms < 18
           ? Math.min(Math.min(window.devicePixelRatio, quality.pixelRatioCap), renderPixelRatio + 0.05)
           : renderPixelRatio;
       if (Math.abs(nextRatio - renderPixelRatio) > 0.001) {
@@ -274,12 +286,14 @@ function animate(timestamp: number) {
       }
     }
     performanceEl.textContent = `${(1000 / medianMs).toFixed(0)} fps · ${medianMs.toFixed(1)} ms med · ${p95Ms.toFixed(1)} ms p95 · ${renderPixelRatio.toFixed(2)}x`;
+    framePacingEl.textContent = `${onePercentLow.toFixed(0)} fps 1% low · ${p99Ms.toFixed(1)} ms p99 · ${hitches}/${severeHitches} >50/100ms`;
     const info = renderer.info;
     sceneStatsEl.textContent = `${info.render.drawCalls} draws · ${info.render.triangles.toLocaleString()} tris · ${info.memory.geometries} geo · ${info.memory.textures} tex`;
     if (terrainStreamer) {
       const stream = terrainStreamer.stats;
       const tour = streamTourRequested ? ` · tour ${(streamTourDistance / 1000).toFixed(1)}/10km` : "";
-      streamingStatsEl.textContent = `${stream.active}/${stream.desired} tiles · g${stream.generation}/o${worldOrigin.rebaseCount} · q${stream.queued}+${stream.building} · ${stream.minSpacing}m near · ${stream.maxUpdateMs.toFixed(1)}ms main/${stream.maxWorkerMs.toFixed(1)}ms worker${stream.frozen ? " · frozen" : ""}${tour}`;
+      const bubble = Number.isFinite(stream.viewDistance) ? `${(stream.viewDistance / 1000).toFixed(0)}km bubble` : "world overview";
+      streamingStatsEl.textContent = `${stream.active}/${stream.desired} tiles · ${bubble} · g${stream.generation}/o${worldOrigin.rebaseCount} · q${stream.queued}+${stream.building} · ${stream.minSpacing}m near · ${stream.maxUpdateMs.toFixed(1)}ms select/${stream.maxCommitMs.toFixed(1)}ms commit/${stream.maxWorkerMs.toFixed(1)}ms worker${stream.frozen ? " · frozen" : ""}${tour}`;
     }
     if (environmentDressing) {
       const dress = environmentDressing.stats;
@@ -331,8 +345,9 @@ function setGroundCameraProjection(grounded: boolean) {
   // cuts away the foreground. Use an FPS projection for walking and retain
   // the long-range precision settings for scouting/overview modes.
   camera.near = grounded ? 0.08 : 4;
-  camera.far = grounded ? 220000 : 500000;
   camera.fov = grounded ? 62 : 55;
+  atmosphere.setMode(grounded ? "ground" : "overview");
+  terrainStreamer?.setViewMode(grounded ? "ground" : "overview");
   camera.updateProjectionMatrix();
 }
 
@@ -357,12 +372,14 @@ viewOrbitBtn.addEventListener("click", () => {
   flight?.disable();
   controls.enabled = true;
   setActiveView(viewOrbitBtn);
+  setGroundCameraProjection(false);
   controls.maxPolarAngle = Math.PI * 0.49;
 });
 viewTopBtn.addEventListener("click", () => {
   flight?.disable();
   controls.enabled = true;
   setActiveView(viewTopBtn);
+  setGroundCameraProjection(false);
   const target = controls.target.clone();
   // Preserve the current zoom distance rather than a fixed height, so
   // "top-down" behaves sensibly whether the last view was a close-up
@@ -376,6 +393,7 @@ viewWorldBtn.addEventListener("click", () => {
   flight?.disable();
   controls.enabled = true;
   setActiveView(viewWorldBtn);
+  setGroundCameraProjection(false);
   if (!worldFrame) return;
   controls.maxPolarAngle = Math.PI * 0.49;
   controls.target.copy(worldOrigin.localPoint(worldFrame.center));
@@ -399,7 +417,11 @@ viewFlyBtn.addEventListener("click", () => {
   controls.enabled = false;
   setActiveView(viewFlyBtn);
   flying = true;
-  setGroundCameraProjection(false);
+  camera.near = 1;
+  camera.fov = 58;
+  atmosphere.setMode("flight");
+  terrainStreamer?.setViewMode("flight");
+  camera.updateProjectionMatrix();
   flyHintEl.textContent = "Click world for mouse lock (drag fallback) · WASD move · Space/Ctrl up-down · Shift boost · scroll = speed · Esc exit";
   flyHintEl.classList.add("visible");
   crosshairEl.classList.add("visible");
