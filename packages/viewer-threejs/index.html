@@ -45,11 +45,13 @@
         display: block; font-size: 10px; text-transform: uppercase; letter-spacing: 0.09em;
         color: var(--ink-dim); margin-bottom: 5px;
       }
-      #hud button {
+      #hud button, #hud select {
         background: rgba(255,255,255,0.04); color: var(--ink); border: 1px solid var(--panel-border);
         border-radius: 6px; padding: 5px 10px; cursor: pointer; font-size: 12px; font-family: var(--font-ui);
         margin-right: 6px; margin-bottom: 6px; transition: background 120ms, border-color 120ms;
       }
+      #hud select { max-width: 220px; }
+      #hud select option { background: #111827; color: var(--ink); }
       #hud button:hover { background: rgba(255,255,255,0.09); }
       #hud button:focus-visible { outline: 2px solid var(--teal); outline-offset: 1px; }
       #hud button.active { background: rgba(217, 167, 92, 0.16); border-color: var(--gold); color: #ffe3b0; }
@@ -90,6 +92,7 @@
         <div class="row"><span class="muted">Position</span><span id="cameraPos" class="val">—</span></div>
         <div class="row"><span class="muted">Altitude / ground</span><span id="altitude" class="val">—</span></div>
         <div class="row"><span class="muted">Mode / speed</span><span id="movement" class="val">Orbit</span></div>
+        <div class="row"><span class="muted">Locomotion</span><span id="locomotion" class="val">—</span></div>
         <div class="row"><span class="muted">Renderer</span><span id="rendererBackend" class="val">initializing…</span></div>
         <div class="row"><span class="muted">Performance</span><span id="performance" class="val">sampling…</span></div>
         <div class="row"><span class="muted">Scene</span><span id="sceneStats" class="val">—</span></div>
@@ -101,6 +104,20 @@
           <button id="viewWorld">World</button>
           <button id="viewFly">Fly ✈</button>
           <button id="viewWalk">Walk 🚶</button>
+        </div>
+        <div class="group">
+          <span class="group-label">Ground review</span>
+          <select id="bookmarkSelect" aria-label="Traversal bookmark"></select>
+          <button id="teleportBookmark">Teleport</button>
+          <select id="materialDebug" aria-label="Terrain material debug">
+            <option value="final">Material: Final</option>
+            <option value="biome">Debug: Biome</option>
+            <option value="height">Debug: Height</option>
+            <option value="slope">Debug: Slope</option>
+            <option value="shore">Debug: Shore</option>
+            <option value="moisture">Debug: Moisture</option>
+            <option value="macro">Debug: Macro breakup</option>
+          </select>
         </div>
         <div class="group">
           <span class="group-label">Layers</span>

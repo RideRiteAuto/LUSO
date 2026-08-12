@@ -8,6 +8,7 @@
     "dev": "vite",
     "build": "vite build",
     "test": "tsx --test src/**/*.test.ts",
+    "textures:ktx2": "node scripts/prepare-terrain-textures.mjs",
     "build:artifact": "node scripts/build-artifact.mjs"
   },
   "dependencies": {

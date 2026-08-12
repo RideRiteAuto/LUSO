@@ -1,13 +1,15 @@
 import * as THREE from "three/webgpu";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { loadWorld, loadEmbeddedWorld } from "./worldData.js";
-import { sampleHeightWithSkirt, sampleWorldHeight, SKIRT_REACH } from "./terrain.js";
+import { sampleHeightWithSkirt, SKIRT_REACH } from "./terrain.js";
 import { CollisionHeightCache } from "./terrainLod.js";
 import { TerrainStreamer } from "./terrainStreaming.js";
 import { buildZoneBoundaries, buildRivers, buildLakes, buildRoads, buildSettlements, buildSeaRegions } from "./overlays.js";
 import { uvToWorld } from "./layout.js";
 import { FlightController } from "./flightControls.js";
 import { CameraRelativeOrigin } from "./worldOrigin.js";
+import { buildTraversalBookmarks, findSafeTraversalPoint, type TraversalBookmark } from "./traversalSpawns.js";
+import type { TerrainMaterialDebugMode } from "./terrainMaterial.js";
 
 const params = new URLSearchParams(location.search);
 const seed = Number(params.get("seed") ?? 48291);
@@ -29,6 +31,7 @@ const settleCountEl = document.getElementById("settleCount")!;
 const cameraPosEl = document.getElementById("cameraPos")!;
 const altitudeEl = document.getElementById("altitude")!;
 const movementEl = document.getElementById("movement")!;
+const locomotionEl = document.getElementById("locomotion")!;
 const rendererBackendEl = document.getElementById("rendererBackend")!;
 const performanceEl = document.getElementById("performance")!;
 const sceneStatsEl = document.getElementById("sceneStats")!;
@@ -108,6 +111,7 @@ let settlementOverlay: THREE.Group | null = null;
 let worldFrame: { center: THREE.Vector3; distance: number } | null = null;
 let terrainStreamer: TerrainStreamer | null = null;
 let collisionHeights: CollisionHeightCache | null = null;
+let traversalBookmarks: TraversalBookmark[] = [];
 let loadedWorld: Awaited<ReturnType<typeof loadWorld>> | null = null;
 
 async function boot() {
@@ -123,6 +127,14 @@ async function boot() {
   collisionHeights = new CollisionHeightCache(world.worldHeight, manifest.seed, sampleHeightWithSkirt);
   terrainStreamer = new TerrainStreamer(world, qualityName);
   worldRoot.add(terrainStreamer.group);
+  traversalBookmarks = buildTraversalBookmarks(world, (x, z) => collisionHeights!.sample(x, z));
+  const bookmarkSelect = document.getElementById("bookmarkSelect") as HTMLSelectElement;
+  bookmarkSelect.replaceChildren(...traversalBookmarks.map((bookmark) => {
+    const option = document.createElement("option");
+    option.value = bookmark.id;
+    option.textContent = bookmark.label;
+    return option;
+  }));
 
   // Let fly/walk roam well past the real generated coastline into the
   // synthetic ocean skirt (terrain.ts) -- the skirt itself reaches full
@@ -214,6 +226,7 @@ function animate(timestamp: number) {
   }
   if (terrainStreamer) {
     worldOrigin.update(camera, controls);
+    terrainStreamer.updateWorldOrigin(worldOrigin.offset);
     terrainStreamer.update(worldOrigin.worldX(camera.position.x), worldOrigin.worldZ(camera.position.z));
   }
   renderer.render(scene, camera);
@@ -243,6 +256,7 @@ function animate(timestamp: number) {
     movementEl.textContent = flying && flight
       ? `${flight.currentMode} / ${flight.currentSpeed.toFixed(1)} m/s`
       : "orbit";
+    locomotionEl.textContent = flying && flight ? flight.locomotionState : "camera orbit";
   }
 }
 
@@ -335,7 +349,7 @@ viewFlyBtn.addEventListener("click", () => {
   controls.enabled = false;
   setActiveView(viewFlyBtn);
   flying = true;
-  flyHintEl.textContent = "Drag to look · WASD move · Space/Ctrl up-down · Shift boost · scroll = speed · Esc to exit";
+  flyHintEl.textContent = "Click world for mouse lock (drag fallback) · WASD move · Space/Ctrl up-down · Shift boost · scroll = speed · Esc exit";
   flyHintEl.classList.add("visible");
   crosshairEl.classList.add("visible");
   flight.enable(exitFlight, "fly");
@@ -352,7 +366,7 @@ viewWalkBtn.addEventListener("click", () => {
   controls.enabled = false; // see viewFlyBtn's handler for why this matters
   setActiveView(viewWalkBtn);
   flying = true;
-  flyHintEl.textContent = "Drag to look · WASD walk · Shift to run · scroll = pace · Esc to exit -- ground-level, human eye height";
+  flyHintEl.textContent = "Click world for mouse lock (drag fallback) · WASD move · Shift sprint · Space jump / swim up · Ctrl swim down · Esc exit";
   flyHintEl.classList.add("visible");
   crosshairEl.classList.add("visible");
   // Coming from Fly, start walking right where you were flying (the camera
@@ -363,21 +377,27 @@ viewWalkBtn.addEventListener("click", () => {
   let anchor = wasFlying
     ? { x: worldOrigin.worldX(camera.position.x), z: worldOrigin.worldZ(camera.position.z) }
     : { x: worldOrigin.worldX(controls.target.x), z: worldOrigin.worldZ(controls.target.z) };
-  if (loadedWorld && sampleWorldHeight(loadedWorld.worldHeight, anchor.x, anchor.z) <= 0) {
-    const maxRadius = loadedWorld.manifest.worldScale.continentTileSize;
-    search: for (let radius = 250; radius <= maxRadius; radius += 250) {
-      for (let i = 0; i < 32; i++) {
-        const angle = (i / 32) * Math.PI * 2;
-        const x = anchor.x + Math.cos(angle) * radius;
-        const z = anchor.z + Math.sin(angle) * radius;
-        if (sampleWorldHeight(loadedWorld.worldHeight, x, z) > 2) {
-          anchor = { x, z };
-          break search;
-        }
-      }
-    }
-  }
+  if (collisionHeights) anchor = findSafeTraversalPoint((x, z) => collisionHeights!.sample(x, z), anchor.x, anchor.z);
   flight.enable(exitFlight, "walk", anchor);
+});
+
+document.getElementById("teleportBookmark")!.addEventListener("click", () => {
+  if (!flight) return;
+  const selected = (document.getElementById("bookmarkSelect") as HTMLSelectElement).value;
+  const bookmark = traversalBookmarks.find((candidate) => candidate.id === selected);
+  if (!bookmark) return;
+  controls.enabled = false;
+  setActiveView(viewWalkBtn);
+  flying = true;
+  flyHintEl.textContent = "Click world for mouse lock (drag fallback) · WASD move · Shift sprint · Space jump / swim up · Ctrl swim down · Esc exit";
+  flyHintEl.classList.add("visible");
+  crosshairEl.classList.add("visible");
+  if (!flight.isEnabled || flight.currentMode !== "walk") flight.enable(exitFlight, "walk", bookmark);
+  flight.teleport(bookmark.x, bookmark.z, bookmark.heading);
+});
+
+(document.getElementById("materialDebug") as HTMLSelectElement).addEventListener("change", (event) => {
+  terrainStreamer?.setMaterialDebugMode((event.currentTarget as HTMLSelectElement).value as TerrainMaterialDebugMode);
 });
 
 function wireToggle(id: string, group: () => THREE.Group | null) {

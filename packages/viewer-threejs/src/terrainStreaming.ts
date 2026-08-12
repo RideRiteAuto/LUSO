@@ -2,6 +2,7 @@ import * as THREE from "three/webgpu";
 import type { WorldData } from "./worldData.js";
 import { buildTerrainColorMap, SKIRT_REACH } from "./terrain.js";
 import { selectTerrainTiles, type TerrainLodSettings, type TerrainTileSpec } from "./terrainLod.js";
+import { AlvoraTerrainMaterial, type TerrainMaterialDebugMode } from "./terrainMaterial.js";
 
 export interface TerrainStreamingStats {
   active: number;
@@ -22,6 +23,7 @@ interface TileResult {
   positions: ArrayBuffer;
   normals: ArrayBuffer;
   colors: ArrayBuffer;
+  uvs: ArrayBuffer;
   indices: ArrayBuffer;
   workerMs: number;
 }
@@ -129,6 +131,7 @@ function terrainWorkerMain() {
     const positions = new Float32Array(vertexCount * 3);
     const normals = new Float32Array(vertexCount * 3);
     const colors = new Float32Array(vertexCount * 3);
+    const uvs = new Float32Array(vertexCount * 2);
     const step = spec.size / spec.segments;
     const centerX = spec.minX + spec.size * 0.5;
     const centerZ = spec.minZ + spec.size * 0.5;
@@ -148,6 +151,8 @@ function terrainWorkerMain() {
         const length = Math.hypot(nx, ny, nz) || 1;
         normals[i] = nx / length; normals[i + 1] = ny / length; normals[i + 2] = nz / length;
         sampleColor(worldX, worldZ, colors, i);
+        uvs[vi * 2] = x / spec.segments;
+        uvs[vi * 2 + 1] = z / spec.segments;
       }
     }
 
@@ -166,6 +171,7 @@ function terrainWorkerMain() {
         positions[dst] = positions[src]; positions[dst + 1] = positions[src + 1] - skirtDrop; positions[dst + 2] = positions[src + 2];
         normals[dst] = normals[src]; normals[dst + 1] = normals[src + 1]; normals[dst + 2] = normals[src + 2];
         colors[dst] = colors[src]; colors[dst + 1] = colors[src + 1]; colors[dst + 2] = colors[src + 2];
+        uvs[skirtVertex * 2] = uvs[coreVertex * 2]; uvs[skirtVertex * 2 + 1] = uvs[coreVertex * 2 + 1];
         skirtVertex++;
       }
     }
@@ -190,7 +196,7 @@ function terrainWorkerMain() {
       }
       skirtBase += n;
     }
-    return { positions, normals, colors, indices, workerMs: performance.now() - started };
+    return { positions, normals, colors, uvs, indices, workerMs: performance.now() - started };
   }
 
   scope.onmessage = (event: MessageEvent) => {
@@ -205,9 +211,9 @@ function terrainWorkerMain() {
     const response = {
       type: "tile", token: message.token, spec: message.spec, workerMs: result.workerMs,
       positions: result.positions.buffer, normals: result.normals.buffer,
-      colors: result.colors.buffer, indices: result.indices.buffer,
+      colors: result.colors.buffer, uvs: result.uvs.buffer, indices: result.indices.buffer,
     };
-    scope.postMessage(response, [response.positions, response.normals, response.colors, response.indices]);
+    scope.postMessage(response, [response.positions, response.normals, response.colors, response.uvs, response.indices]);
   };
 }
 
@@ -228,13 +234,14 @@ export class TerrainStreamer {
   private lastWorkerMs = 0;
   private maxWorkerMs = 0;
   private maxUpdateMs = 0;
-  private readonly normalMaterial = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.92, metalness: 0.02, side: THREE.DoubleSide });
+  private readonly terrainMaterial: AlvoraTerrainMaterial;
   private readonly debugMaterials = [0x42d4f4, 0x64e572, 0xf4dd4b, 0xf49a45, 0xe75d87, 0x9a72ed, 0x5669d8].map(
     (color) => new THREE.MeshStandardMaterial({ color, roughness: 0.9, wireframe: true, side: THREE.DoubleSide }),
   );
   private readonly expandedBounds: { minX: number; minZ: number; maxX: number; maxZ: number };
 
   constructor(private readonly world: WorldData, quality: "high" | "balanced" | "compatibility") {
+    this.terrainMaterial = new AlvoraTerrainMaterial(quality);
     this.settings = quality === "high"
       ? { minTileSize: 128, splitDistance: 1.8, maxTiles: 240 }
       : quality === "compatibility"
@@ -292,8 +299,11 @@ export class TerrainStreamer {
   }
 
   setWireframe(enabled: boolean): void {
-    this.normalMaterial.wireframe = enabled;
+    this.terrainMaterial.material.wireframe = enabled;
   }
+
+  setMaterialDebugMode(mode: TerrainMaterialDebugMode): void { this.terrainMaterial.setDebugMode(mode); }
+  updateWorldOrigin(offset: THREE.Vector3): void { this.terrainMaterial.updateOrigin(offset); }
 
   get stats(): TerrainStreamingStats {
     return {
@@ -314,7 +324,7 @@ export class TerrainStreamer {
     for (const slot of this.workers) slot.worker.terminate();
     for (const mesh of [...this.active.values(), ...this.staging.values()]) mesh.geometry.dispose();
     this.active.clear(); this.staging.clear(); this.queue = [];
-    this.normalMaterial.dispose();
+    this.terrainMaterial.dispose();
     for (const material of this.debugMaterials) material.dispose();
   }
 
@@ -348,7 +358,7 @@ export class TerrainStreamer {
     if (message.type !== "tile") return;
     slot.busy = false;
     if (message.token === this.generation && message.spec && this.desired.has(message.spec.id)
-      && message.positions && message.normals && message.colors && message.indices) {
+      && message.positions && message.normals && message.colors && message.uvs && message.indices) {
       const mesh = this.createMesh(message as TileResult);
       mesh.visible = false;
       this.staging.set(message.spec.id, mesh);
@@ -366,9 +376,10 @@ export class TerrainStreamer {
     geometry.setAttribute("position", new THREE.BufferAttribute(new Float32Array(result.positions), 3));
     geometry.setAttribute("normal", new THREE.BufferAttribute(new Float32Array(result.normals), 3));
     geometry.setAttribute("color", new THREE.BufferAttribute(new Float32Array(result.colors), 3));
+    geometry.setAttribute("uv", new THREE.BufferAttribute(new Float32Array(result.uvs), 2));
     geometry.setIndex(new THREE.BufferAttribute(new Uint32Array(result.indices), 1));
     geometry.computeBoundingSphere();
-    const mesh = new THREE.Mesh(geometry, this.normalMaterial);
+    const mesh = new THREE.Mesh(geometry, this.terrainMaterial.material);
     mesh.position.set(result.spec.minX + result.spec.size * 0.5, 0, result.spec.minZ + result.spec.size * 0.5);
     mesh.receiveShadow = true;
     mesh.userData.terrainLevel = result.spec.level;
@@ -380,7 +391,7 @@ export class TerrainStreamer {
   private applyMaterial(mesh: THREE.Mesh): void {
     mesh.material = this.debugLod
       ? this.debugMaterials[(mesh.userData.terrainLevel as number) % this.debugMaterials.length]
-      : this.normalMaterial;
+      : this.terrainMaterial.material;
   }
 
   private commitGeneration(): void {

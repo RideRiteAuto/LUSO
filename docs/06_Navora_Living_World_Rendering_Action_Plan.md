@@ -351,3 +351,46 @@ The tour completed with 199/199 desired tiles active, an empty queue, and no bro
 errors. The forced-WebGL compatibility pass completed at 60 fps with 139/139 tiles and a 0.3 ms
 maximum streaming update before the final telemetry-only revision. The worker maximum does not
 block the render thread; the measured main-thread streaming work remains below the Phase 2 budget.
+
+## 10. Combined Phase 3–4 playable milestone — 2026-08-12
+
+Status: implemented and verified with seed `48291`.
+
+Traversal delivered:
+
+- first-person kinematic capsule with acceleration, friction, gravity, jumping, ground snapping,
+  slope rejection, wading, and surface-seeking swim locomotion;
+- 3.4 m/s walk, 6.8 m/s sprint, and 2.6 m/s temporary swim tuning;
+- pointer-lock mouse look with drag-look fallback for local files and sandboxed embeds;
+- collision driven only by the stable 4 m collision cache, never by visual tile availability;
+- deterministic dry/low-slope safe-position search and named Alvora, Valedouro, Serravela,
+  Cavora, and Solmara review bookmarks;
+- HUD locomotion state and one-click bookmark teleport;
+- static circular collision-proxy interface reserved for the later rock-dressing pass.
+
+Alvora material slice delivered:
+
+- `MeshStandardNodeMaterial`/TSL terrain shading shared by WebGPU and the WebGL fallback;
+- deterministic tileable sand, wet sand, grass, soil, forest-floor, mud, rock, scree, snow, and
+  seabed calibration layers;
+- world-space triplanar projection, slope/height/shore/moisture masks, biome modulation, macro and
+  fine breakup, detail normals, roughness response, and origin-stable coordinates;
+- high/balanced/compatibility texture resolution, anisotropy, and normal-detail tiers;
+- final, biome, height, slope, shore, moisture, and macro-breakup debug views;
+- KTX2 intake script using ETC1S for albedo and UASTC for normal/data maps, with generated mipmaps
+  and documented source/license rules.
+
+Validation:
+
+- movement and jump results pass at 30, 60, and 144 Hz;
+- steep-slope rejection, swimming, safe-spawn, LOD, collision-cache, and deterministic-detail
+  tests pass;
+- live Alvora teleport reports grounded at a 1.7 m eye height and live jump returns to grounded;
+- balanced WebGPU: 60 fps, 16.7 ms median, 16.9–17.0 ms p95, 199/199 tiles;
+- compatibility WebGL 2: 60 fps, 16.7 ms median, 17.0 ms p95, 139/139 tiles;
+- both renderer passes compile every material debug mode without warnings or errors.
+
+Bible fidelity: the Alvora palette is deliberately temperate, agricultural, woodland, and coastal
+rather than generic high-fantasy terrain. Sand/wet-sand/soil/grass/forest-floor continuity supports
+the Crownlands coast-to-farm-to-settlement identity and preserves permanent low-band gathering,
+fishing, farming, trade-route, and housing value without placing gameplay trees or resource nodes.
