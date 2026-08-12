@@ -48,6 +48,14 @@ export interface SettlementRecord {
 export interface RiverRecord {
   id: string;
   path: [number, number][];
+  sourceElevationM?: number;
+  terminatesIn?: { type: "ocean" | "lake"; featureId: string };
+  profile?: {
+    widthM: [number, number];
+    depthM: [number, number];
+    currentMps: [number, number];
+    navigableFromT: number;
+  };
 }
 
 /** A closed-basin pit lake (hydrology/index.ts) -- generated since Phase 2 but never wired into the viewer until now, which is why low inland basins rendered as flat "ocean" biome color with no actual water surface (Kevin: "not sure if it's water or a lake"). */

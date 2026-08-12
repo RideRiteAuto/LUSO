@@ -35,3 +35,12 @@ test("deep water enters swim state and keeps the capsule near the surface", () =
   assert.equal(state.state, "swimming");
   assert.ok(state.feetY > -1.4 && state.feetY < -0.9);
 });
+
+test("swimming follows a queried wave surface and receives river current", () => {
+  const state: CapsuleState = { x: 0, z: 0, feetY: -1, velocityX: 0, velocityY: 0, velocityZ: 0, state: "swimming" };
+  stepCapsule(state, { moveX: 0, moveZ: 0, sprint: false, jump: false, descend: false }, 1 / 60, () => -4, DEFAULT_CAPSULE_SETTINGS, () => ({ surfaceY: 1.5, velocityX: 1.2, velocityZ: -0.4 }));
+  assert.equal(state.state, "swimming");
+  assert.ok(state.velocityX > 0);
+  assert.ok(state.velocityZ < 0);
+  assert.ok(state.velocityY > 0);
+});

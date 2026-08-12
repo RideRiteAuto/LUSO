@@ -22,6 +22,7 @@ export interface FlightControllerOptions {
   getWorldOffset: () => { x: number; z: number };
   worldBounds: { minX: number; maxX: number; minZ: number; maxZ: number };
   getStaticObstacles?: () => StaticCollisionProxy[];
+  getWater?: (worldX: number, worldZ: number) => { surfaceY: number; velocityX: number; velocityZ: number } | null;
 }
 
 /** Scouting flight plus a physical first-person capsule used by Walk mode. */
@@ -129,7 +130,7 @@ export class FlightController {
       sprint: this.move.boost,
       jump: this.jumpQueued || this.move.up,
       descend: this.move.down,
-    }, deltaSeconds, this.opts.getGroundHeight);
+    }, deltaSeconds, this.opts.getGroundHeight, undefined, this.opts.getWater);
     this.jumpQueued = false;
     this.resolveStaticObstacles();
     this.capsule.x = Math.max(this.clampBounds.minX, Math.min(this.clampBounds.maxX, this.capsule.x));

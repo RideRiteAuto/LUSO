@@ -37,6 +37,12 @@ export interface CapsuleSettings {
   waterHeight: number;
 }
 
+export interface WaterKinematicsSample {
+  surfaceY: number;
+  velocityX: number;
+  velocityZ: number;
+}
+
 export const DEFAULT_CAPSULE_SETTINGS: CapsuleSettings = {
   walkSpeed: 3.4,
   // Walking stays at a believable human pace so scale review remains useful.
@@ -72,10 +78,15 @@ export function stepCapsule(
   deltaSeconds: number,
   sampleGround: (x: number, z: number) => number,
   settings: CapsuleSettings = DEFAULT_CAPSULE_SETTINGS,
+  sampleWater?: (x: number, z: number) => WaterKinematicsSample | null,
 ): CapsuleState {
   const dt = Math.min(0.05, Math.max(0, deltaSeconds));
   const groundBefore = sampleGround(state.x, state.z);
-  const waterDepthBefore = settings.waterHeight - groundBefore;
+  const waterBefore = sampleWater?.(state.x, state.z) ?? (groundBefore < settings.waterHeight
+    ? { surfaceY: settings.waterHeight, velocityX: 0, velocityZ: 0 }
+    : null);
+  const waterSurface = waterBefore?.surfaceY ?? -Infinity;
+  const waterDepthBefore = waterSurface - groundBefore;
   const swimming = waterDepthBefore > settings.swimDepth;
   const inputLength = Math.hypot(input.moveX, input.moveZ);
   const moveX = inputLength > 1 ? input.moveX / inputLength : input.moveX;
@@ -86,10 +97,14 @@ export function stepCapsule(
     state.velocityX = approach(state.velocityX, moveX * targetSpeed, 8 * dt);
     state.velocityZ = approach(state.velocityZ, moveZ * targetSpeed, 8 * dt);
     const verticalInput = (input.jump ? 1 : 0) - (input.descend ? 1 : 0);
-    const targetFeetY = settings.waterHeight - 1.15;
+    const targetFeetY = waterSurface - 1.15;
     state.velocityY = verticalInput !== 0
       ? approach(state.velocityY, verticalInput * settings.swimSpeed, 7 * dt)
       : approach(state.velocityY, (targetFeetY - state.feetY) * 2.5, 5 * dt);
+    // Currents advect swimmers/fish/NPCs through the same query later used by
+    // hull pontoons. Player input remains relative motion through the water.
+    state.velocityX += (waterBefore?.velocityX ?? 0) * dt * 0.7;
+    state.velocityZ += (waterBefore?.velocityZ ?? 0) * dt * 0.7;
     state.x += state.velocityX * dt;
     state.z += state.velocityZ * dt;
     state.feetY = Math.max(sampleGround(state.x, state.z), state.feetY + state.velocityY * dt);
@@ -143,7 +158,8 @@ export function stepCapsule(
     if (state.feetY <= ground) {
       state.feetY = ground;
       state.velocityY = 0;
-      state.state = settings.waterHeight - ground > settings.wadeDepth ? "wading" : "grounded";
+      const landedWater = sampleWater?.(state.x, state.z)?.surfaceY ?? settings.waterHeight;
+      state.state = landedWater - ground > settings.wadeDepth ? "wading" : "grounded";
     } else state.state = "airborne";
   }
   return state;

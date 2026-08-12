@@ -4,7 +4,7 @@ import { loadWorld, loadEmbeddedWorld } from "./worldData.js";
 import { sampleHeightWithSkirt, SKIRT_REACH } from "./terrain.js";
 import { CollisionHeightCache, sampleLocalTerrainDetail } from "./terrainLod.js";
 import { TerrainStreamer } from "./terrainStreaming.js";
-import { buildZoneBoundaries, buildRivers, buildLakes, buildRoads, buildSettlements, buildSeaRegions } from "./overlays.js";
+import { buildZoneBoundaries, buildLakes, buildRoads, buildSettlements, buildSeaRegions } from "./overlays.js";
 import { uvToWorld } from "./layout.js";
 import { FlightController } from "./flightControls.js";
 import { CameraRelativeOrigin } from "./worldOrigin.js";
@@ -13,6 +13,7 @@ import type { TerrainMaterialDebugMode } from "./terrainMaterial.js";
 import { EnvironmentDressing } from "./environmentDressing.js";
 import { NavoraAtmosphere } from "./atmosphere.js";
 import { ResourceReviewYard } from "./resourceReviewYard.js";
+import { NavoraWaterSystem } from "./waterSystem.js";
 
 const params = new URLSearchParams(location.search);
 const seed = Number(params.get("seed") ?? 48291);
@@ -125,6 +126,7 @@ let collisionHeights: CollisionHeightCache | null = null;
 let traversalBookmarks: TraversalBookmark[] = [];
 let loadedWorld: Awaited<ReturnType<typeof loadWorld>> | null = null;
 let resourceReviewYard: ResourceReviewYard | null = null;
+let waterSystem: NavoraWaterSystem | null = null;
 
 async function boot() {
   statusEl.textContent = "loading manifest…";
@@ -139,6 +141,9 @@ async function boot() {
   collisionHeights = new CollisionHeightCache(world.worldHeight, manifest.seed, sampleHeightWithSkirt);
   terrainStreamer = await TerrainStreamer.create(world, qualityName, renderer);
   worldRoot.add(terrainStreamer.group);
+  statusEl.textContent = "initializing navigable water…";
+  waterSystem = new NavoraWaterSystem(world, qualityName, sun.position.clone().normalize());
+  worldRoot.add(waterSystem.group);
   statusEl.textContent = "loading environmental models…";
   // Dressing only needs exact deterministic surface samples; routing hundreds
   // of placement probes through CollisionHeightCache synchronously constructed
@@ -195,6 +200,10 @@ async function boot() {
   flight = new FlightController(camera, renderer.domElement, {
     getGroundHeight: (x, z) => collisionHeights!.sample(x, z),
     getWorldOffset: () => ({ x: worldOrigin.offset.x, z: worldOrigin.offset.z }),
+    getWater: (x, z) => {
+      const water = waterSystem?.sample(x, z);
+      return water ? { surfaceY: water.surfaceY, velocityX: water.velocityX, velocityZ: water.velocityZ } : null;
+    },
     worldBounds: expandedBounds,
   });
 
@@ -208,8 +217,7 @@ async function boot() {
   zoneOverlay.visible = false;
   worldRoot.add(zoneOverlay);
 
-  riverOverlay = buildRivers(world.continents, manifest);
-  worldRoot.add(riverOverlay);
+  riverOverlay = waterSystem.riverGroup;
   lakeOverlay = buildLakes(world.continents, manifest);
   worldRoot.add(lakeOverlay);
 
@@ -290,6 +298,9 @@ function animate(timestamp: number) {
     worldOrigin.worldX(camera.position.x), worldOrigin.worldZ(camera.position.z),
   );
   resourceReviewYard?.updateWind(timer.getElapsed());
+  if (waterSystem) waterSystem.update(
+    timer.getElapsed(), worldOrigin.worldX(camera.position.x), worldOrigin.worldZ(camera.position.z),
+  );
   renderer.render(scene, camera);
   frameSamples.push(rawDelta * 1000);
   if (frameSamples.length > 180) frameSamples.shift();

@@ -132,6 +132,14 @@ export function generateWaterData(height: HeightField, riverIdPrefix: string): H
         path,
         sourceElevationM,
         terminatesIn,
+        profile: {
+          widthM: [7, 52],
+          depthM: [0.8, 5.5],
+          currentMps: [2, 0.45],
+          // Firstwater/Riveira need a genuinely boat-usable lower course;
+          // headwaters remain swimmer/fish water and are intentionally narrow.
+          navigableFromT: 0.48,
+        },
       });
     }
   }

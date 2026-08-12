@@ -97,6 +97,13 @@ export interface River {
   path: Vec2[];
   sourceElevationM: number;
   terminatesIn: { type: "ocean" | "lake"; featureId: string };
+  /** Runtime water contract sampled along the source-to-mouth path. */
+  profile: {
+    widthM: [number, number];
+    depthM: [number, number];
+    currentMps: [number, number];
+    navigableFromT: number;
+  };
 }
 
 export interface Lake {
