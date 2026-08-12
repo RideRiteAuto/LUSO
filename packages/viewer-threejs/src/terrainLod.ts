@@ -7,7 +7,18 @@ export interface TerrainTileSpec {
   size: number;
   level: number;
   segments: number;
+  /** Fine edges that meet a tile exactly twice this size. */
+  stitchMask: number;
+  /** Coarse-edge sample spacing divided by this tile's spacing: minZ, maxZ, minX, maxX. */
+  stitchRatios: [number, number, number, number];
 }
+
+export const TERRAIN_EDGE = {
+  MIN_Z: 1,
+  MAX_Z: 2,
+  MIN_X: 4,
+  MAX_X: 8,
+} as const;
 
 export interface TerrainLodSettings {
   minTileSize: number;
@@ -25,10 +36,66 @@ function nextPowerOfTwo(value: number): number {
   return 2 ** Math.ceil(Math.log2(value));
 }
 
+interface QuadtreeLeaf { minX: number; minZ: number; size: number }
+
+const EDGE_EPSILON = 1e-5;
+
+function rangesOverlap(a0: number, a1: number, b0: number, b1: number): boolean {
+  return Math.min(a1, b1) - Math.max(a0, b0) > EDGE_EPSILON;
+}
+
+function sharedEdge(a: QuadtreeLeaf, b: QuadtreeLeaf): [number, number] | null {
+  const aMaxX = a.minX + a.size, aMaxZ = a.minZ + a.size;
+  const bMaxX = b.minX + b.size, bMaxZ = b.minZ + b.size;
+  if (Math.abs(a.minZ - bMaxZ) < EDGE_EPSILON && rangesOverlap(a.minX, aMaxX, b.minX, bMaxX)) {
+    return [TERRAIN_EDGE.MIN_Z, TERRAIN_EDGE.MAX_Z];
+  }
+  if (Math.abs(aMaxZ - b.minZ) < EDGE_EPSILON && rangesOverlap(a.minX, aMaxX, b.minX, bMaxX)) {
+    return [TERRAIN_EDGE.MAX_Z, TERRAIN_EDGE.MIN_Z];
+  }
+  if (Math.abs(a.minX - bMaxX) < EDGE_EPSILON && rangesOverlap(a.minZ, aMaxZ, b.minZ, bMaxZ)) {
+    return [TERRAIN_EDGE.MIN_X, TERRAIN_EDGE.MAX_X];
+  }
+  if (Math.abs(aMaxX - b.minX) < EDGE_EPSILON && rangesOverlap(a.minZ, aMaxZ, b.minZ, bMaxZ)) {
+    return [TERRAIN_EDGE.MAX_X, TERRAIN_EDGE.MIN_X];
+  }
+  return null;
+}
+
+function splitLeaf(leaves: QuadtreeLeaf[], index: number): void {
+  const tile = leaves[index];
+  const half = tile.size * 0.5;
+  leaves.splice(index, 1,
+    { minX: tile.minX, minZ: tile.minZ, size: half },
+    { minX: tile.minX + half, minZ: tile.minZ, size: half },
+    { minX: tile.minX, minZ: tile.minZ + half, size: half },
+    { minX: tile.minX + half, minZ: tile.minZ + half, size: half },
+  );
+}
+
+/** Split coarse neighbors until every shared edge differs by at most one level. */
+function balanceLeaves(leaves: QuadtreeLeaf[], maxTiles: number): boolean {
+  for (;;) {
+    let coarseIndex = -1;
+    for (let i = 0; i < leaves.length && coarseIndex < 0; i++) {
+      for (let j = i + 1; j < leaves.length; j++) {
+        if (!sharedEdge(leaves[i], leaves[j])) continue;
+        const larger = Math.max(leaves[i].size, leaves[j].size);
+        const smaller = Math.min(leaves[i].size, leaves[j].size);
+        if (larger <= smaller * 2 + EDGE_EPSILON) continue;
+        coarseIndex = leaves[i].size > leaves[j].size ? i : j;
+        break;
+      }
+    }
+    if (coarseIndex < 0) return true;
+    if (leaves.length + 3 > maxTiles) return false;
+    splitLeaf(leaves, coarseIndex);
+  }
+}
+
 /**
- * Camera-centered quadtree leaves. Every child remains aligned to its parent,
- * which makes borders deterministic; vertical skirts handle the remaining
- * T-junction between leaves whose resolutions differ by one or more levels.
+ * Camera-centered, 2:1-balanced quadtree leaves. Fine edges that meet a
+ * coarser neighbor are marked for geometric edge stitching in the worker.
  */
 export function selectTerrainTiles(
   bounds: { minX: number; minZ: number; maxX: number; maxZ: number },
@@ -40,45 +107,56 @@ export function selectTerrainTiles(
   const rootSize = nextPowerOfTwo(span);
   const rootMinX = (bounds.minX + bounds.maxX - rootSize) * 0.5;
   const rootMinZ = (bounds.minZ + bounds.maxZ - rootSize) * 0.5;
-  const leaves = [{ minX: rootMinX, minZ: rootMinZ, size: rootSize }];
+  let leaves: QuadtreeLeaf[] = [{ minX: rootMinX, minZ: rootMinZ, size: rootSize }];
 
   // Refine the nearest eligible leaf first. A depth-first walk can exhaust
   // the tile budget inside whichever far quadrant happened to be pushed
   // last, leaving the player's own leaf coarse despite reporting a 4 m
   // profile. Nearest-first makes the quality guarantee real.
   while (leaves.length + 3 <= settings.maxTiles) {
-    let bestIndex = -1;
-    let bestPriority = Infinity;
+    const candidates: Array<{ index: number; priority: number }> = [];
     for (let i = 0; i < leaves.length; i++) {
       const tile = leaves[i];
       if (tile.size <= settings.minTileSize) continue;
       const distance = distanceToSquare(cameraX, cameraZ, tile.minX, tile.minZ, tile.size);
       if (distance >= tile.size * settings.splitDistance) continue;
       const priority = distance / tile.size;
-      if (priority < bestPriority || (priority === bestPriority && tile.size > (leaves[bestIndex]?.size ?? 0))) {
-        bestPriority = priority;
-        bestIndex = i;
-      }
+      candidates.push({ index: i, priority });
     }
-    if (bestIndex < 0) break;
-    const tile = leaves[bestIndex];
-    const half = tile.size * 0.5;
-    leaves.splice(bestIndex, 1,
-      { minX: tile.minX, minZ: tile.minZ, size: half },
-      { minX: tile.minX + half, minZ: tile.minZ, size: half },
-      { minX: tile.minX, minZ: tile.minZ + half, size: half },
-      { minX: tile.minX + half, minZ: tile.minZ + half, size: half },
-    );
+    candidates.sort((a, b) => a.priority - b.priority || leaves[b.index].size - leaves[a.index].size);
+    let accepted: QuadtreeLeaf[] | null = null;
+    for (const candidate of candidates) {
+      const trial = leaves.map((tile) => ({ ...tile }));
+      splitLeaf(trial, candidate.index);
+      if (balanceLeaves(trial, settings.maxTiles)) { accepted = trial; break; }
+    }
+    if (!accepted) break;
+    leaves = accepted;
   }
 
-  return leaves.map((tile) => {
+  const prepared = leaves.map((tile) => {
     const level = Math.max(0, Math.round(Math.log2(tile.size / settings.minTileSize)));
     const segments = level <= 1 ? 64 : level <= 3 ? 32 : 16;
+    return { ...tile, level, segments };
+  });
+  return prepared.map((tile, tileIndex) => {
+    let stitchMask = 0;
+    const stitchRatios: [number, number, number, number] = [1, 1, 1, 1];
+    for (let neighborIndex = 0; neighborIndex < prepared.length; neighborIndex++) {
+      const neighbor = prepared[neighborIndex];
+      if (neighborIndex === tileIndex || neighbor.size <= tile.size) continue;
+      const edges = sharedEdge(tile, neighbor);
+      if (edges && neighbor.size <= tile.size * 2 + EDGE_EPSILON) {
+        stitchMask |= edges[0];
+        const edgeIndex = edges[0] === TERRAIN_EDGE.MIN_Z ? 0 : edges[0] === TERRAIN_EDGE.MAX_Z ? 1 : edges[0] === TERRAIN_EDGE.MIN_X ? 2 : 3;
+        stitchRatios[edgeIndex] = Math.max(1, Math.round((neighbor.size / neighbor.segments) / (tile.size / tile.segments)));
+      }
+    }
     return {
       ...tile,
-      level,
-      segments,
-      id: `${tile.minX.toFixed(2)}:${tile.minZ.toFixed(2)}:${tile.size.toFixed(2)}:${segments}`,
+      stitchMask,
+      stitchRatios,
+      id: `${tile.minX.toFixed(2)}:${tile.minZ.toFixed(2)}:${tile.size.toFixed(2)}:${tile.segments}:s${stitchRatios.join("-")}`,
     };
   });
 }

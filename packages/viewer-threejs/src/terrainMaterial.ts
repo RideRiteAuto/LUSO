@@ -1,6 +1,7 @@
 import * as THREE from "three/webgpu";
 import { KTX2Loader } from "three/addons/loaders/KTX2Loader.js";
 import {
+  cameraPosition,
   color,
   float,
   mix,
@@ -89,7 +90,16 @@ export class AlvoraTerrainMaterial {
     const biome = vertexColor();
     const height = worldPosition.y;
     const slope = normalWorld.y.abs().oneMinus();
-    const moisture = smoothstep(0.16, 0.62, biome.g);
+    // `biome` is a presentation palette, not physical climate data. Until
+    // the compiler emits explicit control maps, use a continuous regional
+    // moisture field with altitude drying instead of the former RGB-green
+    // proxy that painted whole biome grid cells alike.
+    const climateMoisture = mx_noise_float(worldPosition.xz.mul(0.00018).add(vec2(71.4, -38.2))).mul(0.5).add(0.5);
+    const altitudeDrying = smoothstep(650, 1750, height).mul(0.34);
+    const biomeVegetationHint = smoothstep(0.22, 0.72, biome.g).mul(0.18);
+    const moisture = climateMoisture.mul(0.62).add(0.28).add(biomeVegetationHint).sub(altitudeDrying).clamp(0, 1);
+    const viewDistance = cameraPosition.sub(positionWorld).length();
+    const microVisibility = smoothstep(180, 900, viewDistance).oneMinus();
     const shore = smoothstep(-3, 5, height);
     const macro = mx_noise_float(worldPosition.xz.mul(0.00042)).mul(0.5).add(0.5);
     const fineMacro = mx_noise_float(worldPosition.xz.mul(0.0021).add(vec2(31.7, -14.2))).mul(0.5).add(0.5);
@@ -127,16 +137,26 @@ export class AlvoraTerrainMaterial {
     const grass = planarAlbedo("grass", 1 / 1.4, localPatch);
     const soil = planarAlbedo("soil", 1 / 1.3, fineMacro);
     const forest = planarAlbedo("forest", 1 / 2, localPatch);
-    const rock = triplanarSample(layers.rock.albedo!, 1 / 50).rgb;
-    const scree = triplanarSample(layers.scree.albedo!, 1 / 90).rgb;
+    const rockDetail = triplanarSample(layers.rock.albedo!, 1 / 12).rgb;
+    const rockMacro = triplanarSample(layers.rock.albedo!, 1 / 52).rgb;
+    const rock = mix(rockMacro, rockDetail, microVisibility.mul(0.72));
+    const screeDetail = triplanarSample(layers.scree.albedo!, 1 / 18).rgb;
+    const screeMacro = triplanarSample(layers.scree.albedo!, 1 / 80).rgb;
+    const scree = mix(screeMacro, screeDetail, microVisibility.mul(0.62));
     const snow = planarAlbedo("snow", 1 / 2, fineMacro);
 
     const landMask = smoothstep(1, 9, height);
     const sandMask = smoothstep(-0.5, 2.5, height).mul(smoothstep(4, 11, height).oneMinus());
     const wetMask = smoothstep(-2, 0.4, height).mul(smoothstep(0.8, 3.2, height).oneMinus());
-    const forestMask = moisture.mul(smoothstep(18, 90, height)).mul(smoothstep(0.16, 0.42, slope).oneMinus());
-    const screeMask = smoothstep(0.2, 0.42, slope).mul(smoothstep(0.42, 0.68, slope).oneMinus());
-    const rockMask = smoothstep(0.34, 0.7, slope);
+    // slope = 1-cos(theta): 0.06≈20°, 0.13≈30°, 0.23≈40°.
+    // The previous 0.34 rock threshold was roughly 49°, leaving almost every
+    // mountain grass-covered. Low-frequency breakup softens selection while
+    // staying stable across geometry LOD.
+    const slopeVariation = macro.sub(0.5).mul(0.045).add(fineMacro.sub(0.5).mul(0.018));
+    const classifiedSlope = slope.add(slopeVariation);
+    const forestMask = moisture.mul(smoothstep(18, 90, height)).mul(smoothstep(0.07, 0.16, classifiedSlope).oneMinus());
+    const screeMask = smoothstep(0.075, 0.14, classifiedSlope).mul(smoothstep(0.21, 0.32, classifiedSlope).oneMinus());
+    const rockMask = smoothstep(0.14, 0.27, classifiedSlope);
     const snowMask = smoothstep(1050, 1450, height).mul(smoothstep(0.05, 0.25, slope).oneMinus());
 
     const paleSand = mix(sand, color(0xcab88e), macro.mul(0.3));
@@ -169,14 +189,17 @@ export class AlvoraTerrainMaterial {
     material.name = "Navora scanned PBR terrain";
     material.colorNode = finalColor;
     material.metalnessNode = float(0);
-    material.side = THREE.DoubleSide;
+    // Terrain has no visible underside. Front-side culling prevents any
+    // accidental below-surface geometry from appearing as black walls at
+    // grazing angles and saves the corresponding fragment work.
+    material.side = THREE.FrontSide;
 
     if (quality === "compatibility") {
       material.roughnessNode = mix(float(0.96), float(0.78), rockMask).sub(wetMask.mul(0.14));
     } else {
       const grassRoughness = planarSample(layers.grass.roughness!, 1 / 1.4).r;
       const sandRoughness = planarSample(layers.sand.roughness!, 1 / 30).r;
-      const rockRoughness = triplanarSample(layers.rock.roughness!, 1 / 50).r;
+      const rockRoughness = triplanarSample(layers.rock.roughness!, 1 / 18).r;
       let roughness = mix(grassRoughness, sandRoughness, sandMask);
       roughness = mix(roughness, rockRoughness, rockMask.add(screeMask).clamp(0, 1));
       material.roughnessNode = roughness.sub(wetMask.mul(0.18)).clamp(0.48, 1);
@@ -184,13 +207,14 @@ export class AlvoraTerrainMaterial {
       const soilNormal = planarSample(layers.soil.normal!, 1 / 1.3).rgb;
       const grassNormal = planarSample(layers.grass.normal!, 1 / 1.4).rgb;
       const sandNormal = planarSample(layers.sand.normal!, 1 / 30).rgb;
-      const rockNormal = triplanarSample(layers.rock.normal!, 1 / 50).rgb;
+      const rockNormal = triplanarSample(layers.rock.normal!, 1 / 18).rgb;
       const snowNormal = planarSample(layers.snow.normal!, 1 / 2).rgb;
       let normalSample = mix(soilNormal, grassNormal, moisture);
       normalSample = mix(normalSample, sandNormal, sandMask);
       normalSample = mix(normalSample, rockNormal, rockMask.add(screeMask).clamp(0, 1));
       normalSample = mix(normalSample, snowNormal, snowMask);
-      material.normalNode = normalMap(normalSample, vec2(quality === "high" ? 0.72 : 0.52));
+      const normalStrength = microVisibility.mul(quality === "high" ? 0.72 : 0.52);
+      material.normalNode = normalMap(normalSample, vec2(normalStrength));
     }
     this.material = material;
 

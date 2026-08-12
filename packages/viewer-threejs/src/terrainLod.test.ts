@@ -1,6 +1,13 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { CollisionHeightCache, sampleLocalTerrainDetail, selectTerrainTiles } from "./terrainLod.js";
+import { CollisionHeightCache, sampleLocalTerrainDetail, selectTerrainTiles, TERRAIN_EDGE } from "./terrainLod.js";
+
+function touching(a: ReturnType<typeof selectTerrainTiles>[number], b: ReturnType<typeof selectTerrainTiles>[number]): boolean {
+  const overlapX = Math.min(a.minX + a.size, b.minX + b.size) - Math.max(a.minX, b.minX) > 1e-5;
+  const overlapZ = Math.min(a.minZ + a.size, b.minZ + b.size) - Math.max(a.minZ, b.minZ) > 1e-5;
+  return (overlapX && (Math.abs(a.minZ - b.minZ - b.size) < 1e-5 || Math.abs(b.minZ - a.minZ - a.size) < 1e-5))
+    || (overlapZ && (Math.abs(a.minX - b.minX - b.size) < 1e-5 || Math.abs(b.minX - a.minX - a.size) < 1e-5));
+}
 
 test("quadtree selection is bounded and reaches four-meter near spacing", () => {
   const tiles = selectTerrainTiles(
@@ -12,6 +19,13 @@ test("quadtree selection is bounded and reaches four-meter near spacing", () => 
   assert.ok(tiles.length > 1 && tiles.length <= 200);
   assert.ok(tiles.some((tile) => tile.size === 256 && tile.segments === 64));
   assert.ok(tiles.every((tile) => tile.size / tile.segments >= 4));
+  for (let i = 0; i < tiles.length; i++) {
+    for (let j = i + 1; j < tiles.length; j++) {
+      if (touching(tiles[i], tiles[j])) assert.ok(Math.max(tiles[i].size, tiles[j].size) <= Math.min(tiles[i].size, tiles[j].size) * 2);
+    }
+  }
+  assert.ok(tiles.some((tile) => tile.stitchMask !== 0));
+  assert.ok(tiles.every((tile) => tile.stitchRatios.every((ratio, edge) => ratio === 1 || (tile.stitchMask & [TERRAIN_EDGE.MIN_Z, TERRAIN_EDGE.MAX_Z, TERRAIN_EDGE.MIN_X, TERRAIN_EDGE.MAX_X][edge]) !== 0)));
 });
 
 test("local terrain detail is deterministic and seed-dependent", () => {

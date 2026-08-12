@@ -187,6 +187,20 @@ frame-rate stable; every later fix is comparable at the same camera and seed.
 Exit gate: no open crack, dark wall, or normal seam during a continuous 10 km tour, including
 grazing-angle views and LOD transitions. This is tested with flat diagnostic shading before PBR.
 
+Implementation checkpoint — 2026-08-12:
+
+- adaptive leaves are now 2:1 balanced under the declared tile budget;
+- fine/coarse boundaries carry explicit sample-spacing ratios and fine edge vertices collapse onto
+  the coarse edge's piecewise-linear height;
+- internal vertical skirts and their triangles were removed;
+- terrain normals use a fixed 4 m world-space derivative rather than each tile's changing step;
+- terrain and LOD diagnostics cull back faces;
+- tests enforce neighbor balance and stitch metadata, and live WebGPU review holds 60 fps / 16.7
+  ms median at the Serravela bookmark.
+
+Remaining Stage B work: add parent/child temporal geomorphing so topology changes cannot pop while
+the camera crosses a selection threshold, then run the automated 10 km transition capture.
+
 ### Stage C — terrain data compiler
 
 - Export the tiled, parent-consistent R16 height pyramid.
@@ -207,6 +221,18 @@ weights sum to one within quantization tolerance; no field shows continent-tile 
 
 Exit gate: no recognizable tile repetition in a 2 km walk; cliff selection is stable through LOD;
 mountains do not inherit lowland grass; balanced terrain shading fits a 6 ms GPU budget at 1080p.
+
+Interim material correction — 2026-08-12:
+
+- rock now begins on roughly 30 degree terrain instead of only near 49 degrees;
+- scree occupies a physically meaningful transition band with stable macro breakup;
+- RGB biome color no longer acts as the primary moisture value;
+- cliff albedo uses distinct meso and close detail scales;
+- micro normal strength fades from 180–900 m to prevent distant grit and moire.
+
+These are renderer-side bridge improvements. The final Stage D gate still requires compiled climate
+and surface-control tiles from Stage C; procedural moisture is not being misrepresented as canonical
+world data.
 
 ### Stage E — ocean, inland water, and atmosphere
 

@@ -45,7 +45,7 @@ function terrainWorkerMain() {
     seed: number;
     skirtReach: number;
   };
-  type WorkerTile = { id: string; minX: number; minZ: number; size: number; level: number; segments: number };
+  type WorkerTile = { id: string; minX: number; minZ: number; size: number; level: number; segments: number; stitchMask: number; stitchRatios: [number, number, number, number] };
   const scope = self as unknown as {
     onmessage: ((event: MessageEvent) => void) | null;
     postMessage: (message: unknown, transfer?: Transferable[]) => void;
@@ -126,16 +126,35 @@ function terrainWorkerMain() {
     const started = performance.now();
     const n = spec.segments + 1;
     const coreCount = n * n;
-    const skirtCount = n * 4;
-    const vertexCount = coreCount + skirtCount;
-    const positions = new Float32Array(vertexCount * 3);
-    const normals = new Float32Array(vertexCount * 3);
-    const colors = new Float32Array(vertexCount * 3);
-    const uvs = new Float32Array(vertexCount * 2);
+    const positions = new Float32Array(coreCount * 3);
+    const normals = new Float32Array(coreCount * 3);
+    const colors = new Float32Array(coreCount * 3);
+    const uvs = new Float32Array(coreCount * 2);
     const step = spec.size / spec.segments;
     const centerX = spec.minX + spec.size * 0.5;
     const centerZ = spec.minZ + spec.size * 0.5;
-    const normalStep = Math.max(2, step * 0.5);
+    // Lighting derivatives must not change when a patch changes render LOD.
+    // This shared world-space scale gives identical normals at shared points.
+    const normalStep = 4;
+
+    function stitchedHeight(x: number, z: number, worldX: number, worldZ: number): number {
+      let total = 0, count = 0;
+      const interpolateEdge = (coordinate: number, ratio: number, fixed: number, horizontal: boolean): number => {
+        const lower = Math.floor(coordinate / ratio) * ratio;
+        const upper = Math.min(spec.segments, lower + ratio);
+        const t = upper === lower ? 0 : (coordinate - lower) / (upper - lower);
+        const ax = horizontal ? spec.minX + lower * step : fixed;
+        const az = horizontal ? fixed : spec.minZ + lower * step;
+        const bx = horizontal ? spec.minX + upper * step : fixed;
+        const bz = horizontal ? fixed : spec.minZ + upper * step;
+        return terrainHeight(ax, az) * (1 - t) + terrainHeight(bx, bz) * t;
+      };
+      if (z === 0 && spec.stitchRatios[0] > 1) { total += interpolateEdge(x, spec.stitchRatios[0], spec.minZ, true); count++; }
+      if (z === spec.segments && spec.stitchRatios[1] > 1) { total += interpolateEdge(x, spec.stitchRatios[1], spec.minZ + spec.size, true); count++; }
+      if (x === 0 && spec.stitchRatios[2] > 1) { total += interpolateEdge(z, spec.stitchRatios[2], spec.minX, false); count++; }
+      if (x === spec.segments && spec.stitchRatios[3] > 1) { total += interpolateEdge(z, spec.stitchRatios[3], spec.minX + spec.size, false); count++; }
+      return count ? total / count : terrainHeight(worldX, worldZ);
+    }
 
     for (let z = 0; z < n; z++) {
       for (let x = 0; x < n; x++) {
@@ -143,7 +162,7 @@ function terrainWorkerMain() {
         const worldZ = spec.minZ + z * step;
         const vi = z * n + x;
         const i = vi * 3;
-        const h = terrainHeight(worldX, worldZ);
+        const h = stitchedHeight(x, z, worldX, worldZ);
         positions[i] = worldX - centerX; positions[i + 1] = h; positions[i + 2] = worldZ - centerZ;
         const nx = terrainHeight(worldX - normalStep, worldZ) - terrainHeight(worldX + normalStep, worldZ);
         const nz = terrainHeight(worldX, worldZ - normalStep) - terrainHeight(worldX, worldZ + normalStep);
@@ -156,29 +175,8 @@ function terrainWorkerMain() {
       }
     }
 
-    const edges: number[][] = [[], [], [], []];
-    for (let i = 0; i < n; i++) {
-      edges[0].push(i);
-      edges[1].push((n - 1) * n + i);
-      edges[2].push(i * n);
-      edges[3].push(i * n + n - 1);
-    }
-    const skirtDrop = Math.max(24, spec.size * 0.025);
-    let skirtVertex = coreCount;
-    for (const edge of edges) {
-      for (const coreVertex of edge) {
-        const src = coreVertex * 3, dst = skirtVertex * 3;
-        positions[dst] = positions[src]; positions[dst + 1] = positions[src + 1] - skirtDrop; positions[dst + 2] = positions[src + 2];
-        normals[dst] = normals[src]; normals[dst + 1] = normals[src + 1]; normals[dst + 2] = normals[src + 2];
-        colors[dst] = colors[src]; colors[dst + 1] = colors[src + 1]; colors[dst + 2] = colors[src + 2];
-        uvs[skirtVertex * 2] = uvs[coreVertex * 2]; uvs[skirtVertex * 2 + 1] = uvs[coreVertex * 2 + 1];
-        skirtVertex++;
-      }
-    }
-
     const coreIndexCount = spec.segments * spec.segments * 6;
-    const skirtIndexCount = spec.segments * 4 * 6;
-    const indices = new Uint32Array(coreIndexCount + skirtIndexCount);
+    const indices = new Uint32Array(coreIndexCount);
     let ii = 0;
     for (let z = 0; z < spec.segments; z++) {
       for (let x = 0; x < spec.segments; x++) {
@@ -186,15 +184,6 @@ function terrainWorkerMain() {
         indices[ii++] = a; indices[ii++] = c; indices[ii++] = b;
         indices[ii++] = b; indices[ii++] = c; indices[ii++] = d;
       }
-    }
-    let skirtBase = coreCount;
-    for (const edge of edges) {
-      for (let i = 0; i < spec.segments; i++) {
-        const a = edge[i], b = edge[i + 1], sa = skirtBase + i, sb = skirtBase + i + 1;
-        indices[ii++] = a; indices[ii++] = sa; indices[ii++] = b;
-        indices[ii++] = b; indices[ii++] = sa; indices[ii++] = sb;
-      }
-      skirtBase += n;
     }
     return { positions, normals, colors, uvs, indices, workerMs: performance.now() - started };
   }
@@ -236,7 +225,7 @@ export class TerrainStreamer {
   private maxUpdateMs = 0;
   private readonly terrainMaterial: AlvoraTerrainMaterial;
   private readonly debugMaterials = [0x42d4f4, 0x64e572, 0xf4dd4b, 0xf49a45, 0xe75d87, 0x9a72ed, 0x5669d8].map(
-    (color) => new THREE.MeshStandardMaterial({ color, roughness: 0.9, wireframe: true, side: THREE.DoubleSide }),
+    (color) => new THREE.MeshStandardMaterial({ color, roughness: 0.9, wireframe: true, side: THREE.FrontSide }),
   );
   private readonly expandedBounds: { minX: number; minZ: number; maxX: number; maxZ: number };
 
