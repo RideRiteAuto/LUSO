@@ -12,10 +12,10 @@ function simulate(rate: number, seconds: number, input: (time: number) => { move
   return { ...state, peak };
 }
 
-test("walk and sprint distances stay stable at 30, 60, and 144 Hz", () => {
+test("inspector sprint distance stays stable at 30, 60, and 144 Hz", () => {
   const results = [30, 60, 144].map((rate) => simulate(rate, 5, () => ({ moveX: 1, moveZ: 0, sprint: true, jump: false, descend: false })));
   assert.ok(Math.max(...results.map((r) => r.x)) - Math.min(...results.map((r) => r.x)) < 0.12);
-  assert.ok(results.every((result) => result.x > 32 && result.x < 35));
+  assert.ok(results.every((result) => result.x > 152 && result.x < 154));
 });
 
 test("jump arc lands consistently at 30, 60, and 144 Hz", () => {

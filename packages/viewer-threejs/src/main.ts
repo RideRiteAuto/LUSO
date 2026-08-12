@@ -155,6 +155,11 @@ async function boot() {
   const zonesById = new Map(world.zones.map((z) => [z.id, z]));
 
   zoneOverlay = buildZoneBoundaries(world.zones, world.continents, manifest);
+  // Cartographic guides are useful from orbit, but their long, sparsely
+  // draped line segments can cut through terrain and sky at ground level.
+  // Keep them opt-in so screenshots and playable review show renderer output
+  // rather than debug geometry.
+  zoneOverlay.visible = false;
   worldRoot.add(zoneOverlay);
 
   riverOverlay = buildRivers(world.continents, manifest);
@@ -163,12 +168,16 @@ async function boot() {
   worldRoot.add(lakeOverlay);
 
   roadOverlay = buildRoads(world.continents, manifest);
+  roadOverlay.visible = false;
   worldRoot.add(roadOverlay);
 
   settlementOverlay = buildSettlements(world.settlements, zonesById, world.continents, manifest);
+  settlementOverlay.visible = false;
   worldRoot.add(settlementOverlay);
 
-  worldRoot.add(buildSeaRegions(world.seaRegions));
+  const seaRegionOverlay = buildSeaRegions(world.seaRegions);
+  seaRegionOverlay.visible = false;
+  worldRoot.add(seaRegionOverlay);
 
   seedValEl.textContent = String(manifest.seed);
   zoneCountEl.textContent = String(world.zones.length);
@@ -379,7 +388,7 @@ viewWalkBtn.addEventListener("click", () => {
   setActiveView(viewWalkBtn);
   flying = true;
   setGroundCameraProjection(true);
-  flyHintEl.textContent = "Click world for mouse lock (drag fallback) · WASD move · Shift sprint · Space jump / swim up · Ctrl swim down · Esc exit";
+  flyHintEl.textContent = "Click world for mouse lock (drag fallback) · WASD move · Shift inspector sprint (32 m/s) · Space jump / swim up · Ctrl swim down · Esc exit";
   flyHintEl.classList.add("visible");
   crosshairEl.classList.add("visible");
   // Coming from Fly, start walking right where you were flying (the camera
@@ -403,7 +412,7 @@ document.getElementById("teleportBookmark")!.addEventListener("click", () => {
   setActiveView(viewWalkBtn);
   flying = true;
   setGroundCameraProjection(true);
-  flyHintEl.textContent = "Click world for mouse lock (drag fallback) · WASD move · Shift sprint · Space jump / swim up · Ctrl swim down · Esc exit";
+  flyHintEl.textContent = "Click world for mouse lock (drag fallback) · WASD move · Shift inspector sprint (32 m/s) · Space jump / swim up · Ctrl swim down · Esc exit";
   flyHintEl.classList.add("visible");
   crosshairEl.classList.add("visible");
   if (!flight.isEnabled || flight.currentMode !== "walk") flight.enable(exitFlight, "walk", bookmark);

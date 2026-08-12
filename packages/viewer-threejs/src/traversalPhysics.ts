@@ -23,8 +23,10 @@ export interface CapsuleSettings {
   sprintSpeed: number;
   swimSpeed: number;
   groundAcceleration: number;
+  sprintAcceleration: number;
   airAcceleration: number;
   friction: number;
+  sprintFriction: number;
   gravity: number;
   jumpSpeed: number;
   maxSlopeDegrees: number;
@@ -37,11 +39,17 @@ export interface CapsuleSettings {
 
 export const DEFAULT_CAPSULE_SETTINGS: CapsuleSettings = {
   walkSpeed: 3.4,
-  sprintSpeed: 6.8,
+  // Walking stays at a believable human pace so scale review remains useful.
+  // Sprint is deliberately an inspector traversal speed: this world is more
+  // than 200 km wide, and a realistic jog made iteration between landmarks
+  // needlessly slow. Gameplay tuning can supply a separate settings object.
+  sprintSpeed: 32,
   swimSpeed: 2.6,
   groundAcceleration: 24,
+  sprintAcceleration: 72,
   airAcceleration: 7,
   friction: 18,
+  sprintFriction: 54,
   gravity: 24,
   jumpSpeed: 7.2,
   maxSlopeDegrees: 48,
@@ -91,13 +99,21 @@ export function stepCapsule(
 
   const wading = waterDepthBefore > settings.wadeDepth;
   const maxSpeed = (input.sprint ? settings.sprintSpeed : settings.walkSpeed) * (wading ? 0.55 : 1);
-  const acceleration = state.state === "airborne" ? settings.airAcceleration : settings.groundAcceleration;
+  const acceleration = state.state === "airborne"
+    ? settings.airAcceleration
+    : input.sprint ? settings.sprintAcceleration : settings.groundAcceleration;
   const hasInput = inputLength > 0.001;
-  state.velocityX = approach(state.velocityX, hasInput ? moveX * maxSpeed : 0, (hasInput ? acceleration : settings.friction) * dt);
-  state.velocityZ = approach(state.velocityZ, hasInput ? moveZ * maxSpeed : 0, (hasInput ? acceleration : settings.friction) * dt);
+  const horizontalSpeed = Math.hypot(state.velocityX, state.velocityZ);
+  const braking = horizontalSpeed > settings.walkSpeed + 0.1 ? settings.sprintFriction : settings.friction;
+  const previousVelocityX = state.velocityX;
+  const previousVelocityZ = state.velocityZ;
+  state.velocityX = approach(state.velocityX, hasInput ? moveX * maxSpeed : 0, (hasInput ? acceleration : braking) * dt);
+  state.velocityZ = approach(state.velocityZ, hasInput ? moveZ * maxSpeed : 0, (hasInput ? acceleration : braking) * dt);
 
-  const candidateX = state.x + state.velocityX * dt;
-  const candidateZ = state.z + state.velocityZ * dt;
+  // Integrating the average of the previous and new velocity keeps rapid
+  // inspector acceleration stable across low and high refresh rates.
+  const candidateX = state.x + (previousVelocityX + state.velocityX) * 0.5 * dt;
+  const candidateZ = state.z + (previousVelocityZ + state.velocityZ) * 0.5 * dt;
   const candidateGround = sampleGround(candidateX, candidateZ);
   const rise = candidateGround - groundBefore;
   const slopeProbe = 0.5;
