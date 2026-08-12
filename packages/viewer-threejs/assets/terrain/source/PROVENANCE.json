@@ -1,38 +1,41 @@
 {
-  "source": "Poly Haven",
+  "source": "Poly Haven + ambientCG",
   "license": "CC0",
-  "api": "https://api.polyhaven.com",
   "resolution": "2k",
   "assets": {
     "grass": {
-      "id": "sparse_grass",
-      "url": "https://polyhaven.com/a/sparse_grass",
+      "id": "Grass001",
+      "provider": "ambientCG",
+      "url": "https://ambientcg.com/view?id=Grass001",
+      "archiveUrl": "https://acg-download.struffelproductions.com/file/ambientCG-Web/download/Grass001_lmIxuoR7/Grass001_2K-JPG.zip",
+      "dimensionsMeters": [
+        1.4,
+        1.4
+      ],
       "files": {
         "albedo": {
           "filename": "grass_albedo_2k.jpg",
-          "sourceUrl": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/2k/sparse_grass/sparse_grass_diff_2k.jpg",
-          "sourceMd5": "b181e9c61bae87c1bb9b14eecd767d65",
-          "sha256": "3b655de96161164bf2324e136b3409ad8417c9f94750bc008e9c93ee507c2fac",
-          "bytes": 3733797
+          "archivedFilename": "Grass001_2K-JPG_Color.jpg",
+          "sha256": "8a8bfcffd087134caad2a7def216f3dd2d307fbe02340ca47e3c5c71f49d50b4",
+          "bytes": 6953345
         },
         "normal": {
           "filename": "grass_normal_2k.jpg",
-          "sourceUrl": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/2k/sparse_grass/sparse_grass_nor_gl_2k.jpg",
-          "sourceMd5": "8ec54ff3b639e6e044ea83792d7c49b0",
-          "sha256": "5539a5913653a106a4e8a699a1d288f0b41907775b5fb36156ef5be2e937718b",
-          "bytes": 5892473
+          "archivedFilename": "Grass001_2K-JPG_NormalGL.jpg",
+          "sha256": "7ccaf9e28ea7a533e590c2e07a39e141017a5a5db8b7241730a3c287c540e881",
+          "bytes": 9979388
         },
         "roughness": {
           "filename": "grass_roughness_2k.jpg",
-          "sourceUrl": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/2k/sparse_grass/sparse_grass_rough_2k.jpg",
-          "sourceMd5": "446cbe6254b1b210de44ef7c53da6204",
-          "sha256": "b023f187999956449b5f25df19f4eaae1c891f474e0a599b23d986118fe706d7",
-          "bytes": 1729786
+          "archivedFilename": "Grass001_2K-JPG_Roughness.jpg",
+          "sha256": "2a2a3f9220a351f14858075d4c6ba1ff7fde8bedd7009c94cb432bc2b9a362e4",
+          "bytes": 3286058
         }
       }
     },
     "soil": {
       "id": "brown_mud",
+      "provider": "Poly Haven",
       "url": "https://polyhaven.com/a/brown_mud",
       "files": {
         "albedo": {
@@ -60,6 +63,7 @@
     },
     "forest": {
       "id": "forrest_ground_01",
+      "provider": "Poly Haven",
       "url": "https://polyhaven.com/a/forrest_ground_01",
       "files": {
         "albedo": {
@@ -87,6 +91,7 @@
     },
     "sand": {
       "id": "aerial_beach_01",
+      "provider": "Poly Haven",
       "url": "https://polyhaven.com/a/aerial_beach_01",
       "files": {
         "albedo": {
@@ -114,6 +119,7 @@
     },
     "rock": {
       "id": "aerial_rocks_02",
+      "provider": "Poly Haven",
       "url": "https://polyhaven.com/a/aerial_rocks_02",
       "files": {
         "albedo": {
@@ -141,6 +147,7 @@
     },
     "scree": {
       "id": "rocky_terrain_02",
+      "provider": "Poly Haven",
       "url": "https://polyhaven.com/a/rocky_terrain_02",
       "files": {
         "albedo": {
@@ -168,6 +175,7 @@
     },
     "snow": {
       "id": "snow_02",
+      "provider": "Poly Haven",
       "url": "https://polyhaven.com/a/snow_02",
       "files": {
         "albedo": {

@@ -5,6 +5,7 @@ import {
   float,
   mix,
   mx_noise_float,
+  mx_noise_vec3,
   normalMap,
   normalWorld,
   positionWorld,
@@ -62,7 +63,7 @@ async function loadTerrainTextures(renderer: THREE.WebGPURenderer, quality: Terr
   const loader = new KTX2Loader().setTranscoderPath(new URL("basis/", document.baseURI).href).detectSupport(renderer);
   try {
     await Promise.all(LAYERS.flatMap((layer) => channelsFor(layer).map(async (channel) => {
-      const uri = new URL(`terrain-ktx2/${layer}_${channel}.ktx2`, document.baseURI).href;
+      const uri = new URL(`terrain-ktx2/${layer}_${channel}.ktx2?v=terrain-green-2`, document.baseURI).href;
       result[layer][channel] = configureTexture(await loader.loadAsync(uri), channel, anisotropy);
     })));
   } finally {
@@ -92,21 +93,43 @@ export class AlvoraTerrainMaterial {
     const shore = smoothstep(-3, 5, height);
     const macro = mx_noise_float(worldPosition.xz.mul(0.00042)).mul(0.5).add(0.5);
     const fineMacro = mx_noise_float(worldPosition.xz.mul(0.0021).add(vec2(31.7, -14.2))).mul(0.5).add(0.5);
+    const regionalGreen = smoothstep(0.12, 0.88,
+      mx_noise_float(worldPosition.xz.mul(0.0018).add(vec2(-83.1, 47.6))).mul(0.5).add(0.5));
+    const localPatch = smoothstep(0.18, 0.82,
+      mx_noise_float(worldPosition.xz.mul(0.011).add(vec2(19.4, 91.7))).mul(0.5).add(0.5));
+    const groundMottle = smoothstep(0.46, 0.84,
+      mx_noise_float(worldPosition.xz.mul(0.027).add(vec2(-27.8, 64.3))).mul(0.5).add(0.5));
+    const fineWarp = mx_noise_vec3(worldPosition.mul(0.018).add(vec3(17.3, -41.8, 73.1))).mul(1.8);
+    const broadWarp = mx_noise_vec3(worldPosition.mul(0.0032).add(vec3(-59.2, 11.6, 28.4))).mul(7.5);
+    const warpedPosition = worldPosition.add(fineWarp).add(broadWarp);
 
-    const sample = (map: THREE.Texture, repeatsPerMeter: number) => triplanarTexture(
-      texture(map), null, null, float(repeatsPerMeter), worldPosition, normalWorld,
+    // Horizontal surfaces use two differently oriented projections of the
+    // same map. This costs fewer samples than full triplanar mapping while
+    // concealing the fixed 2 m texture grid across large plains.
+    const planarSample = (map: THREE.Texture, repeatsPerMeter: number, alternate = false) => {
+      const coordinates = alternate
+        ? warpedPosition.zx.mul(vec2(-1, 1)).add(vec2(137.2, -91.7))
+        : warpedPosition.xz;
+      return texture(map, coordinates.mul(repeatsPerMeter));
+    };
+    const planarAlbedo = (layer: TerrainLayer, scale: number, blendNode: any) => mix(
+      planarSample(layers[layer].albedo!, scale).rgb,
+      planarSample(layers[layer].albedo!, scale * 0.73, true).rgb,
+      blendNode,
     );
-    const albedo = (layer: TerrainLayer, scale: number) => sample(layers[layer].albedo!, scale).rgb;
+    const triplanarSample = (map: THREE.Texture, repeatsPerMeter: number) => triplanarTexture(
+      texture(map), null, null, float(repeatsPerMeter), warpedPosition, normalWorld,
+    );
 
     // Scan dimensions determine world-space texel scale. Triplanar projection
-    // prevents stretching on cliffs without requiring terrain UV seams.
-    const sand = albedo("sand", 1 / 30);
-    const grass = albedo("grass", 1 / 2);
-    const soil = albedo("soil", 1 / 1.3);
-    const forest = albedo("forest", 1 / 2);
-    const rock = albedo("rock", 1 / 50);
-    const scree = albedo("scree", 1 / 90);
-    const snow = albedo("snow", 1 / 2);
+    // remains on cliffs; warped planar projection is cheaper on flat ground.
+    const sand = planarAlbedo("sand", 1 / 30, macro);
+    const grass = planarAlbedo("grass", 1 / 1.4, localPatch);
+    const soil = planarAlbedo("soil", 1 / 1.3, fineMacro);
+    const forest = planarAlbedo("forest", 1 / 2, localPatch);
+    const rock = triplanarSample(layers.rock.albedo!, 1 / 50).rgb;
+    const scree = triplanarSample(layers.scree.albedo!, 1 / 90).rgb;
+    const snow = planarAlbedo("snow", 1 / 2, fineMacro);
 
     const landMask = smoothstep(1, 9, height);
     const sandMask = smoothstep(-0.5, 2.5, height).mul(smoothstep(4, 11, height).oneMinus());
@@ -116,18 +139,27 @@ export class AlvoraTerrainMaterial {
     const rockMask = smoothstep(0.34, 0.7, slope);
     const snowMask = smoothstep(1050, 1450, height).mul(smoothstep(0.05, 0.25, slope).oneMinus());
 
-    const wetSand = sand.mul(color(0x77786f));
+    const paleSand = mix(sand, color(0xcab88e), macro.mul(0.3));
+    const mottledSand = mix(paleSand, sand.mul(color(0x7a7970)), localPatch.mul(0.34));
+    const wetSand = mottledSand.mul(color(0x77786f));
     const mud = soil.mul(color(0x766d62));
-    const grassSoil = mix(soil, grass, moisture.mul(0.72).add(0.18));
+    const meadowGreen = mix(grass, color(0x328c38), 0.72);
+    const lushGreen = mix(grass, color(0x45b84c), 0.78);
+    const variedGrass = mix(meadowGreen, lushGreen, regionalGreen.mul(0.68).add(localPatch.mul(0.32)));
+    const dappledGrass = mix(variedGrass, color(0x2c6e32), groundMottle.mul(0.18));
+    const wornGround = mix(dappledGrass, soil, smoothstep(0.76, 0.94, fineMacro).mul(0.28));
+    const grassCoverage = moisture.mul(0.12).add(regionalGreen.mul(0.1)).add(0.78).clamp(0, 1);
+    const grassSoil = mix(soil, wornGround, grassCoverage);
     const lowland = mix(mud, grassSoil, smoothstep(1.5, 12, height));
-    const seabed = sand.mul(color(0x31525a));
+    const variedScree = mix(scree, rock, localPatch.mul(0.38));
+    const seabed = mottledSand.mul(color(0x31525a));
 
     let finalColor = mix(seabed, wetSand, shore);
     finalColor = mix(finalColor, lowland, landMask);
-    finalColor = mix(finalColor, sand, sandMask);
+    finalColor = mix(finalColor, mottledSand, sandMask);
     finalColor = mix(finalColor, wetSand, wetMask);
     finalColor = mix(finalColor, forest, forestMask.mul(0.82));
-    finalColor = mix(finalColor, scree, screeMask);
+    finalColor = mix(finalColor, variedScree, screeMask);
     finalColor = mix(finalColor, rock, rockMask);
     finalColor = mix(finalColor, snow, snowMask);
     finalColor = finalColor.mul(macro.mul(0.1).add(fineMacro.mul(0.04)).add(0.93));
@@ -142,18 +174,18 @@ export class AlvoraTerrainMaterial {
     if (quality === "compatibility") {
       material.roughnessNode = mix(float(0.96), float(0.78), rockMask).sub(wetMask.mul(0.14));
     } else {
-      const grassRoughness = sample(layers.grass.roughness!, 1 / 2).r;
-      const sandRoughness = sample(layers.sand.roughness!, 1 / 30).r;
-      const rockRoughness = sample(layers.rock.roughness!, 1 / 50).r;
+      const grassRoughness = planarSample(layers.grass.roughness!, 1 / 1.4).r;
+      const sandRoughness = planarSample(layers.sand.roughness!, 1 / 30).r;
+      const rockRoughness = triplanarSample(layers.rock.roughness!, 1 / 50).r;
       let roughness = mix(grassRoughness, sandRoughness, sandMask);
       roughness = mix(roughness, rockRoughness, rockMask.add(screeMask).clamp(0, 1));
       material.roughnessNode = roughness.sub(wetMask.mul(0.18)).clamp(0.48, 1);
 
-      const soilNormal = sample(layers.soil.normal!, 1 / 1.3).rgb;
-      const grassNormal = sample(layers.grass.normal!, 1 / 2).rgb;
-      const sandNormal = sample(layers.sand.normal!, 1 / 30).rgb;
-      const rockNormal = sample(layers.rock.normal!, 1 / 50).rgb;
-      const snowNormal = sample(layers.snow.normal!, 1 / 2).rgb;
+      const soilNormal = planarSample(layers.soil.normal!, 1 / 1.3).rgb;
+      const grassNormal = planarSample(layers.grass.normal!, 1 / 1.4).rgb;
+      const sandNormal = planarSample(layers.sand.normal!, 1 / 30).rgb;
+      const rockNormal = triplanarSample(layers.rock.normal!, 1 / 50).rgb;
+      const snowNormal = planarSample(layers.snow.normal!, 1 / 2).rgb;
       let normalSample = mix(soilNormal, grassNormal, moisture);
       normalSample = mix(normalSample, sandNormal, sandMask);
       normalSample = mix(normalSample, rockNormal, rockMask.add(screeMask).clamp(0, 1));
