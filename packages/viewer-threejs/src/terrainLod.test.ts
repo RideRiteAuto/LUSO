@@ -53,6 +53,22 @@ test("ground render bubble excludes the remote continent", () => {
   assert.ok(tiles.every((tile) => tile.minX < 100000));
 });
 
+test("portable ground bubble remains bounded at twelve kilometres", () => {
+  const cameraX = 42000, cameraZ = 31000, viewDistance = 12000;
+  const tiles = selectTerrainTiles(
+    { minX: -60000, minZ: -60000, maxX: 260000, maxZ: 130000 },
+    cameraX,
+    cameraZ,
+    { minTileSize: 512, splitDistance: 1.55, maxTiles: 140, viewDistance },
+  );
+  const distanceToTile = (tile: typeof tiles[number]) => Math.hypot(
+    Math.max(tile.minX - cameraX, 0, cameraX - (tile.minX + tile.size)),
+    Math.max(tile.minZ - cameraZ, 0, cameraZ - (tile.minZ + tile.size)),
+  );
+  assert.ok(tiles.length > 0 && tiles.length < 140);
+  assert.ok(tiles.every((tile) => distanceToTile(tile) <= viewDistance));
+});
+
 test("collision heights remain stable and the patch cache stays bounded", () => {
   const worldHeight = {
     data: new Float32Array([0, 0, 0, 0]),

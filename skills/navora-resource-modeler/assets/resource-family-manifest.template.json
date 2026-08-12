@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "familyId": "REPLACE_ME",
+  "displayName": "Replace Me",
+  "status": "canon",
+  "profession": "mining",
+  "sourceAuthority": "Bible/design citation",
+  "realWorldReference": "species or geology description",
+  "scaleMeters": { "minHeight": 1, "maxHeight": 2 },
+  "interactionDistanceMeters": 5,
+  "materials": 1,
+  "textureSet": { "maxResolution": 1024, "runtimeFormat": "KTX2", "channels": ["color", "normal", "orm"] },
+  "variants": [
+    { "id": "small", "lodTriangles": [3000, 1000, 250], "runtimeFiles": ["small-lod0.glb", "small-lod1.glb", "small-lod2.glb"] },
+    { "id": "standard", "lodTriangles": [4000, 1300, 300], "runtimeFiles": ["standard-lod0.glb", "standard-lod1.glb", "standard-lod2.glb"] },
+    { "id": "mature", "lodTriangles": [5000, 1600, 350], "runtimeFiles": ["mature-lod0.glb", "mature-lod1.glb", "mature-lod2.glb"] }
+  ],
+  "collision": { "type": "convex-hull", "file": "collision.glb" },
+  "provenance": [],
+  "review": { "yardApproved": false, "crowdedSceneMeasured": false }
+}

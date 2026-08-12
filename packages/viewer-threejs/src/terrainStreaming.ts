@@ -248,7 +248,7 @@ export class TerrainStreamer {
       : quality === "compatibility"
         ? { minTileSize: 512, splitDistance: 1.55, maxTiles: 140 }
         : { minTileSize: 256, splitDistance: 1.7, maxTiles: 200 };
-    this.groundViewDistance = quality === "high" ? 30000 : quality === "compatibility" ? 16000 : 22000;
+    this.groundViewDistance = quality === "high" ? 30000 : quality === "compatibility" ? 12000 : 22000;
     const b = world.worldHeight.bounds;
     this.expandedBounds = { minX: b.minX - SKIRT_REACH, minZ: b.minZ - SKIRT_REACH, maxX: b.maxX + SKIRT_REACH, maxZ: b.maxZ + SKIRT_REACH };
 

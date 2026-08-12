@@ -80,7 +80,7 @@ scene.background = new THREE.Color(0x0a1626);
 
 const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 4, 500000);
 camera.position.set(-12000, 16000, 36000);
-const atmosphere = new NavoraAtmosphere(scene, camera);
+const atmosphere = new NavoraAtmosphere(scene, camera, qualityName);
 
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.target.set(16000, 0, 16000);
@@ -157,6 +157,19 @@ async function boot() {
     option.textContent = bookmark.label;
     return option;
   }));
+  const resourceReview = document.getElementById("resourceReview")!;
+  resourceReview.addEventListener("click", () => {
+    const bookmark = traversalBookmarks.find((candidate) => candidate.id === "alvora-resource-review");
+    if (!bookmark || !flight) return;
+    controls.enabled = false;
+    setActiveView(viewWalkBtn);
+    flying = true;
+    setGroundCameraProjection(true);
+    flyHintEl.classList.add("visible");
+    crosshairEl.classList.add("visible");
+    if (!flight.isEnabled || flight.currentMode !== "walk") flight.enable(exitFlight, "walk", bookmark);
+    flight.teleport(bookmark.x, bookmark.z, bookmark.heading);
+  });
 
   // Let fly/walk roam well past the real generated coastline into the
   // synthetic ocean skirt (terrain.ts) -- the skirt itself reaches full

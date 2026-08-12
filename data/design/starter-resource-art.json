@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "source": "Navora Worldbuilding Bible v11, Sections 21 and 24-25",
+  "foragingStatus": "The complete Foraging progression is not finalized in Bible v11.",
+  "families": [
+    { "resourceId": "PINE_LOGS", "displayName": "Pine Tree", "status": "canon", "profession": "woodcutting", "unlockLevel": 1, "starterZones": ["alvora", "fonteira"], "phase": 2, "variants": 3 },
+    { "resourceId": "BIRCH_LOGS", "displayName": "Birch Tree", "status": "canon", "profession": "woodcutting", "unlockLevel": 5, "starterZones": ["alvora", "fonteira"], "phase": 3, "variants": 3 },
+    { "resourceId": "COPPER_ORE", "displayName": "Copper Ore", "status": "canon", "profession": "mining", "unlockLevel": 1, "starterZones": ["alvora", "fonteira"], "phase": 2, "variants": 3 },
+    { "resourceId": "TIN_ORE", "displayName": "Tin Ore", "status": "canon", "profession": "mining", "unlockLevel": 5, "starterZones": ["alvora", "fonteira"], "phase": 2, "variants": 3 },
+    { "resourceId": "STONE", "displayName": "Stone", "status": "canon", "profession": "mining", "unlockLevel": 1, "starterZones": ["alvora", "fonteira"], "phase": 3, "variants": 3 },
+    { "resourceId": "REDBERRY_BUSH", "displayName": "Redberry Bush", "status": "provisional", "profession": "foraging", "unlockLevel": 1, "starterZones": ["alvora"], "phase": 2, "variants": 3, "note": "Working review family within Bible v11's common berry category; name and recipe role are not locked canon." }
+  ],
+  "budgets": {
+    "tree": { "lod0Triangles": [8000, 14000], "lod1Triangles": [2500, 5000], "lod2Triangles": [400, 1200], "maxMaterials": 1, "textureSet": "2K KTX2 color + normal + packed ORM" },
+    "ore": { "lod0Triangles": [2500, 6000], "lod1Triangles": [700, 1800], "lod2Triangles": [120, 400], "maxMaterials": 1, "textureSet": "1K-2K KTX2 color + normal + packed ORM" },
+    "forageBush": { "lod0Triangles": [2000, 5000], "lod1Triangles": [600, 1500], "lod2Triangles": [150, 400], "maxMaterials": 1, "textureSet": "1K KTX2 color + normal + packed ORM" }
+  }
+}

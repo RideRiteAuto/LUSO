@@ -2,6 +2,7 @@ import * as THREE from "three/webgpu";
 import { color, exponentialHeightFogFactor, fog, rangeFogFactor } from "three/tsl";
 
 export type ViewMode = "ground" | "flight" | "overview";
+export type AtmosphereQuality = "high" | "balanced" | "compatibility";
 
 const FOG_COLOR = new THREE.Color(0x8da5b4);
 
@@ -13,7 +14,11 @@ const FOG_COLOR = new THREE.Color(0x8da5b4);
 export class NavoraAtmosphere {
   private mode: ViewMode | null = null;
 
-  constructor(private readonly scene: THREE.Scene, private readonly camera: THREE.PerspectiveCamera) {
+  constructor(
+    private readonly scene: THREE.Scene,
+    private readonly camera: THREE.PerspectiveCamera,
+    private readonly quality: AtmosphereQuality = "balanced",
+  ) {
     scene.background = FOG_COLOR.clone().multiplyScalar(0.72);
     const distance = rangeFogFactor(6500, 22000);
     const lowHaze = exponentialHeightFogFactor(0.000004, 90);
@@ -25,10 +30,13 @@ export class NavoraAtmosphere {
     if (this.mode === mode) return;
     this.mode = mode;
     if (mode === "ground") {
-      this.camera.far = 24000;
+      const portable = this.quality === "compatibility";
+      const fogStart = portable ? 4500 : 6000;
+      const fogEnd = portable ? 13500 : 22000;
+      this.camera.far = portable ? 15000 : 24000;
       this.scene.fogNode = fog(
         color(FOG_COLOR),
-        rangeFogFactor(6000, 22000).max(exponentialHeightFogFactor(0.000004, 90).mul(0.74)),
+        rangeFogFactor(fogStart, fogEnd).max(exponentialHeightFogFactor(0.000004, 90).mul(portable ? 0.8 : 0.74)),
       );
     } else if (mode === "flight") {
       this.camera.far = 70000;

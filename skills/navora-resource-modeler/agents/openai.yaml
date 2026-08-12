@@ -1,0 +1,4 @@
+interface:
+  display_name: "Navora Resource Modeler"
+  short_description: "Build performant Navora gathering assets"
+  default_prompt: "Use $navora-resource-modeler to design and validate a Navora gathering-resource model family."

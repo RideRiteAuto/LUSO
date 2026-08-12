@@ -56,5 +56,15 @@ export function buildTraversalBookmarks(world: WorldData, sampleHeight: (x: numb
     const safe = findSafeTraversalPoint(sampleHeight, center.x, center.z);
     bookmarks.push({ id: zone.id, label: `${zone.properName} — ${zone.descriptor}`, ...safe, heading: Math.PI });
   }
+  const alvora = bookmarks.find((bookmark) => bookmark.id === "alvora");
+  if (alvora) {
+    const review = findSafeTraversalPoint(sampleHeight, alvora.x + 180, alvora.z + 120, 240);
+    bookmarks.push({
+      id: "alvora-resource-review",
+      label: "Alvora — Resource Review Yard",
+      ...review,
+      heading: Math.PI * 1.25,
+    });
+  }
   return bookmarks;
 }
