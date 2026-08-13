@@ -21,7 +21,8 @@
 
 import { createNoise2D } from "simplex-noise";
 import { mulberry32, type Rng, type SeedRegistry } from "../seed/index.js";
-import { silhouetteFieldAt, type SilhouetteNoise, type SilhouetteTreatment } from "./silhouettes.js";
+import { riftOffsetAt, silhouetteFieldAt, type SilhouetteNoise, type SilhouetteTreatment } from "./silhouettes.js";
+import { buildIslandNoise, islandElevationAt, planIslands, DEFAULT_ISLAND_CONFIG, type IslandFieldConfig } from "./islands.js";
 import type { ContinentId, ContinentLayoutDesign, HeightField, ZoneDesign } from "../types/index.js";
 
 const clamp01 = (value: number): number => Math.max(0, Math.min(1, value));
@@ -95,6 +96,7 @@ function buildContinentSampler(
   zones: ZoneDesign[],
   continent: ContinentId,
   treatment: SilhouetteTreatment,
+  riftSeed: number,
 ): ContinentSampler {
   const seed = Math.floor(rng.float() * 2 ** 31);
   // simplex-noise expects a stateful random sequence while it builds its
@@ -117,6 +119,8 @@ function buildContinentSampler(
     warpY: createNoise2D(mulberry32(seed + 1111)),
     cape: createNoise2D(mulberry32(seed + 1212)),
     islet: createNoise2D(mulberry32(seed + 1313)),
+    // World-seeded: both continents must read the identical seam.
+    rift: createNoise2D(mulberry32(riftSeed)),
   };
 
   return (u: number, v: number): number => {
@@ -344,19 +348,29 @@ export function generateWorldHeightField(
   zoneDesigns: ZoneDesign[],
   metersPerCell: number,
   treatment: SilhouetteTreatment = "legacy",
+  islandConfig: IslandFieldConfig | null = DEFAULT_ISLAND_CONFIG,
 ): UnifiedWorldField {
   const bounds = computeWorldBounds(continentLayout);
   const tileSize = continentLayout.continentTileSize;
 
   const seabed = buildSeabedNoise(seeds.rngFor("elevation", "seabed").float() * 2 ** 31 | 0);
+  const riftSeed = (seeds.rngFor("elevation", "rift").float() * 2 ** 31) | 0;
   const samplers = new Map<ContinentId, ContinentSampler>();
   const offsets = new Map<ContinentId, [number, number]>();
   for (const c of continentLayout.continents) {
     const rng = seeds.rngFor("elevation", c.id);
     const zonesForContinent = zoneDesigns.filter((z) => z.continent === c.id);
-    samplers.set(c.id, buildContinentSampler(rng, zonesForContinent, c.id, treatment));
+    samplers.set(c.id, buildContinentSampler(rng, zonesForContinent, c.id, treatment, riftSeed));
     offsets.set(c.id, c.worldOffset);
   }
+
+  // The island arc follows the same seam that shapes the facing coasts.
+  const islandNoise = buildIslandNoise(riftSeed);
+  const riftNoise = createNoise2D(mulberry32(riftSeed));
+  const seamAt = (v: number) => riftOffsetAt(v, { rift: riftNoise } as unknown as SilhouetteNoise);
+  const islands = islandConfig && treatment !== "legacy"
+    ? planIslands(continentLayout, islandNoise, seamAt, islandConfig)
+    : [];
 
   const width = Math.max(2, Math.round((bounds.maxX - bounds.minX) / metersPerCell));
   const height = Math.max(2, Math.round((bounds.maxZ - bounds.minZ) / metersPerCell));
@@ -367,7 +381,7 @@ export function generateWorldHeightField(
     for (let gx = 0; gx < width; gx++) {
       const wx = bounds.minX + (gx / (width - 1)) * (bounds.maxX - bounds.minX);
 
-      let best = -Infinity;
+      let best = islands.length ? islandElevationAt(wx, wz, islands, islandNoise) : -Infinity;
       for (const [id, sampler] of samplers) {
         const [ox, oz] = offsets.get(id)!;
         const u = (wx - ox) / tileSize;
