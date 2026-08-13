@@ -3,7 +3,7 @@
 
 import { SeedRegistry } from "./seed/index.js";
 import { generateWorldHeightField, sliceContinentField } from "./elevation/index.js";
-import type { SilhouetteTreatment } from "./elevation/silhouettes.js";
+import { DEFAULT_SILHOUETTE, type SilhouetteTreatment } from "./elevation/silhouettes.js";
 import { carveRiverChannels, generateWaterData } from "./hydrology/index.js";
 import { carveNavigableWaterways } from "./waterways/index.js";
 import { assignZones, resolveZones } from "./zones/index.js";
@@ -50,7 +50,7 @@ export function generateWorld(opts: GenerateOptions): WorldOutput {
   const terrainMaterialRecipes = loadTerrainMaterialRecipes(terrainMaterialLibrary);
   const waterwayDesign = loadWaterwayDesigns();
 
-  const worldHeight = generateWorldHeightField(seeds, continentLayout, zoneDesigns, metersPerCell, opts.silhouette ?? "legacy");
+  const worldHeight = generateWorldHeightField(seeds, continentLayout, zoneDesigns, metersPerCell, opts.silhouette ?? DEFAULT_SILHOUETTE);
 
   const heightFields: WorldOutput["heightFields"] = {} as any;
   const biomeFields: WorldOutput["biomeFields"] = {} as any;

@@ -5,8 +5,8 @@
 // treatments so the world's shape is a deliberate art-direction choice
 // rather than a single hard-coded pair of ellipses.
 //
-// `legacy` reproduces the pre-redesign silhouette exactly and stays the
-// default until a treatment is approved.
+// `ridge-cape` is the approved treatment; `legacy` reproduces the
+// pre-redesign silhouette exactly and is kept for regression checks.
 
 import type { ContinentId, Vec2, ZoneDesign } from "../types/index.js";
 
@@ -15,6 +15,12 @@ export type SilhouetteTreatment = "legacy" | "ridge-cape" | "broken-shield" | "a
 export const SILHOUETTE_TREATMENTS: SilhouetteTreatment[] = [
   "legacy", "ridge-cape", "broken-shield", "archipelagic",
 ];
+
+/**
+ * The approved world shape. `legacy` remains available for regenerating
+ * pre-redesign output and for the byte-identity regression check.
+ */
+export const DEFAULT_SILHOUETTE: SilhouetteTreatment = "ridge-cape";
 
 type Noise2D = (x: number, y: number) => number;
 
@@ -338,13 +344,23 @@ function smoothMax(a: number, b: number, k: number): number {
  * silhouette stranded Cavora, Solmara and Lumeira in open water on the
  * canonical seed) and gives a lumpier, less discoid base than any ellipse.
  */
-function zoneMassField(u: number, v: number, zones: ZoneDesign[], reach: number): number {
+function zoneMassField(u: number, v: number, zones: ZoneDesign[], reach: number, grain: ContinentGrain): number {
   // Additive (metaball) accumulation rather than a union of cones: adjacent
   // zones reinforce each other and fuse into one continuous mass, where a
   // max-of-cones left visible disc lobes and open water between neighbours.
+  //
+  // Each zone's contribution is measured in a rotated, anisotropic metric so
+  // the two continents keep the distinct macro-grammar the bible calls for —
+  // Valora a broad mainland on a diagonal, Seradia a taller crescent. Built
+  // from an isotropic metric they converge on the same silhouette, because
+  // both zone layouts have a similar spread.
   let presence = 0;
+  const cos = Math.cos(grain.angle), sin = Math.sin(grain.angle);
   for (const zone of zones) {
-    const normalized = Math.hypot(u - zone.anchor[0], v - zone.anchor[1]) / Math.max(1e-6, zone.radius * reach);
+    const dx = u - zone.anchor[0], dy = v - zone.anchor[1];
+    const alongX = (dx * cos - dy * sin) / grain.stretchAlong;
+    const alongY = (dx * sin + dy * cos) / grain.stretchAcross;
+    const normalized = Math.hypot(alongX, alongY) / Math.max(1e-6, zone.radius * reach);
     presence += Math.exp(-normalized * normalized);
   }
   // The coastline is the `MASS_ISOLINE` contour of that field. Because a
@@ -364,8 +380,18 @@ function zoneMassField(u: number, v: number, zones: ZoneDesign[], reach: number)
  * smooth-merged with a broad, heavily subdued ellipse that supplies only the
  * far-field falloff the ocean-depth curve needs offshore.
  */
+/** Per-continent macro grammar: the axis and proportions of its landmass. */
+interface ContinentGrain { angle: number; stretchAlong: number; stretchAcross: number }
+
+const CONTINENT_GRAIN: Record<ContinentId, ContinentGrain> = {
+  // A broad mainland lying on a north-east diagonal.
+  valora: { angle: -0.28, stretchAlong: 1.16, stretchAcross: 0.88 },
+  // A taller, narrower crescent — deliberately not Valora's proportions.
+  seradia: { angle: 0.16, stretchAlong: 0.86, stretchAcross: 1.20 },
+};
+
 function redesignBody(u: number, v: number, continent: ContinentId, zones: ZoneDesign[], reach: number): number {
-  return zoneMassField(u, v, zones, reach);
+  return zoneMassField(u, v, zones, reach, CONTINENT_GRAIN[continent]);
 }
 
 /** The pre-redesign body shapes, kept for the legacy treatment. */

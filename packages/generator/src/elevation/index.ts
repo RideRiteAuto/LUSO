@@ -205,16 +205,44 @@ function buildContinentSampler(
   };
 }
 
+/** Noise channels that give the sea floor its own relief grammar. */
+export interface SeabedNoise {
+  hills: (x: number, y: number) => number;
+  fracture: (x: number, y: number) => number;
+  seamount: (x: number, y: number) => number;
+  warpX: (x: number, y: number) => number;
+  warpY: (x: number, y: number) => number;
+}
+
+export function buildSeabedNoise(seed: number): SeabedNoise {
+  return {
+    hills: createNoise2D(mulberry32(seed + 2001)),
+    fracture: createNoise2D(mulberry32(seed + 2002)),
+    seamount: createNoise2D(mulberry32(seed + 2003)),
+    warpX: createNoise2D(mulberry32(seed + 2004)),
+    warpY: createNoise2D(mulberry32(seed + 2005)),
+  };
+}
+
 /**
  * Adds world-scale Luna Sea structure after the two continent grammars have
  * been combined. Nearshore values are preserved; only established deep water
- * receives the abyss, trench, and Bruma basin hooks.
+ * receives the abyssal plain, the Bruma basin, and the sea-floor relief.
+ *
+ * The sea floor is real terrain, not a smooth bowl. Without its own relief
+ * the Luna Sea reads as a featureless blue sheet from every altitude, and the
+ * two geometric hooks that used to supply "structure" (a circular Bruma pit
+ * and a long elliptical trough south of it) read exactly as what they were:
+ * stamped shapes on an otherwise flat floor. They are replaced here by
+ * abyssal hills, fracture-zone troughs, and seamounts, with the Bruma basin
+ * warped into an irregular deep rather than a drawn circle.
  */
 export function shapeOceanBathymetry(
   baseElevationM: number,
   worldX: number,
   worldZ: number,
   layout: ContinentLayoutDesign,
+  seabed?: SeabedNoise,
 ): number {
   if (baseElevationM >= 0) return baseElevationM;
   const tileSize = layout.continentTileSize;
@@ -231,19 +259,47 @@ export function shapeOceanBathymetry(
   const abyssTarget = -2_850 - openSea * 550;
   result += (Math.min(result, abyssTarget) - result) * establishedDeepWater * openSea;
 
-  const brumaDistance = Math.hypot(worldX - layout.bruma.center[0], worldZ - layout.bruma.center[1]);
+  // The Bruma's deep is authored, but its outline is warped so it reads as a
+  // drowned basin rather than a compass circle.
+  const brumaWarp = seabed
+    ? (seabed.warpX(worldX / tileSize * 2.3, worldZ / tileSize * 2.3) * 0.30
+      + seabed.warpY(worldX / tileSize * 5.1, worldZ / tileSize * 5.1) * 0.14) * layout.bruma.radiusUnits
+    : 0;
+  const brumaDistance = Math.hypot(worldX - layout.bruma.center[0], worldZ - layout.bruma.center[1]) + brumaWarp;
   const brumaHook = (1 - smoothstep(layout.bruma.radiusUnits * 0.32, layout.bruma.radiusUnits * 1.05, brumaDistance))
     * establishedDeepWater;
   result += (Math.min(result, -4_080) - result) * brumaHook;
 
-  // A narrow, curved deep-water feature south of Bruma gives the Luna Sea
-  // a legible abyssal grammar without turning the whole gap into one bowl.
-  const trenchX = layout.bruma.center[0] + tileSize * 0.11;
-  const trenchZ = layout.bruma.center[1] + tileSize * 0.28;
-  const trenchDistance = Math.hypot((worldX - trenchX) / (tileSize * 0.055), (worldZ - trenchZ) / (tileSize * 0.20));
-  const trenchHook = (1 - smoothstep(0.55, 1.35, trenchDistance)) * establishedDeepWater;
-  result += (Math.min(result, -4_280) - result) * trenchHook;
-  return result;
+  if (!seabed) return result;
+
+  // Sea-floor relief, scaled in by depth so beaches and shallows keep the
+  // clean profile the coastline work depends on.
+  const floorStrength = smoothstep(120, 900, -result);
+  if (floorStrength <= 0) return result;
+
+  const fx = worldX / tileSize, fz = worldZ / tileSize;
+  // Domain warp shared by the relief terms, so hills and troughs bend
+  // together instead of crossing as independent noise layers.
+  const wx = fx + seabed.warpX(fx * 2.4, fz * 2.4) * 0.045;
+  const wz = fz + seabed.warpY(fx * 2.4, fz * 2.4) * 0.045;
+
+  // Abyssal hills: the low, rolling grain that covers most real ocean floor.
+  const hills = fractalNoise2D(seabed.hills, wx * 9, wz * 9, 4, 2.1, 0.5) * 96
+    + fractalNoise2D(seabed.hills, wx * 24, wz * 24, 3, 2.05, 0.46) * 38
+    + fractalNoise2D(seabed.hills, wx * 55, wz * 55, 2, 2.0, 0.45) * 14;
+
+  // Fracture zones: long troughs and rises, sampled anisotropically so they
+  // run as lineaments across the basin instead of as round blobs.
+  const fractureRaw = 1 - Math.abs(fractalNoise2D(seabed.fracture, wx * 3.1, wz * 1.35, 3, 2.0, 0.5));
+  const fracture = (Math.pow(Math.max(0, fractureRaw), 4.2) - 0.14) * 300;
+
+  // Seamounts: sparse, tall, isolated. Capped well below the surface so they
+  // stay navigation-scale relief and never become unplanned islands.
+  const seamountRaw = fractalNoise2D(seabed.seamount, wx * 4.3, wz * 4.3, 2, 2.0, 0.5);
+  const seamountPeak = Math.pow(Math.max(0, seamountRaw - 0.52) / 0.48, 1.9) * 2_300;
+
+  const relief = (hills - fracture) * floorStrength + seamountPeak * floorStrength;
+  return Math.min(-90, result + relief);
 }
 
 export interface WorldBounds {
@@ -292,6 +348,7 @@ export function generateWorldHeightField(
   const bounds = computeWorldBounds(continentLayout);
   const tileSize = continentLayout.continentTileSize;
 
+  const seabed = buildSeabedNoise(seeds.rngFor("elevation", "seabed").float() * 2 ** 31 | 0);
   const samplers = new Map<ContinentId, ContinentSampler>();
   const offsets = new Map<ContinentId, [number, number]>();
   for (const c of continentLayout.continents) {
@@ -318,7 +375,7 @@ export function generateWorldHeightField(
         const e = sampler(u, v);
         if (e > best) best = e;
       }
-      data[gy * width + gx] = shapeOceanBathymetry(best, wx, wz, continentLayout);
+      data[gy * width + gx] = shapeOceanBathymetry(best, wx, wz, continentLayout, seabed);
     }
   }
 

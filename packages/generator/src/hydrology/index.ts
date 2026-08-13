@@ -692,7 +692,12 @@ export function carveRiverChannels(
         const hit = closestPointOnSegment(x * metersPerCellX, y * metersPerCellY, ax, ay, bx, by);
         const widthM = widths[segment] + (widths[segment + 1] - widths[segment]) * hit.t;
         const depthM = scenicRiverDepthM(widthM);
-        const halfWidth = Math.max(widthM * 0.5, Math.min(metersPerCellX, metersPerCellY) * 0.52);
+        // A creek is narrower than one compiler cell, so the channel needs a
+        // sub-cell floor to register at all. That floor must cover the cell
+        // DIAGONAL: at half a cell, the cell whose centre is nearest the
+        // centreline can still fall outside the channel and be treated as
+        // bank — which raised a levee straight through the river.
+        const halfWidth = Math.max(widthM * 0.5, Math.hypot(metersPerCellX, metersPerCellY) * 0.62);
         const bankWidth = Math.max(14, widthM * 0.7);
         if (hit.distance > halfWidth + bankWidth) continue;
         const surfaceM = surfaces[segment] + (surfaces[segment + 1] - surfaces[segment]) * hit.t;
