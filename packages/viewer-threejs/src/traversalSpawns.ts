@@ -7,6 +7,9 @@ export interface TraversalBookmark {
   x: number;
   z: number;
   heading: number;
+  /** Optional aerial QA altitude above the authoritative ground. */
+  altitudeM?: number;
+  pitch?: number;
 }
 
 function zoneCenter(zone: ZoneRecord, world: WorldData): { x: number; z: number } {
@@ -77,7 +80,9 @@ export function findZoneShoreBookmark(world: WorldData, zoneId: string): Travers
   }
   if (!best) return null;
   let oceanDx = 0, oceanDz = -1, lowest = Number.POSITIVE_INFINITY;
-  for (let dz = -6; dz <= 6; dz++) for (let dx = -6; dx <= 6; dx++) {
+  // The compiler shore influence intentionally extends inland; search far
+  // enough to find actual sub-sea terrain, not merely the lowest nearby dune.
+  for (let dz = -40; dz <= 40; dz++) for (let dx = -40; dx <= 40; dx++) {
     const x = Math.max(0, Math.min(width - 1, best.gridX + dx));
     const z = Math.max(0, Math.min(height - 1, best.gridZ + dz));
     const elevation = continent.heightData[z * width + x];
@@ -104,6 +109,45 @@ export function buildTraversalBookmarks(world: WorldData, sampleHeight: (x: numb
   }
   const alvoraShore = findZoneShoreBookmark(world, "alvora");
   if (alvoraShore) bookmarks.splice(1, 0, alvoraShore);
+  const seradia = world.continents?.seradia;
+  const delta = seradia?.rivers.find((river) => river.mouthKind === "delta");
+  if (delta?.path.length) {
+    const approachIndex = Math.max(1, delta.path.length - 9);
+    const approach = delta.path[approachIndex];
+    const previous = delta.path[approachIndex - 1];
+    const [approachX, approachZ] = uvToWorld(approach[0], approach[1], "seradia", world.manifest);
+    const [previousX, previousZ] = uvToWorld(previous[0], previous[1], "seradia", world.manifest);
+    const tangentX = approachX - previousX, tangentZ = approachZ - previousZ;
+    const tangentLength = Math.max(1, Math.hypot(tangentX, tangentZ));
+    const reviewX = approachX - tangentZ / tangentLength * 85;
+    const reviewZ = approachZ + tangentX / tangentLength * 85;
+    const safe = findSafeTraversalPoint(sampleHeight, reviewX, reviewZ, 260);
+    bookmarks.push({
+      id: "solmara-delta",
+      label: "Solmara — Delta Mouth",
+      ...safe,
+      heading: Math.atan2(-(approachX - safe.x), -(approachZ - safe.z)),
+      altitudeM: 1_050,
+      pitch: -1.02,
+    });
+  }
+  const glassmere = seradia?.lakes[0];
+  if (glassmere?.polygon.length) {
+    const centerU = glassmere.polygon.reduce((sum, point) => sum + point[0], 0) / glassmere.polygon.length;
+    const centerV = glassmere.polygon.reduce((sum, point) => sum + point[1], 0) / glassmere.polygon.length;
+    const shore = glassmere.polygon.reduce((best, point) => point[0] < best[0] ? point : best, glassmere.polygon[0]);
+    const [centerX, centerZ] = uvToWorld(centerU, centerV, "seradia", world.manifest);
+    const [shoreX, shoreZ] = uvToWorld(shore[0], shore[1], "seradia", world.manifest);
+    const outwardX = shoreX - centerX, outwardZ = shoreZ - centerZ;
+    const outwardLength = Math.max(1, Math.hypot(outwardX, outwardZ));
+    const safe = findSafeTraversalPoint(sampleHeight, shoreX + outwardX / outwardLength * 180, shoreZ + outwardZ / outwardLength * 180, 700);
+    bookmarks.push({
+      id: "vidrala-glassmere",
+      label: "Vidrala — Glassmere Lake",
+      ...safe,
+      heading: Math.atan2(-(centerX - safe.x), -(centerZ - safe.z)),
+    });
+  }
   const alvora = bookmarks.find((bookmark) => bookmark.id === "alvora");
   if (alvora) {
     const review = findSafeTraversalPoint(sampleHeight, alvora.x + 180, alvora.z + 120, 240);

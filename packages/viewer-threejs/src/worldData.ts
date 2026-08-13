@@ -50,6 +50,9 @@ export interface RiverRecord {
   path: [number, number][];
   sourceElevationM?: number;
   terminatesIn?: { type: "ocean" | "lake"; featureId: string };
+  mouthKind?: "open-coast" | "estuary" | "delta" | "lake-inlet" | "lake-outlet";
+  surfaceElevationM?: number[];
+  distributaries?: [number, number][][];
   profile?: {
     widthM: [number, number];
     depthM: [number, number];
@@ -188,11 +191,14 @@ export function validateTerrainMaterialRecipes(
   return recipes;
 }
 
-/** A closed-basin pit lake (hydrology/index.ts) -- generated since Phase 2 but never wired into the viewer until now, which is why low inland basins rendered as flat "ocean" biome color with no actual water surface (Kevin: "not sure if it's water or a lake"). */
+/** A depression-resolved lake with an explicit spill saddle and outlet. */
 export interface LakeRecord {
   id: string;
   polygon: [number, number][];
   depthM: number;
+  surfaceElevationM: number;
+  spillElevationM: number;
+  outlet: [number, number];
 }
 
 export interface BridgePointRecord {

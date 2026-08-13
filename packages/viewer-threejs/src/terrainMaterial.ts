@@ -25,7 +25,7 @@ export type TerrainMaterialDebugMode =
   | "final" | "biome" | "height" | "temperature" | "rainfall" | "moisture" | "wetness"
   | "drainage" | "distanceWater" | "slope" | "shore" | "soil" | "geology"
   | "exposure" | "scree" | "buildability" | "vegetation" | "resource" | "macro"
-  | "materialId" | "recipe" | "lodMip";
+  | "coastType" | "materialId" | "recipe" | "lodMip";
 export type TerrainQuality = "high" | "balanced" | "compatibility";
 
 type TerrainLayer = "sand" | "grass" | "soil" | "forest" | "rock" | "scree" | "snow";
@@ -240,15 +240,30 @@ export class AlvoraTerrainMaterial {
       exposure,
       macro,
     })[driver];
+    // Coast type is derived from compiler truth, never painted: sheltered
+    // low-slope/alluvial margins become beach or estuary, exposed geology
+    // becomes rock, and steep exposed margins become cliffs.
+    const coastPresence: any = smoothstep(0.36, 0.76, shoreInfluence);
+    const rockGeology: any = smoothstep(0.29, 0.42, geologyClass);
+    const sedimentGeology: any = smoothstep(0.18, 0.34, geologyClass).oneMinus();
+    const coastCliff: any = coastPresence.mul(smoothstep(15, 31, slopeDegrees)).mul(exposure.mul(0.45).add(0.65)).clamp(0, 1);
+    const coastEstuary: any = coastPresence.mul(smoothstep(0.54, 0.84, wetness)).mul(smoothstep(0.56, 0.88, drainage))
+      .mul(smoothstep(5, 15, slopeDegrees).oneMinus()).mul(sedimentGeology.mul(0.45).add(0.72));
+    const coastRock: any = coastPresence.mul(smoothstep(0.48, 0.76, exposure).max(rockGeology.mul(0.78))).mul(smoothstep(4, 18, slopeDegrees))
+      .mul(coastCliff.oneMinus()).mul(coastEstuary.oneMinus());
+    const coastBeach: any = coastPresence.mul(rockGeology.mul(0.72).oneMinus())
+      .mul(coastCliff.oneMinus()).mul(coastRock.oneMinus()).mul(coastEstuary.oneMinus());
     const masksFor = (recipe: typeof orderedRecipes[number]) => {
       const rules = recipe.rules;
       let secondary = smoothstep(rules.secondaryRange[0], rules.secondaryRange[1], recipeDriver(rules.secondaryDriver));
       if (rules.secondaryInvert) secondary = secondary.oneMinus();
       const tertiary = smoothstep(rules.tertiaryMacroRange[0], rules.tertiaryMacroRange[1], fineMacro).mul(rules.tertiaryStrength);
-      const steep = smoothstep(rules.steepSlopeDegrees[0], rules.steepSlopeDegrees[1], slopeDegrees).max(screeTendency.mul(0.74));
-      const shore = smoothstep(rules.shoreRange[0], rules.shoreRange[1], shoreInfluence).mul(steep.oneMinus());
-      const wet = smoothstep(rules.wetnessRange[0], rules.wetnessRange[1], wetness)
-        .mul(shoreInfluence.mul(0.55).add(drainage.mul(0.45)));
+      const steep: any = smoothstep(rules.steepSlopeDegrees[0], rules.steepSlopeDegrees[1], slopeDegrees)
+        .max(screeTendency.mul(0.74)).max(coastCliff).max(coastRock.mul(0.82));
+      const shore: any = smoothstep(rules.shoreRange[0], rules.shoreRange[1], shoreInfluence)
+        .mul(coastBeach.max(coastEstuary.mul(0.42))).mul(steep.oneMinus());
+      const wet: any = smoothstep(rules.wetnessRange[0], rules.wetnessRange[1], wetness)
+        .mul(shoreInfluence.mul(0.55).add(drainage.mul(0.45))).max(coastEstuary.mul(0.9));
       const cold = smoothstep(rules.snowElevationM[0], rules.snowElevationM[1], height)
         .mul(smoothstep(0.42, 0.62, temperature).oneMinus())
         .mul(smoothstep(24, 44, slopeDegrees).oneMinus());
@@ -313,6 +328,11 @@ export class AlvoraTerrainMaterial {
     this.debugNodes.set("distanceWater", mix(color(0x297fbc), color(0xc9ad6a), distanceWater));
     this.debugNodes.set("slope", mix(color(0x1f4b32), color(0xe6563d), slope));
     this.debugNodes.set("shore", mix(color(0x203a59), color(0xf2ce85), shoreInfluence));
+    let coastDebug: any = mix(color(0x27323a), color(0xe8cf8f), coastBeach);
+    coastDebug = mix(coastDebug, color(0x87909b), coastRock);
+    coastDebug = mix(coastDebug, color(0x4c5662), coastCliff);
+    coastDebug = mix(coastDebug, color(0x5d8d70), coastEstuary);
+    this.debugNodes.set("coastType", coastDebug);
     this.debugNodes.set("moisture", mix(color(0xa56b3b), color(0x3d7a55), moisture));
     const categoryColor = (value: any) => vec3(
       value.mul(37.1).sin().mul(0.5).add(0.5),

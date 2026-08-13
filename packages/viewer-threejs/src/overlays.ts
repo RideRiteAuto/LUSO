@@ -134,16 +134,9 @@ export function buildRivers(continents: Record<string, ContinentData>, manifest:
 }
 
 /**
- * Real lake water surfaces. hydrology/index.ts has generated closed-basin
- * pit lakes since Phase 2, but nothing ever read continent.lakes in the
- * viewer -- so a lake basin rendered as bare terrain, colored by whatever
- * the biome classifier assigned a sub-sea-level cell (flatly "ocean" blue
- * regardless of whether that cell is actually inland), with no water plane
- * on top. That mismatch is exactly what read as "random blue patches...
- * not sure if it's water or a lake." This renders an actual flat water
- * surface at each lake's rim height, filled by a fan triangulation from the
- * polygon's centroid (lake basins are small and close enough to convex that
- * a fan doesn't produce visible artifacts).
+ * Real lake water surfaces at the compiler-authored spill level. The lake
+ * polygon is the convex shoreline of a filled basin, so its fan remains
+ * inside the water body and never becomes an arbitrary pond decal.
  */
 export function buildLakes(continents: Record<string, ContinentData>, manifest: Manifest): THREE.Group {
   const group = new THREE.Group();
@@ -153,12 +146,9 @@ export function buildLakes(continents: Record<string, ContinentData>, manifest: 
     for (const lake of continent.lakes as LakeRecord[]) {
       if (lake.polygon.length < 3) continue;
 
-      // Water sits at the rim, not the bed: average the boundary vertices'
-      // terrain height rather than using depthM (that's basin depth below
-      // the rim, not an absolute elevation).
-      let surfaceH = 0;
-      for (const [u, v] of lake.polygon) surfaceH += heightAtWorld(continent, u, v);
-      surfaceH /= lake.polygon.length;
+      // Lift a few centimeters above the exact spill level so the shoreline
+      // cannot become coplanar with the terrain at grazing angles.
+      const surfaceH = lake.surfaceElevationM + 0.08;
 
       const centroidUV: [number, number] = [0, 0];
       for (const [u, v] of lake.polygon) { centroidUV[0] += u; centroidUV[1] += v; }
@@ -183,8 +173,10 @@ export function buildLakes(continents: Record<string, ContinentData>, manifest: 
       geometry.computeVertexNormals();
       const material = new THREE.MeshStandardMaterial({
         color: 0x3f86a8, transparent: true, opacity: 0.82, roughness: 0.25, metalness: 0.05, side: THREE.DoubleSide,
+        depthWrite: false,
       });
       const mesh = new THREE.Mesh(geometry, material);
+      mesh.renderOrder = 2;
       mesh.userData = { kind: "lake", lakeId: lake.id };
       group.add(mesh);
     }

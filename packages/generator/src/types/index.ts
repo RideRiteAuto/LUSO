@@ -226,6 +226,11 @@ export interface River {
   path: Vec2[];
   sourceElevationM: number;
   terminatesIn: { type: "ocean" | "lake"; featureId: string };
+  mouthKind: "open-coast" | "estuary" | "delta" | "lake-inlet" | "lake-outlet";
+  /** Compiler-resolved, monotonically descending surface used by rendering and navigation. */
+  surfaceElevationM: number[];
+  /** Canonical deltas may split near the mouth while retaining one watershed ID. */
+  distributaries?: Vec2[][];
   /** Runtime water contract sampled along the source-to-mouth path. */
   profile: {
     widthM: [number, number];
@@ -239,6 +244,9 @@ export interface Lake {
   id: string;
   polygon: Vec2[];
   depthM: number;
+  surfaceElevationM: number;
+  spillElevationM: number;
+  outlet: Vec2;
 }
 
 export interface WaterData {

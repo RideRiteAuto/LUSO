@@ -30,6 +30,12 @@ the sea geographically small.
   coastline and relief without erasing continental identity.
 - The elevation stack combines primary and secondary ridges, fault-broken
   relief, incised drainage bands, micro-ridges, and fine geometric variation.
+- The Luna Sea uses named navigable-shallow, shelf, slope, abyss, and trench
+  depth bands. The Bruma hook only reshapes established deep water.
+- Priority-flood drainage gives every land cell an open-water route. Retained
+  lakes export real fill surfaces, spill saddles, shorelines, and outlets.
+- Beach, rock, cliff, and estuary coast types are compiler-field selections,
+  not camera- or shader-authored guesses.
 - Default generation is 1024 samples per continent (2048 in HQ), preserving
   approximately 64 m default horizontal sampling after the scale increase.
 - The authoritative heightfield includes a 25%-of-tile ocean safety margin.
@@ -49,9 +55,11 @@ Automated checks currently cover:
 - unique resource cells; and
 - creature-region exclusion distances from settlements.
 
-Future QA should add silhouette similarity, coastline complexity, watershed
-connectivity, road-grade limits, lake spill outlets, island counts, and direct
-naval route metrics.
+Phase 4 automated QA also covers bathymetric depth-band continuity, the Bruma
+deep-water hook, valid lake spill outlets, descending river surfaces, and
+post-infrastructure housing suitability. Future QA should add silhouette
+similarity, coastline complexity scoring, road-grade limits, island counts,
+and direct naval route metrics.
 
 ## Inspector diagnostics
 
@@ -65,3 +73,7 @@ the HUD. Existing URL diagnostics remain available for regression work:
 
 Walk mode uses bilinear ground sampling and searches for nearby valid land if
 the selected orbit target lies in water.
+
+Review bookmarks include the Glassmere shoreline and a high-angle Solmara
+delta mouth view. Bookmarks may declare altitude and pitch so large hydrologic
+features can be inspected without changing ordinary ground-height traversal.

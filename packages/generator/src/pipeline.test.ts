@@ -73,12 +73,46 @@ test("authoritative world boundary is entirely underwater", () => {
   assert.ok(Math.max(...edges) < -10, "world boundary lacks a safe bathymetric margin");
 });
 
-test("unresolved drainage pits are not rendered as fake ponds", () => {
+test("lakes are filled basins with spill outlets and all rivers terminate in canonical water", () => {
   const world = generateWorld({ seed: 48291, heightmapResolution: 128 });
+  assert.ok(world.water.seradia.lakes.length >= 1, "Vidrala lacks its authored Glassmere basin");
   for (const continent of world.manifest.continents) {
-    assert.equal(world.water[continent].lakes.length, 0);
-    assert.ok(world.water[continent].rivers.every((river) => river.terminatesIn.type === "ocean"));
+    for (const lake of world.water[continent].lakes) {
+      assert.ok(lake.polygon.length >= 3, `${lake.id} lacks a shoreline`);
+      assert.ok(lake.depthM >= 10, `${lake.id} is a noise cup, not a lake basin`);
+      assert.ok(lake.surfaceElevationM > 0 && lake.spillElevationM === lake.surfaceElevationM, `${lake.id} lacks a valid spill level`);
+      assert.ok(lake.outlet.every((coordinate) => coordinate >= 0 && coordinate <= 1), `${lake.id} has an invalid outlet`);
+      assert.ok(world.water[continent].rivers.some((river) => river.mouthKind === "lake-outlet" && Math.abs(river.sourceElevationM - lake.surfaceElevationM) < 0.1), `${lake.id} has no compiled outlet river`);
+    }
+    for (const river of world.water[continent].rivers) {
+      assert.ok(river.terminatesIn.type === "ocean" || world.water[continent].lakes.some((lake) => lake.id === river.terminatesIn.featureId));
+      assert.equal(river.path.length, river.surfaceElevationM.length);
+      for (let i = 1; i < river.surfaceElevationM.length; i++) {
+        assert.ok(river.surfaceElevationM[i] <= river.surfaceElevationM[i - 1] + 0.001, `${river.id} flows uphill`);
+      }
+    }
   }
+});
+
+test("bathymetry contains navigable shallows, shelves, a deep Luna Sea, and the Bruma hook", () => {
+  const world = generateWorld({ seed: 48291, heightmapResolution: 128 });
+  let shallows = 0, shelves = 0, deep = 0, minimum = 0;
+  for (const elevation of world.worldHeightField.data) {
+    minimum = Math.min(minimum, elevation);
+    if (elevation < 0 && elevation >= -80) shallows++;
+    else if (elevation < -80 && elevation >= -700) shelves++;
+    else if (elevation <= -2_800) deep++;
+  }
+  assert.ok(shallows > 250, "coasts lack navigable shallows");
+  assert.ok(shelves > 1_000, "continental shelves are underdeveloped");
+  assert.ok(deep > 500, "the Luna Sea lacks deep-water area");
+  assert.ok(minimum < -4_000, "the trench/Bruma depth hook is missing");
+  const bruma = world.seaRegions[0];
+  const { data, width, height } = world.worldHeightField;
+  const bounds = world.worldBounds;
+  const bx = Math.round((bruma.center[0] - bounds.minX) / (bounds.maxX - bounds.minX) * (width - 1));
+  const by = Math.round((bruma.center[1] - bounds.minZ) / (bounds.maxZ - bounds.minZ) * (height - 1));
+  assert.ok(data[by * width + bx] < -3_800, "Bruma is not represented in authoritative bathymetry");
 });
 
 test("resources never duplicate a cell and ecology respects settlements", () => {

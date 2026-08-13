@@ -95,13 +95,14 @@ export interface GenerateEnvironmentalFieldsOptions {
   height: HeightField;
   drainage: ScalarField;
   riverCellMask: Uint8Array;
+  lakeCellMask: Uint8Array;
   zoneAssignment: ZoneAssignment;
   zones: ZoneDesign[];
   regions: EnvironmentalRegionDesign[];
 }
 
 export function generateEnvironmentalFields(options: GenerateEnvironmentalFieldsOptions): EnvironmentalFields {
-  const { rng, continent, continentTileSize, height, drainage, riverCellMask, zoneAssignment, zones, regions } = options;
+  const { rng, continent, continentTileSize, height, drainage, riverCellMask, lakeCellMask, zoneAssignment, zones, regions } = options;
   const { width, height: fieldHeight, data: elevations } = height;
   const count = width * fieldHeight;
   if (width !== fieldHeight || zoneAssignment.gridResolution !== width) throw new Error("Environmental fields require zone and height grids at the same resolution");
@@ -121,12 +122,15 @@ export function generateEnvironmentalFields(options: GenerateEnvironmentalFields
 
   const oceanMask = new Uint8Array(count);
   const allWaterMask = new Uint8Array(count);
+  const coastAndLakeMask = new Uint8Array(count);
   for (let i = 0; i < count; i++) {
     oceanMask[i] = elevations[i] <= 0 ? 1 : 0;
-    allWaterMask[i] = oceanMask[i] || riverCellMask[i] ? 1 : 0;
+    allWaterMask[i] = oceanMask[i] || riverCellMask[i] || lakeCellMask[i] ? 1 : 0;
+    coastAndLakeMask[i] = oceanMask[i] || lakeCellMask[i] ? 1 : 0;
   }
   const distanceToOcean = distanceField(oceanMask, width, fieldHeight, metersPerCell);
   const distanceToWater = distanceField(allWaterMask, width, fieldHeight, metersPerCell);
+  const distanceToCoastOrLake = distanceField(coastAndLakeMask, width, fieldHeight, metersPerCell);
 
   const seed = Math.floor(rng.float() * 0x7fffffff);
   const climateNoise = createNoise2D(mulberry32(seed));
@@ -171,7 +175,9 @@ export function generateEnvironmentalFields(options: GenerateEnvironmentalFields
       const gradientX = (east - west) / Math.max(1, metersPerCell * 2);
       const gradientZ = (south - north) / Math.max(1, metersPerCell * 2);
       const slopeDegrees = Math.atan(Math.hypot(gradientX, gradientZ)) * 180 / Math.PI;
-      const shore = elevation > 0 ? 1 - smoothstep(120, 2600, distanceToOcean[index]) : 1;
+      const oceanShore = elevation > 0 ? 1 - smoothstep(120, 2600, distanceToOcean[index]) : 1;
+      const lakeShore = elevation > 0 ? 1 - smoothstep(80, 900, distanceToCoastOrLake[index]) : 0;
+      const shore = Math.max(oceanShore, lakeShore);
       const waterProximity = 1 - smoothstep(100, 6200, distanceToWater[index]);
       const macroNoise = fractal(climateNoise, u * 2.6 + 19.3, v * 2.6 - 8.7);
       const fineNoise = fractal(localNoise, u * 7.2 - 41.1, v * 7.2 + 23.8);

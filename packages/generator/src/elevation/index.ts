@@ -23,6 +23,21 @@ import { createNoise2D } from "simplex-noise";
 import { mulberry32, type Rng, type SeedRegistry } from "../seed/index.js";
 import type { ContinentId, ContinentLayoutDesign, HeightField, ZoneDesign } from "../types/index.js";
 
+const clamp01 = (value: number): number => Math.max(0, Math.min(1, value));
+const smoothstep = (a: number, b: number, value: number): number => {
+  const t = clamp01((value - a) / Math.max(0.000001, b - a));
+  return t * t * (3 - 2 * t);
+};
+
+/** Named bathymetric bands used by QA, navigation, and future sea ecology. */
+export const BATHYMETRY_BANDS_M = {
+  navigableShallows: [-80, 0] as [number, number],
+  continentalShelf: [-700, -80] as [number, number],
+  continentalSlope: [-2_800, -700] as [number, number],
+  lunaSeaAbyss: [-3_850, -2_800] as [number, number],
+  trench: [-4_350, -3_850] as [number, number],
+};
+
 function fractalNoise2D(noise2D: (x: number, y: number) => number, x: number, y: number, octaves: number, lacunarity: number, persistence: number): number {
   let amplitude = 1;
   let frequency = 1;
@@ -158,7 +173,24 @@ function buildContinentSampler(rng: Rng, zones: ZoneDesign[], continent: Contine
         drainage * (90 + uplandFactor * 260);
       const landStrength = Math.min(1, (mask - 0.5) * 2.4);
       const coastDetailStrength = Math.max(0.12, Math.min(1, landStrength * 1.7));
-      return Math.max(1, target * landStrength + localDetailM * coastDetailStrength);
+      let landElevation = Math.max(1, target * landStrength + localDetailM * coastDetailStrength);
+
+      // Vidrala's Glassmere is authored as an actual positive-elevation
+      // basin in the authoritative terrain. Hydrology later computes its
+      // fill surface, lowest spill saddle, outlet, and shoreline from this
+      // depression; this is terrain authorship, not a decorative water disc.
+      if (continent === "seradia") {
+        const lakeX = (u - 0.545) / 0.060;
+        const lakeY = (v - 0.305) / 0.044;
+        const lakeRadius = Math.hypot(lakeX, lakeY);
+        const irregularLakeRadius = lakeRadius + detail * 0.095 + fault * 0.035 + fineRelief * 0.018;
+        const basinBlend = 1 - smoothstep(0.74, 1.13, irregularLakeRadius);
+        if (basinBlend > 0) {
+          const glassmereBed = 168 + Math.min(1, Math.max(0, irregularLakeRadius)) ** 1.7 * 46 + fineRelief * 4;
+          landElevation += (Math.min(landElevation, glassmereBed) - landElevation) * basinBlend;
+        }
+      }
+      return Math.max(1, landElevation);
     } else {
       // Ocean branch: depthFactor -> 1 as mask -> 0 (or below, once UV is far
       // outside this continent's own tile), so this naturally reaches full
@@ -171,10 +203,56 @@ function buildContinentSampler(rng: Rng, zones: ZoneDesign[], continent: Contine
       // drop look smooth. Spreading the same drop over roughly 2x the
       // distance gives an actual shelf a coastline mesh can resolve, and
       // matches most real coastlines better than an offshore cliff anyway.
-      const depthFactor = Math.min(1, (0.5 - mask) * 1.1);
-      return -(50 + depthFactor * 3500) + detail * 40;
+      const depthFactor = Math.min(1, (0.5 - mask) * 2.0);
+      // Begin at roughly one meter below sea level and ease into depth with
+      // a super-linear curve. The old fixed -50m first ocean sample made an
+      // underwater cliff at every beach; this curve produces real shallows,
+      // a broad shelf, then a continental slope without flattening the coast.
+      const shelfDepth = 1 + Math.pow(depthFactor, 1.48) * 3549;
+      return -shelfDepth + detail * 24 * Math.sqrt(depthFactor);
     }
   };
+}
+
+/**
+ * Adds world-scale Luna Sea structure after the two continent grammars have
+ * been combined. Nearshore values are preserved; only established deep water
+ * receives the abyss, trench, and Bruma basin hooks.
+ */
+export function shapeOceanBathymetry(
+  baseElevationM: number,
+  worldX: number,
+  worldZ: number,
+  layout: ContinentLayoutDesign,
+): number {
+  if (baseElevationM >= 0) return baseElevationM;
+  const tileSize = layout.continentTileSize;
+  const valora = layout.continents.find((continent) => continent.id === "valora")!;
+  const seradia = layout.continents.find((continent) => continent.id === "seradia")!;
+  const gapWest = valora.worldOffset[0] + tileSize;
+  const gapEast = seradia.worldOffset[0];
+  const insideLunaGap = worldX > gapWest && worldX < gapEast;
+  const distanceFromNominalCoast = insideLunaGap ? Math.min(worldX - gapWest, gapEast - worldX) : 0;
+  const establishedDeepWater = smoothstep(900, 2_300, -baseElevationM);
+  const openSea = insideLunaGap ? smoothstep(tileSize * 0.08, tileSize * 0.36, distanceFromNominalCoast) : 0;
+
+  let result = baseElevationM;
+  const abyssTarget = -2_850 - openSea * 550;
+  result += (Math.min(result, abyssTarget) - result) * establishedDeepWater * openSea;
+
+  const brumaDistance = Math.hypot(worldX - layout.bruma.center[0], worldZ - layout.bruma.center[1]);
+  const brumaHook = (1 - smoothstep(layout.bruma.radiusUnits * 0.32, layout.bruma.radiusUnits * 1.05, brumaDistance))
+    * establishedDeepWater;
+  result += (Math.min(result, -4_080) - result) * brumaHook;
+
+  // A narrow, curved deep-water feature south of Bruma gives the Luna Sea
+  // a legible abyssal grammar without turning the whole gap into one bowl.
+  const trenchX = layout.bruma.center[0] + tileSize * 0.11;
+  const trenchZ = layout.bruma.center[1] + tileSize * 0.28;
+  const trenchDistance = Math.hypot((worldX - trenchX) / (tileSize * 0.055), (worldZ - trenchZ) / (tileSize * 0.20));
+  const trenchHook = (1 - smoothstep(0.55, 1.35, trenchDistance)) * establishedDeepWater;
+  result += (Math.min(result, -4_280) - result) * trenchHook;
+  return result;
 }
 
 export interface WorldBounds {
@@ -248,7 +326,7 @@ export function generateWorldHeightField(
         const e = sampler(u, v);
         if (e > best) best = e;
       }
-      data[gy * width + gx] = best;
+      data[gy * width + gx] = shapeOceanBathymetry(best, wx, wz, continentLayout);
     }
   }
 

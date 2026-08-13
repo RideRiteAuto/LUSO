@@ -11,6 +11,7 @@ import { placeResources } from "./resources/index.js";
 import { placeEcology } from "./ecology/index.js";
 import { placeSettlements } from "./settlements/index.js";
 import { generateRoads } from "./roads/index.js";
+import { refineHousingSuitability } from "./development/index.js";
 import { generateSettlementName } from "./naming/index.js";
 import { loadZoneDesigns, loadResourceDesigns, loadCreatureDesigns, loadContinentLayout, loadEnvironmentalRegionDesigns, loadTerrainMaterialLibrary, loadTerrainMaterialRecipes } from "./designData.js";
 import type { ContinentId, Landmark, ResolvedZone, WorldOutput } from "./types/index.js";
@@ -64,7 +65,7 @@ export function generateWorld(opts: GenerateOptions): WorldOutput {
     const height = sliceContinentField(worldHeight, continentLayout, continent, resolution);
     heightFields[continent] = height;
 
-    const { water: waterData, riverCellMask, drainage } = generateWaterData(height, continent);
+    const { water: waterData, riverCellMask, lakeCellMask, drainage } = generateWaterData(height, continent);
     water[continent] = waterData;
 
     const zoneAssignment = assignZones(zoneDesigns, continent, resolution, height);
@@ -76,6 +77,7 @@ export function generateWorld(opts: GenerateOptions): WorldOutput {
       height,
       drainage,
       riverCellMask,
+      lakeCellMask,
       zoneAssignment,
       zones: zoneDesigns,
       regions: environmentalRegionDesigns,
@@ -126,7 +128,17 @@ export function generateWorld(opts: GenerateOptions): WorldOutput {
       }
     }
 
-    allRoads.push(...generateRoads(settlements, continent, height, continentTileSize));
+    const roads = generateRoads(settlements, continent, height, continentTileSize);
+    allRoads.push(...roads);
+    environment.buildability = refineHousingSuitability({
+      continentTileSize,
+      height,
+      environment,
+      roads,
+      settlements,
+      resources,
+      continentZoneIds: new Set(zoneDesigns.filter((zone) => zone.continent === continent).map((zone) => zone.id)),
+    });
   }
 
   const continentLayoutByIdEntries = continentLayout.continents

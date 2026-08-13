@@ -143,12 +143,36 @@ Mirrors the bible's Skinning ecosystem table exactly (creature name, family, req
       "path": [[x0,y0], [x1,y1], "..."],   // ordered source→mouth polyline
       "sourceElevationM": 610,
       "terminatesIn": { "type": "ocean", "featureId": "luna-sea" },
-      "widthProfile": [ [0.0, 2], [0.5, 8], [1.0, 20] ]  // (t along path, width in world units)
+      "mouthKind": "estuary",              // open-coast|estuary|delta|lake-inlet|lake-outlet
+      "surfaceElevationM": [610, 540, "...", 0],
+      "distributaries": [[[x0,y0], "..."]], // optional; canonical deltas only
+      "profile": {
+        "widthM": [2, 20],
+        "depthM": [0.4, 5],
+        "currentMps": [1.4, 0.35],
+        "navigableFromT": 0.78
+      }
     }
   ],
-  "lakes": [ { "id": "...", "polygon": { "type": "Polygon", "coordinates": [[...]] }, "depthM": 12 } ]
+  "lakes": [
+    {
+      "id": "seradia-lake-0",
+      "polygon": [[x0,y0], "..."],
+      "depthM": 42,
+      "surfaceElevationM": 264,
+      "spillElevationM": 264,
+      "outlet": [x,y]
+    }
+  ]
 }
 ```
+
+River surfaces are compiler-resolved and monotonically descend from source to
+mouth. A lake is output only after basin fill identifies a real depression and
+lowest spill saddle; its polygon is the computed shoreline, not a decorative
+disc. The outlet anchors a generated `lake-outlet` river. `distributaries` keep
+one watershed identity while exposing the terminal branches of a canonical
+delta.
 
 ## 7. `roads.json`
 

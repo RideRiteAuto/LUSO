@@ -517,14 +517,17 @@ document.getElementById("teleportBookmark")!.addEventListener("click", () => {
     document.getElementById("reviewLegend")!.classList.toggle("visible", resourceReviewYard.visible);
   }
   controls.enabled = false;
-  setActiveView(viewWalkBtn);
+  const reviewMode = bookmark.altitudeM ? "fly" : "walk";
+  setActiveView(reviewMode === "fly" ? viewFlyBtn : viewWalkBtn);
   flying = true;
-  setGroundCameraProjection(true);
-  flyHintEl.textContent = "Click world for mouse lock (drag fallback) · WASD move · Shift inspector sprint (32 m/s) · Space jump / swim up · Ctrl swim down · Esc exit";
+  setGroundCameraProjection(reviewMode === "walk");
+  flyHintEl.textContent = reviewMode === "fly"
+    ? "Click world for mouse lock (drag fallback) · WASD move · Space/Ctrl up-down · Shift boost · scroll = speed · Esc exit"
+    : "Click world for mouse lock (drag fallback) · WASD move · Shift inspector sprint (32 m/s) · Space jump / swim up · Ctrl swim down · Esc exit";
   flyHintEl.classList.add("visible");
   crosshairEl.classList.add("visible");
-  if (!flight.isEnabled || flight.currentMode !== "walk") flight.enable(exitFlight, "walk", bookmark);
-  flight.teleport(bookmark.x, bookmark.z, bookmark.heading);
+  if (!flight.isEnabled || flight.currentMode !== reviewMode) flight.enable(exitFlight, reviewMode, bookmark);
+  flight.teleport(bookmark.x, bookmark.z, bookmark.heading, bookmark.altitudeM, bookmark.pitch);
 });
 
 (document.getElementById("materialDebug") as HTMLSelectElement).addEventListener("change", (event) => {

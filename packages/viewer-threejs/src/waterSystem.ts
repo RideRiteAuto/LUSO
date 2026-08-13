@@ -1,6 +1,5 @@
 import * as THREE from "three/webgpu";
-import { WaterMesh } from "three/addons/objects/WaterMesh.js";
-import { Fn, positionLocal, sin, time, vec3 } from "three/tsl";
+import { color, float, Fn, mix, mx_noise_float, positionLocal, positionWorld, sin, time, vec3 } from "three/tsl";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import { sampleHeight, sampleWorldHeight } from "./terrain.js";
 import { uvToWorld } from "./layout.js";
@@ -36,6 +35,13 @@ interface RiverSegment {
   bx: number; bz: number; by: number;
   widthA: number; widthB: number;
   currentA: number; currentB: number;
+}
+
+interface LakeSurface {
+  id: string;
+  polygon: [number, number][];
+  surfaceY: number;
+  depthM: number;
 }
 
 export const NAVIGABLE_RIVER_WIDTH_M = 18;
@@ -77,34 +83,6 @@ function closestPointOnSegment(x: number, z: number, segment: RiverSegment): { t
   return { t, distance: Math.hypot(x - px, z - pz), x: px, z: pz };
 }
 
-function makeNormalTexture(size: number, phase: number): THREE.Texture {
-  const canvas = document.createElement("canvas");
-  canvas.width = canvas.height = size;
-  const context = canvas.getContext("2d")!;
-  const image = context.createImageData(size, size);
-  for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
-    const u = x / size * Math.PI * 2, v = y / size * Math.PI * 2;
-    const sx = Math.cos(u * 3 + v * 1.3 + phase) * 0.35 + Math.cos(u * 7.2 - v * 4.1 + phase * 1.7) * 0.17 + Math.sin(u * 13.1 + v * 9.3) * 0.06;
-    const sz = Math.sin(v * 4 - u * 0.8 + phase) * 0.32 + Math.sin(v * 8.4 + u * 3.7 - phase * 1.2) * 0.16 + Math.cos(v * 15.3 - u * 11.2) * 0.05;
-    const inv = 1 / Math.hypot(sx, 1, sz);
-    const index = (y * size + x) * 4;
-    image.data[index] = Math.round((-sx * inv * 0.5 + 0.5) * 255);
-    image.data[index + 1] = Math.round((inv * 0.5 + 0.5) * 255);
-    image.data[index + 2] = Math.round((-sz * inv * 0.5 + 0.5) * 255);
-    image.data[index + 3] = 255;
-  }
-  context.putImageData(image, 0, 0);
-  const texture = new THREE.Texture(canvas);
-  texture.colorSpace = THREE.NoColorSpace;
-  texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
-  texture.minFilter = THREE.LinearMipmapLinearFilter;
-  texture.magFilter = THREE.LinearFilter;
-  texture.generateMipmaps = true;
-  texture.anisotropy = 4;
-  texture.needsUpdate = true;
-  return texture;
-}
-
 function riverWidth(progress: number, river: RiverRecord): number {
   // Headwaters remain fish/swimmer water; the lower half grows into the
   // navigable 18-52 m channel required by early rafts and cutters.
@@ -117,13 +95,36 @@ function riverCurrent(progress: number, river: RiverRecord): number {
   return source + (mouth - source) * progress;
 }
 
-function buildRiverGeometry(continent: ContinentData, river: RiverRecord, manifest: Manifest, segments: RiverSegment[]): THREE.BufferGeometry | null {
-  if (river.path.length < 2) return null;
-  const points = river.path.map(([u, v], index) => {
+function buildRiverGeometry(
+  continent: ContinentData,
+  river: RiverRecord,
+  manifest: Manifest,
+  segments: RiverSegment[],
+  path: [number, number][] = river.path,
+  progressStart = 0,
+): THREE.BufferGeometry | null {
+  if (path.length < 2) return null;
+  const rawPoints = path.map(([u, v], index) => {
     const [x, z] = uvToWorld(u, v, continent.id, manifest);
-    const progress = index / Math.max(1, river.path.length - 1);
-    return { x, z, y: sampleHeight(continent, u, v) + 0.42, width: riverWidth(progress, river), current: riverCurrent(progress, river), progress };
+    const localProgress = index / Math.max(1, path.length - 1);
+    const progress = progressStart + localProgress * (1 - progressStart);
+    const authoredSurface = path === river.path ? river.surfaceElevationM?.[index] : undefined;
+    const terrainSurface = sampleHeight(continent, u, v);
+    const surface = authoredSurface ?? Math.max(0, terrainSurface);
+    return { x, z, y: surface + 0.42 + Math.pow(progress, 4) * 0.55, width: riverWidth(progress, river), current: riverCurrent(progress, river), progress };
   });
+  const points = rawPoints.length >= 4
+    ? (() => {
+      const curve = new THREE.CatmullRomCurve3(rawPoints.map((point) => new THREE.Vector3(point.x, point.y, point.z)), false, "centripetal", 0.18);
+      const sampleCount = (rawPoints.length - 1) * 4;
+      return Array.from({ length: sampleCount + 1 }, (_, index) => {
+        const t = index / sampleCount;
+        const point = curve.getPoint(t);
+        const progress = progressStart + t * (1 - progressStart);
+        return { x: point.x, z: point.z, y: point.y, width: riverWidth(progress, river), current: riverCurrent(progress, river), progress };
+      });
+    })()
+    : rawPoints;
   const positions: number[] = [], uvs: number[] = [], colors: number[] = [], indices: number[] = [];
   let distanceAlong = 0;
   for (let i = 0; i < points.length; i++) {
@@ -164,59 +165,75 @@ export class NavoraWaterSystem {
   readonly group = new THREE.Group();
   readonly riverGroup = new THREE.Group();
   private readonly riverSegments: RiverSegment[] = [];
-  readonly ocean: WaterMesh;
+  private readonly lakeSurfaces: LakeSurface[] = [];
+  readonly ocean: THREE.Mesh<THREE.BufferGeometry, THREE.MeshStandardNodeMaterial>;
   private readonly riverMesh: THREE.Mesh | null;
-  private readonly oceanNormal: THREE.Texture;
-  private readonly riverNormal: THREE.Texture;
   private elapsed = 0;
 
-  constructor(private readonly world: WorldData, quality: "high" | "balanced" | "compatibility", sunDirection: THREE.Vector3) {
+  constructor(private readonly world: WorldData, quality: "high" | "balanced" | "compatibility", _sunDirection: THREE.Vector3) {
     this.group.name = "navora-unified-water";
     this.riverGroup.name = "navora-river-surfaces";
-    this.oceanNormal = makeNormalTexture(quality === "high" ? 1024 : quality === "balanced" ? 768 : 512, 0.37);
-    this.riverNormal = makeNormalTexture(quality === "high" ? 1024 : 512, 2.11);
     const extent = quality === "compatibility" ? 30000 : quality === "balanced" ? 48000 : 70000;
     const segments = quality === "compatibility" ? 64 : quality === "balanced" ? 96 : 128;
     const oceanGeometry = new THREE.PlaneGeometry(extent, extent, segments, segments);
     oceanGeometry.rotateX(-Math.PI / 2);
-    this.ocean = new WaterMesh(oceanGeometry, {
-      waterNormals: this.oceanNormal,
-      sunDirection: sunDirection.clone().normalize(),
-      sunColor: 0xfff1d2,
-      waterColor: 0x06354a,
-      distortionScale: quality === "compatibility" ? 2.4 : 3.8,
-      size: 0.7,
-      alpha: 0.96,
-      resolutionScale: quality === "compatibility" ? 0.16 : quality === "balanced" ? 0.24 : 0.34,
-    });
+    const oceanMaterial = new THREE.MeshStandardNodeMaterial();
+    const oceanMacro = mx_noise_float(positionWorld.xz.mul(0.00018)).mul(0.5).add(0.5);
+    oceanMaterial.colorNode = mix(color(0x052b3d), color(0x0b5368), oceanMacro.mul(0.42));
+    // Do not world-tile the short-wave normal map across this overview mesh:
+    // even with mipmaps, kilometre-scale camera views turn it into moire.
+    // Geometry swells carry the horizon. A future near-water clipmap can add
+    // short normals only inside a distance where they remain sampleable.
+    oceanMaterial.roughnessNode = float(quality === "compatibility" ? 0.30 : 0.20);
+    oceanMaterial.metalnessNode = float(0.02);
+    oceanMaterial.transparent = true;
+    oceanMaterial.opacity = 0.94;
+    oceanMaterial.depthWrite = true;
+    this.ocean = new THREE.Mesh(oceanGeometry, oceanMaterial);
     this.ocean.name = "camera-relative-gerstner-ocean";
-    // Four low-cost geometry waves provide parallax and real height changes;
-    // the HD normal map supplies capillary detail without tessellating it.
-    this.ocean.material.positionNode = Fn(() => {
+    // The camera-relative ocean spans tens of kilometres, so its geometry
+    // grid can only carry long swells. The former 4-34m frequencies were
+    // sampled on ~550m triangles and aliased into an enormous checkerboard.
+    // Short gameplay waves remain in sampleOceanWaves; distance-gated surface
+    // detail is a later water-presentation concern. These mesh-resolvable
+    // swells provide silhouette/parallax without facets.
+    oceanMaterial.positionNode = Fn(() => {
       const p = positionLocal.toVar();
-      const wave = sin(p.x.mul(0.185).add(p.z.mul(0.067)).add(time.mul(1.15))).mul(0.52)
-        .add(sin(p.x.mul(0.31).add(p.z.mul(0.29)).add(time.mul(0.93))).mul(0.27))
-        .add(sin(p.x.mul(-0.13).add(p.z.mul(0.72)).add(time.mul(0.71))).mul(0.14))
-        .add(sin(p.x.mul(0.72).add(p.z.mul(-1.31)).add(time.mul(0.54))).mul(0.07));
+      const wave = sin(p.x.mul(0.00074).add(p.z.mul(0.00027)).add(time.mul(0.31))).mul(0.52)
+        .add(sin(p.x.mul(0.00116).add(p.z.mul(0.00111)).add(time.mul(0.43))).mul(0.27))
+        .add(sin(p.x.mul(-0.00054).add(p.z.mul(0.00293)).add(time.mul(0.57))).mul(0.14))
+        .add(sin(p.x.mul(0.00242).add(p.z.mul(-0.00440)).add(time.mul(0.71))).mul(0.07));
       return p.add(vec3(0, wave, 0));
     })();
     this.ocean.renderOrder = 1;
     this.group.add(this.ocean);
 
     const riverGeometries: THREE.BufferGeometry[] = [];
-    for (const continent of Object.values(world.continents)) for (const river of continent.rivers) {
-      const geometry = buildRiverGeometry(continent, river, world.manifest, this.riverSegments);
-      if (geometry) riverGeometries.push(geometry);
+    for (const continent of Object.values(world.continents)) {
+      for (const lake of continent.lakes) {
+        this.lakeSurfaces.push({
+          id: lake.id,
+          polygon: lake.polygon.map(([u, v]) => uvToWorld(u, v, continent.id, world.manifest)),
+          surfaceY: lake.surfaceElevationM,
+          depthM: lake.depthM,
+        });
+      }
+      for (const river of continent.rivers) {
+        const geometry = buildRiverGeometry(continent, river, world.manifest, this.riverSegments);
+        if (geometry) riverGeometries.push(geometry);
+        for (const distributary of river.distributaries ?? []) {
+          const branch = buildRiverGeometry(continent, river, world.manifest, this.riverSegments, distributary, 0.68);
+          if (branch) riverGeometries.push(branch);
+        }
+      }
     }
     const merged = riverGeometries.length ? mergeGeometries(riverGeometries, false) : null;
     for (const geometry of riverGeometries) geometry.dispose();
     if (merged) {
       const material = new THREE.MeshStandardMaterial({
-        color: 0x63b9cf, vertexColors: true, normalMap: this.riverNormal,
-        normalScale: new THREE.Vector2(0.48, 0.48), transparent: true, opacity: 0.86,
-        roughness: 0.16, metalness: 0.02, side: THREE.DoubleSide, depthWrite: false,
+        color: 0x63b9cf, vertexColors: true, transparent: true, opacity: 0.86,
+        roughness: 0.26, metalness: 0.02, side: THREE.DoubleSide, depthWrite: false,
       });
-      this.riverNormal.repeat.set(0.7, 1);
       this.riverMesh = new THREE.Mesh(merged, material);
       this.riverMesh.name = "spline-rivers-shared-flow-material";
       this.riverMesh.renderOrder = 2;
@@ -230,8 +247,6 @@ export class NavoraWaterSystem {
     const snap = 256;
     this.ocean.position.x = Math.round(cameraWorldX / snap) * snap;
     this.ocean.position.z = Math.round(cameraWorldZ / snap) * snap;
-    this.riverNormal.offset.set(elapsedSeconds * 0.004, -elapsedSeconds * 0.028);
-    this.riverNormal.needsUpdate = true;
   }
 
   sample(worldX: number, worldZ: number, elapsedSeconds = this.elapsed): WaterSurfaceSample | null {
@@ -251,6 +266,19 @@ export class NavoraWaterSystem {
       const ground = sampleWorldHeight(this.world.worldHeight, worldX, worldZ);
       return { body: "river", bodyId: segment.riverId, surfaceY, depth: Math.max(0, surfaceY - ground), normalX: 0, normalY: 1, normalZ: 0, velocityX: dx * current, velocityZ: dz * current, navigable: width >= NAVIGABLE_RIVER_WIDTH_M };
     }
+    for (const lake of this.lakeSurfaces) {
+      let inside = false;
+      for (let i = 0, j = lake.polygon.length - 1; i < lake.polygon.length; j = i++) {
+        const [xi, zi] = lake.polygon[i], [xj, zj] = lake.polygon[j];
+        if ((zi > worldZ) !== (zj > worldZ) && worldX < (xj - xi) * (worldZ - zi) / (zj - zi) + xi) inside = !inside;
+      }
+      if (inside) {
+        const ripple = Math.sin(elapsedSeconds * 0.72 + worldX * 0.018 + worldZ * 0.014) * 0.035;
+        const ground = sampleWorldHeight(this.world.worldHeight, worldX, worldZ);
+        const surfaceY = lake.surfaceY + ripple;
+        return { body: "lake", bodyId: lake.id, surfaceY, depth: Math.max(0, surfaceY - ground), normalX: 0, normalY: 1, normalZ: 0, velocityX: 0.025, velocityZ: 0.01, navigable: lake.depthM >= 2.5 };
+      }
+    }
     const ground = sampleWorldHeight(this.world.worldHeight, worldX, worldZ);
     if (ground > 0.15) return null;
     const wave = sampleOceanWaves(worldX, worldZ, elapsedSeconds);
@@ -258,7 +286,7 @@ export class NavoraWaterSystem {
   }
 
   dispose(): void {
-    this.ocean.geometry.dispose(); this.ocean.material.dispose(); this.oceanNormal.dispose(); this.riverNormal.dispose();
+    this.ocean.geometry.dispose(); this.ocean.material.dispose();
     if (this.riverMesh) { this.riverMesh.geometry.dispose(); (this.riverMesh.material as THREE.Material).dispose(); }
     this.group.clear();
   }

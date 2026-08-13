@@ -86,16 +86,17 @@ export class FlightController {
     }
   }
 
-  teleport(worldX: number, worldZ: number, heading = this.yaw): void {
+  teleport(worldX: number, worldZ: number, heading = this.yaw, altitudeM = 0, pitch = -0.2): void {
     this.capsule.x = worldX;
     this.capsule.z = worldZ;
     this.capsule.feetY = this.opts.getGroundHeight(worldX, worldZ);
     this.capsule.velocityX = this.capsule.velocityY = this.capsule.velocityZ = 0;
     this.capsule.state = "grounded";
     this.yaw = heading;
-    this.pitch = -0.2;
+    this.pitch = pitch;
     this.camera.quaternion.setFromEuler(new THREE.Euler(this.pitch, this.yaw, 0, "YXZ"));
     this.syncCameraToCapsule();
+    if (this.mode === "fly" && altitudeM > 0) this.camera.position.y += altitudeM;
   }
 
   disable() {

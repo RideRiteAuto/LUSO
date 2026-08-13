@@ -52,7 +52,7 @@ Bundles the viewer (three.js included) and inlines that seed's `output/48291/*` 
 
 ## Current status (see `docs/00` for the full audit)
 
-Phase 1 (architecture docs) and an initial Phase 2 pass (working pipeline: elevation, hydrology, climate, biomes, zones, resources, ecology, settlements, roads, naming, export + viewer) are done for all 16 launch zones, with the deepest fidelity on the Alvora → Valedouro → Serravela validation corridor per the project's own first-prototype target. Known gaps, tracked rather than hidden:
+World-production Phases 0–4 are implemented on `codex/world-production-completion` and are awaiting the mandatory Review A approval before vegetation work begins. The compiler now exports environmental truth fields, 33 terrain families, canonical zone recipes, priority-flood watersheds, real lake basin/spill/outlet data, classified coasts, Luna Sea bathymetry, and post-infrastructure housing suitability. See `docs/18_Navora_World_Production_Phase_4_Geography_Hydrology_and_Review_A.md` for the evidence and approval checklist. Known gaps, tracked rather than hidden:
 
 - Only Mining + Woodcutting resource tables are wired in (`data/design/resources.json`); the other 8 professions' CSVs weren't safely transcribable by hand (see `docs/00` §1) and need a proper data-sync step.
 - Zone boundaries are convex-hull approximations of a Voronoi-style assignment, not yet snapped to ridgelines/rivers.
