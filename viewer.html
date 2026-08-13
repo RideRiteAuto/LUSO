@@ -27,6 +27,7 @@
 
       #hud {
         position: absolute; top: 14px; left: 14px; z-index: 10;
+        box-sizing: border-box;
         color: var(--ink); background: var(--panel); border: 1px solid var(--panel-border);
         border-top: 2px solid var(--gold);
         border-radius: 12px; padding: 14px; font-size: 13px; line-height: 1.5; width: min(360px, calc(100vw - 28px));
@@ -117,12 +118,51 @@
         pointer-events: none;
       }
       #crosshair.visible { display: block; }
+      #mobileControls { display: none; }
+      .touch-controls-enabled body { touch-action: none; overscroll-behavior: none; }
+      .touch-controls-enabled #mobileControls.active { display: block; position: fixed; inset: 0; z-index: 11; pointer-events: none; }
+      .touch-controls-enabled #mobileControls button {
+        pointer-events: auto; touch-action: none; user-select: none; -webkit-user-select: none;
+        color: var(--ink); background: rgba(13,19,33,.72); border: 1px solid rgba(238,241,248,.28);
+        box-shadow: 0 5px 18px rgba(0,0,0,.28); backdrop-filter: blur(6px);
+        font: 600 12px var(--font-ui); letter-spacing: .02em;
+      }
+      #touchTools {
+        position: absolute; top: max(12px, env(safe-area-inset-top)); right: max(12px, env(safe-area-inset-right));
+        min-width: 64px; min-height: 42px; padding: 0 14px; border-radius: 10px;
+      }
+      #touchLookPad { display: none; position: absolute; inset: 0 0 0 38%; pointer-events: auto; touch-action: none; }
+      #touchJoystick {
+        display: none; position: absolute; left: max(18px, env(safe-area-inset-left)); bottom: max(20px, env(safe-area-inset-bottom));
+        width: 128px; height: 128px; border-radius: 50%; pointer-events: auto; touch-action: none;
+        border: 1px solid rgba(238,241,248,.22); background: rgba(13,19,33,.28); box-shadow: inset 0 0 28px rgba(0,0,0,.2);
+      }
+      #touchJoystick::after { content: "MOVE"; position: absolute; inset: 9px 0 auto; text-align: center; color: rgba(238,241,248,.52); font: 9px var(--font-ui); letter-spacing: .12em; }
+      #touchJoystickKnob { position: absolute; left: 50%; top: 50%; width: 56px; height: 56px; transform: translate(-50%,-50%); border-radius: 50%; background: rgba(217,167,92,.5); border: 1px solid rgba(255,227,176,.7); box-shadow: 0 3px 14px rgba(0,0,0,.35); }
+      .touch-actions { display: none; position: absolute; right: max(18px, env(safe-area-inset-right)); bottom: max(20px, env(safe-area-inset-bottom)); grid-template-columns: repeat(2, 58px); gap: 9px; pointer-events: none; }
+      .touch-actions button { width: 58px; height: 52px; border-radius: 14px; margin: 0; padding: 0; }
+      .touch-actions #touchBoost { grid-column: 1 / -1; width: 125px; }
+      .touch-actions button.pressed, #touchTools:active { background: rgba(217,167,92,.42); border-color: var(--gold); }
+      .touch-controls-enabled #mobileControls.navigating #touchLookPad,
+      .touch-controls-enabled #mobileControls.navigating #touchJoystick { display: block; }
+      .touch-controls-enabled #mobileControls.navigating .touch-actions { display: grid; }
+      .touch-controls-enabled #flyHint { display: none !important; }
+      .touch-controls-enabled #hud { width: min(360px, calc(100vw - 24px)); top: max(8px, env(safe-area-inset-top)); left: max(8px, env(safe-area-inset-left)); padding: 12px; }
+      .touch-controls-enabled #hud .panel-header kbd { display: none; }
+      .touch-controls-enabled #hud.navigation-active { pointer-events: none; }
+      .touch-controls-enabled #hud.navigation-active .panel-header { display: none; }
+      .touch-controls-enabled #status { display: none; }
+      @media (max-width: 520px) {
+        .touch-controls-enabled #hud { max-height: calc(100dvh - 24px); }
+        .touch-controls-enabled .hud-content { max-height: calc(100dvh - 142px); }
+        #touchJoystick { width: 116px; height: 116px; }
+      }
       @media (max-height: 720px) {
         #hud { top: 8px; left: 8px; max-height: calc(100vh - 32px); }
         .hud-content { max-height: calc(100vh - 146px); }
       }
     </style>
-    <script type="module" crossorigin src="./assets/index-DHdDeHPo.js"></script>
+    <script type="module" crossorigin src="./assets/index-CCc2FZM0.js"></script>
   </head>
   <body>
     <div id="app">
@@ -240,6 +280,16 @@
       <div id="status">loading…</div>
       <div id="flyHint">Click world to navigate · Tab controls · Esc releases mouse</div>
       <div id="crosshair"></div>
+      <div id="mobileControls" aria-label="Touch navigation controls">
+        <div id="touchLookPad" aria-label="Drag to look around"></div>
+        <div id="touchJoystick" aria-label="Movement joystick"><span id="touchJoystickKnob"></span></div>
+        <div class="touch-actions">
+          <button id="touchUp" type="button">Up</button>
+          <button id="touchDown" type="button">Down</button>
+          <button id="touchBoost" type="button">Boost</button>
+        </div>
+        <button id="touchTools" type="button">Play</button>
+      </div>
     </div>
   </body>
 </html>
