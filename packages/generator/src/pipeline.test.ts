@@ -1,12 +1,22 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { generateWorld } from "./pipeline.js";
+import { NAVIGABLE_WATERWAY_RULES } from "./hydrology/index.js";
 
 function edgeValues(data: Float32Array, width: number, height: number): number[] {
   const values: number[] = [];
   for (let x = 0; x < width; x++) values.push(data[x], data[(height - 1) * width + x]);
   for (let y = 1; y < height - 1; y++) values.push(data[y * width], data[y * width + width - 1]);
   return values;
+}
+
+function pointInPolygon(x: number, y: number, polygon: [number, number][]): boolean {
+  let inside = false;
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    const [xi, yi] = polygon[i], [xj, yj] = polygon[j];
+    if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
 }
 
 test("same seed produces identical authoritative terrain", () => {
@@ -79,10 +89,41 @@ test("lakes are filled basins with spill outlets and all rivers terminate in can
   for (const continent of world.manifest.continents) {
     for (const lake of world.water[continent].lakes) {
       assert.ok(lake.polygon.length >= 3, `${lake.id} lacks a shoreline`);
-      assert.ok(lake.depthM >= 10, `${lake.id} is a noise cup, not a lake basin`);
+      assert.ok(lake.kind === "lake" ? lake.depthM >= 10 : lake.depthM >= NAVIGABLE_WATERWAY_RULES.wetlandPoolDepthM, `${lake.id} is too shallow for aquatic gameplay`);
       assert.ok(lake.surfaceElevationM > 0 && lake.spillElevationM === lake.surfaceElevationM, `${lake.id} lacks a valid spill level`);
       assert.ok(lake.outlet.every((coordinate) => coordinate >= 0 && coordinate <= 1), `${lake.id} has an invalid outlet`);
-      assert.ok(world.water[continent].rivers.some((river) => river.mouthKind === "lake-outlet" && Math.abs(river.sourceElevationM - lake.surfaceElevationM) < 0.1), `${lake.id} has no compiled outlet river`);
+      if (lake.kind === "lake") assert.ok(world.water[continent].rivers.some((river) => river.mouthKind === "lake-outlet" && Math.abs(river.sourceElevationM - lake.surfaceElevationM) < 0.1), `${lake.id} has no compiled outlet river`);
+
+      const localField = world.heightFields[continent];
+      const minU = Math.min(...lake.polygon.map(([u]) => u)), maxU = Math.max(...lake.polygon.map(([u]) => u));
+      const minV = Math.min(...lake.polygon.map(([, v]) => v)), maxV = Math.max(...lake.polygon.map(([, v]) => v));
+      let localBed = Number.POSITIVE_INFINITY, localX = -1, localY = -1;
+      for (let y = Math.max(0, Math.floor(minV * (localField.height - 1))); y <= Math.min(localField.height - 1, Math.ceil(maxV * (localField.height - 1))); y++) {
+        for (let x = Math.max(0, Math.floor(minU * (localField.width - 1))); x <= Math.min(localField.width - 1, Math.ceil(maxU * (localField.width - 1))); x++) {
+          const u = x / (localField.width - 1), v = y / (localField.height - 1);
+          if (!pointInPolygon(u, v, lake.polygon)) continue;
+          const bed = localField.data[y * localField.width + x];
+          if (bed < localBed) { localBed = bed; localX = x; localY = y; }
+        }
+      }
+      // Reduced-resolution fixtures can place a tiny pool between samples;
+      // the compiler then anchors its nearest centroid sample deliberately.
+      if (localX < 0) {
+        const center = lake.polygon.reduce(([u, v], point) => [u + point[0], v + point[1]], [0, 0] as [number, number]);
+        localX = Math.round(center[0] / lake.polygon.length * (localField.width - 1));
+        localY = Math.round(center[1] / lake.polygon.length * (localField.height - 1));
+        localBed = localField.data[localY * localField.width + localX];
+      }
+      assert.ok(localBed < lake.surfaceElevationM - Math.min(5, lake.depthM * 0.35), `${lake.id} is still only a flat surface over land`);
+
+      const layout = world.manifest.continentLayout[continent];
+      const worldX = layout.worldOffset[0] + localX / (localField.width - 1) * world.manifest.worldScale.continentTileSize;
+      const worldZ = layout.worldOffset[1] + localY / (localField.height - 1) * world.manifest.worldScale.continentTileSize;
+      const bounds = world.worldBounds;
+      const unifiedX = Math.round((worldX - bounds.minX) / (bounds.maxX - bounds.minX) * (world.worldHeightField.width - 1));
+      const unifiedY = Math.round((worldZ - bounds.minZ) / (bounds.maxZ - bounds.minZ) * (world.worldHeightField.height - 1));
+      const unifiedBed = world.worldHeightField.data[unifiedY * world.worldHeightField.width + unifiedX];
+      assert.ok(unifiedBed < lake.surfaceElevationM - 0.35, `${lake.id} carve was not copied into unified browser terrain`);
     }
     for (const river of world.water[continent].rivers) {
       assert.ok(
@@ -91,15 +132,17 @@ test("lakes are filled basins with spill outlets and all rivers terminate in can
         || world.water[continent].rivers.some((candidate) => candidate.id === river.terminatesIn.featureId),
       );
       assert.equal(river.path.length, river.surfaceElevationM.length);
-      assert.ok(river.profile.widthM[1] >= 100, `${river.id} cannot grow into a credible channel`);
-      assert.ok(river.profile.depthM[1] >= 6, `${river.id} lacks a fish/boat-scale lower channel`);
+      assert.ok(river.profile.widthM[0] >= NAVIGABLE_WATERWAY_RULES.minimumWidthM, `${river.id} begins narrower than the major-waterway rule`);
+      assert.ok(river.profile.depthM[0] >= NAVIGABLE_WATERWAY_RULES.minimumDepthM, `${river.id} begins shallower than the major-waterway rule`);
+      assert.ok(river.profile.widthM[1] >= NAVIGABLE_WATERWAY_RULES.minimumWidthM, `${river.id} cannot grow into a credible channel`);
+      assert.ok(river.profile.depthM[1] >= NAVIGABLE_WATERWAY_RULES.minimumDepthM, `${river.id} lacks a fish/boat-scale lower channel`);
       if (river.mouthKind === "estuary") {
-        assert.ok(river.profile.widthM[1] >= 400, `${river.id} estuary is not ship-scale`);
-        assert.ok(river.profile.depthM[1] >= 14, `${river.id} estuary lacks a navigable bed`);
+        assert.ok(river.profile.widthM[1] >= NAVIGABLE_WATERWAY_RULES.estuaryWidthM, `${river.id} estuary is not ship-scale`);
+        assert.ok(river.profile.depthM[1] >= NAVIGABLE_WATERWAY_RULES.estuaryDepthM, `${river.id} estuary lacks a navigable bed`);
       }
       if (river.mouthKind === "delta") {
-        assert.ok(river.profile.widthM[1] >= 500, `${river.id} delta is not ship-scale`);
-        assert.ok(river.profile.depthM[1] >= 16, `${river.id} delta lacks a navigable bed`);
+        assert.ok(river.profile.widthM[1] >= NAVIGABLE_WATERWAY_RULES.deltaWidthM, `${river.id} delta is not ship-scale`);
+        assert.ok(river.profile.depthM[1] >= NAVIGABLE_WATERWAY_RULES.deltaDepthM, `${river.id} delta lacks a navigable bed`);
       }
       for (let i = 1; i < river.surfaceElevationM.length; i++) {
         assert.ok(river.surfaceElevationM[i] <= river.surfaceElevationM[i - 1] + 0.001, `${river.id} flows uphill`);

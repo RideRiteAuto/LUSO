@@ -1,5 +1,5 @@
 import * as THREE from "three/webgpu";
-import type { ContinentData, LakeRecord, Manifest, RiverRecord, RoadRecord, SeaRegionRecord, SettlementRecord, ZoneRecord } from "./worldData.js";
+import type { ContinentData, Manifest, RiverRecord, RoadRecord, SeaRegionRecord, SettlementRecord, ZoneRecord } from "./worldData.js";
 import { sampleHeight } from "./terrain.js";
 import { uvToWorld } from "./layout.js";
 
@@ -127,58 +127,6 @@ export function buildRivers(continents: Record<string, ContinentData>, manifest:
         return new THREE.Vector3(x, heightAtWorld(continent, u, v) + 0.5, z);
       });
       group.add(buildRiverRibbon(points));
-    }
-  }
-
-  return group;
-}
-
-/**
- * Real lake water surfaces at the compiler-authored spill level. The lake
- * polygon is the convex shoreline of a filled basin, so its fan remains
- * inside the water body and never becomes an arbitrary pond decal.
- */
-export function buildLakes(continents: Record<string, ContinentData>, manifest: Manifest): THREE.Group {
-  const group = new THREE.Group();
-  group.name = "lakes";
-
-  for (const continent of Object.values(continents)) {
-    for (const lake of continent.lakes as LakeRecord[]) {
-      if (lake.polygon.length < 3) continue;
-
-      // Lift a few centimeters above the exact spill level so the shoreline
-      // cannot become coplanar with the terrain at grazing angles.
-      const surfaceH = lake.surfaceElevationM + 0.08;
-
-      const centroidUV: [number, number] = [0, 0];
-      for (const [u, v] of lake.polygon) { centroidUV[0] += u; centroidUV[1] += v; }
-      centroidUV[0] /= lake.polygon.length;
-      centroidUV[1] /= lake.polygon.length;
-      const [ccx, ccz] = uvToWorld(centroidUV[0], centroidUV[1], continent.id, manifest);
-
-      const positions: number[] = [ccx, surfaceH, ccz];
-      for (const [u, v] of lake.polygon) {
-        const [x, z] = uvToWorld(u, v, continent.id, manifest);
-        positions.push(x, surfaceH, z);
-      }
-      const indices: number[] = [];
-      for (let i = 1; i <= lake.polygon.length; i++) {
-        const next = i === lake.polygon.length ? 1 : i + 1;
-        indices.push(0, i, next);
-      }
-
-      const geometry = new THREE.BufferGeometry();
-      geometry.setAttribute("position", new THREE.BufferAttribute(new Float32Array(positions), 3));
-      geometry.setIndex(indices);
-      geometry.computeVertexNormals();
-      const material = new THREE.MeshStandardMaterial({
-        color: 0x3f86a8, transparent: true, opacity: 0.82, roughness: 0.25, metalness: 0.05, side: THREE.DoubleSide,
-        depthWrite: false,
-      });
-      const mesh = new THREE.Mesh(geometry, material);
-      mesh.renderOrder = 2;
-      mesh.userData = { kind: "lake", lakeId: lake.id };
-      group.add(mesh);
     }
   }
 

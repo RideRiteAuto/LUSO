@@ -242,6 +242,7 @@ export interface River {
 
 export interface Lake {
   id: string;
+  kind: "lake" | "wetland-pool" | "coastal-pool";
   polygon: Vec2[];
   depthM: number;
   surfaceElevationM: number;

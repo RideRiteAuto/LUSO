@@ -26,11 +26,32 @@ export interface TerrainLodSettings {
   maxTiles: number;
   /** Ground-view render bubble radius. Omit for the full-world inspector. */
   viewDistance?: number;
+  /** World-space areas whose silhouette must survive strategic-view LOD. */
+  refinementRegions?: TerrainRefinementRegion[];
+}
+
+export interface TerrainRefinementRegion {
+  minX: number;
+  minZ: number;
+  maxX: number;
+  maxZ: number;
+  maxTileSize: number;
 }
 
 function distanceToSquare(x: number, z: number, minX: number, minZ: number, size: number): number {
   const dx = Math.max(minX - x, 0, x - (minX + size));
   const dz = Math.max(minZ - z, 0, z - (minZ + size));
+  return Math.hypot(dx, dz);
+}
+
+function squareIntersectsRegion(tile: QuadtreeLeaf, region: TerrainRefinementRegion): boolean {
+  return tile.minX <= region.maxX && tile.minX + tile.size >= region.minX
+    && tile.minZ <= region.maxZ && tile.minZ + tile.size >= region.minZ;
+}
+
+function regionDistanceToPoint(region: TerrainRefinementRegion, x: number, z: number): number {
+  const dx = Math.max(region.minX - x, 0, x - region.maxX);
+  const dz = Math.max(region.minZ - z, 0, z - region.maxZ);
   return Math.hypot(dx, dz);
 }
 
@@ -120,18 +141,27 @@ export function selectTerrainTiles(
   // split, which becomes cubic enough to create 30–50 ms walking hitches at
   // ~200 tiles. Nearest-first refinement is safe to perform once, followed by
   // a single balance pass.
-  const refinementLimit = Math.max(4, Math.floor(settings.maxTiles * 0.58));
+  const activeRegions = (settings.refinementRegions ?? []).filter((region) =>
+    !settings.viewDistance || regionDistanceToPoint(region, cameraX, cameraZ) <= settings.viewDistance,
+  );
+  const refinementLimit = Math.max(4, Math.floor(settings.maxTiles * (activeRegions.length ? 0.68 : 0.58)));
   while (leaves.length + 3 <= refinementLimit) {
-    const candidates: Array<{ index: number; priority: number }> = [];
+    const candidates: Array<{ index: number; priority: number; forced: boolean }> = [];
     for (let i = 0; i < leaves.length; i++) {
       const tile = leaves[i];
       if (tile.size <= settings.minTileSize) continue;
       const distance = distanceToSquare(cameraX, cameraZ, tile.minX, tile.minZ, tile.size);
-      if (distance >= tile.size * settings.splitDistance) continue;
+      const forced = activeRegions.some((region) => tile.size > region.maxTileSize && squareIntersectsRegion(tile, region));
+      if (!forced && distance >= tile.size * settings.splitDistance) continue;
       const priority = distance / tile.size;
-      candidates.push({ index: i, priority });
+      candidates.push({ index: i, priority, forced });
     }
-    candidates.sort((a, b) => a.priority - b.priority || leaves[b.index].size - leaves[a.index].size);
+    // Split every coarse water-bearing leaf before drilling farther into any
+    // one basin. This prevents the tile budget from leaving later lakes as
+    // flat presentation polygons while the first lake receives excess detail.
+    candidates.sort((a, b) => Number(b.forced) - Number(a.forced)
+      || (a.forced ? leaves[b.index].size - leaves[a.index].size : a.priority - b.priority)
+      || a.priority - b.priority);
     if (!candidates.length) break;
     splitLeaf(leaves, candidates[0].index);
   }
@@ -139,7 +169,11 @@ export function selectTerrainTiles(
 
   const prepared = leaves.map((tile) => {
     const level = Math.max(0, Math.round(Math.log2(tile.size / settings.minTileSize)));
-    const segments = level <= 1 ? 64 : level <= 3 ? 32 : 16;
+    // Coast silhouettes and broad river mouths remain gameplay-critical even
+    // outside the innermost terrain ring. A 16-segment far patch produced
+    // visibly straight/jagged shoreline chords, so distant terrain retains a
+    // 32-segment floor while the nearest two levels keep 64 segments.
+    const segments = level <= 1 ? 64 : 32;
     return { ...tile, level, segments };
   });
   const visible = settings.viewDistance

@@ -83,6 +83,20 @@ test("collision heights remain stable and the patch cache stays bounded", () => 
   assert.ok(cache.patchCount <= 4);
 });
 
+test("water refinement regions retain basin-scale terrain in strategic view", () => {
+  const lake = { minX: 72_000, minZ: 26_000, maxX: 74_000, maxZ: 28_000, maxTileSize: 512 };
+  const tiles = selectTerrainTiles(
+    { minX: -60_000, minZ: -60_000, maxX: 260_000, maxZ: 130_000 },
+    -20_000,
+    -20_000,
+    { minTileSize: 256, splitDistance: 1.7, maxTiles: 280, refinementRegions: [lake] },
+  );
+  const waterTiles = tiles.filter((tile) => tile.minX <= lake.maxX && tile.minX + tile.size >= lake.minX
+    && tile.minZ <= lake.maxZ && tile.minZ + tile.size >= lake.minZ);
+  assert.ok(waterTiles.length > 0);
+  assert.ok(waterTiles.every((tile) => tile.size <= lake.maxTileSize), "lake terrain fell back to a flat coarse chord");
+});
+
 test("collision cache applies the same terrain modifier used by rendered channels", () => {
   const worldHeight = {
     data: new Float32Array([0, 0, 0, 0]),

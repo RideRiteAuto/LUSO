@@ -84,9 +84,11 @@ function zoneTargetElevationAt(u: number, v: number, zones: ZoneDesign[]): numbe
   return weightSum > 0 ? valueSum / weightSum : 0;
 }
 
-function continentMaskAt(u: number, v: number, coastNoise: number, continent: ContinentId): number {
+function continentMaskAt(u: number, v: number, coastNoise: number, continent: ContinentId, zones: ZoneDesign[]): number {
   const dx = u - 0.5;
   const dy = v - 0.5;
+  const anchor = (zoneId: string, fallback: [number, number]): [number, number] =>
+    zones.find((zone) => zone.id === zoneId)?.anchor ?? fallback;
   let macro: number;
   if (continent === "valora") {
     // Broad, diagonally-oriented mainland with a southwestern peninsula and
@@ -97,17 +99,33 @@ function continentMaskAt(u: number, v: number, coastNoise: number, continent: Co
     const ry = dx * Math.sin(angle) + dy * Math.cos(angle);
     const body = 1 - Math.hypot(rx / 0.58, ry / 0.45);
     const peninsula = 0.35 - Math.hypot((u - 0.2) / 0.24, (v - 0.73) / 0.3);
-    const gulf = 0.38 - Math.hypot((u - 0.78) / 0.2, (v - 0.27) / 0.22);
-    macro = Math.max(body, peninsula) - Math.max(0, gulf) * 0.75;
+    const cavora = anchor("cavora", [0.8, 0.25]);
+    const alvora = anchor("alvora", [0.85, 0.5]);
+    const gulf = 0.38 - Math.hypot((u - (cavora[0] - 0.02)) / 0.2, (v - (cavora[1] + 0.02)) / 0.22);
+    // These two macro cuts are canon geography, not arbitrary coast noise:
+    // the Stormbreak gulf supplies Cavora's deep natural harbor coast, while
+    // the Crownlands bay supports Alvora's fishing/coastal transport identity.
+    const crownlandsBay = 0.18 - Math.hypot((u - (alvora[0] + 0.11)) / 0.13, (v - (alvora[1] + 0.03)) / 0.18);
+    macro = Math.max(body, peninsula)
+      - Math.max(0, gulf) * 0.70
+      - Math.max(0, crownlandsBay) * 0.38;
   } else {
     // Seradia is a taller crescent with a broken eastern coast, deliberately
     // unlike Valora's broad diagonal body.
     const outer = 1 - Math.hypot(dx / 0.43, dy / 0.59);
     const innerBay = 0.42 - Math.hypot((u - 0.34) / 0.29, (v - 0.5) / 0.43);
     const northernShoulder = 0.28 - Math.hypot((u - 0.67) / 0.24, (v - 0.2) / 0.24);
-    macro = Math.max(outer - Math.max(0, innerBay) * 0.9, northernShoulder);
+    // Sunreach's broad estuarine bight is the ocean receiver for its authored
+    // delta/distributary system; it is not a generic decorative bay.
+    const solmara = anchor("solmara", [0.2, 0.75]);
+    const sunreachBight = 0.20 - Math.hypot((u - (solmara[0] - 0.05)) / 0.13, (v - (solmara[1] + 0.03)) / 0.17);
+    macro = Math.max(outer - Math.max(0, innerBay) * 0.9 - Math.max(0, sunreachBight) * 0.45, northernShoulder);
   }
-  const perturbed = macro + coastNoise * 0.14;
+  // Coast noise supplies natural bays and headlands, but it must remain
+  // subordinate to the continental silhouette. The former 0.14 amplitude
+  // produced similarly sized scallops every few height cells, which read as
+  // a repeated saw-tooth pattern from flight altitude.
+  const perturbed = macro + coastNoise * (continent === "valora" ? 0.10 : 0.12);
   return Math.max(0, Math.min(1, (perturbed + 0.15) * 1.3));
 }
 
@@ -137,8 +155,8 @@ function buildContinentSampler(rng: Rng, zones: ZoneDesign[], continent: Contine
     const wx = u + warpAmount * warpNoiseX(u * warpScale, v * warpScale);
     const wy = v + warpAmount * warpNoiseY(u * warpScale, v * warpScale);
 
-    const coastN = coastNoise(u * 3.5, v * 3.5);
-    const mask = continentMaskAt(wx, wy, coastN, continent);
+    const coastN = coastNoise(u * 2.6, v * 2.6);
+    const mask = continentMaskAt(wx, wy, coastN, continent, zones);
 
     const detail = fractalNoise2D(detailNoise, wx * 3.2, wy * 3.2, 6, 2.05, 0.5);
     // Ridge frequency raised 2.5 -> 3.4 and amplitude 900 -> 1600 (docs/01 §5

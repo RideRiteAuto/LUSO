@@ -28,6 +28,19 @@ export type TerrainMaterialDebugMode =
   | "coastType" | "materialId" | "recipe" | "lodMip";
 export type TerrainQuality = "high" | "balanced" | "compatibility";
 
+export interface TerrainTextureTuning {
+  highDetailDistanceM: number;
+  midDetailDistanceM: number;
+}
+
+export function defaultTerrainTextureTuning(quality: TerrainQuality): TerrainTextureTuning {
+  return quality === "high"
+    ? { highDetailDistanceM: 8_000, midDetailDistanceM: 14_000 }
+    : quality === "balanced"
+      ? { highDetailDistanceM: 6_000, midDetailDistanceM: 11_000 }
+      : { highDetailDistanceM: 5_000, midDetailDistanceM: 9_000 };
+}
+
 type TerrainLayer = "sand" | "grass" | "soil" | "forest" | "rock" | "scree" | "snow";
 type TerrainTextureSet = Record<TerrainLayer, Partial<Record<TerrainTextureChannel, THREE.Texture>>>;
 
@@ -78,6 +91,8 @@ async function loadTerrainTextures(renderer: THREE.WebGPURenderer, quality: Terr
 export class AlvoraTerrainMaterial {
   readonly material: THREE.MeshStandardNodeMaterial;
   private readonly originNode = uniform(new THREE.Vector3());
+  private readonly highDetailDistanceNode = uniform(5_000);
+  private readonly midDetailDistanceNode = uniform(9_000);
   private readonly debugNodes = new Map<TerrainMaterialDebugMode, any>();
   private readonly textures: THREE.Texture[];
   private debugMode: TerrainMaterialDebugMode = "final";
@@ -101,6 +116,7 @@ export class AlvoraTerrainMaterial {
     controlMap: TerrainControlMap,
     worldBounds: { minX: number; minZ: number; maxX: number; maxZ: number },
   ) {
+    this.setTextureTuning(defaultTerrainTextureTuning(quality));
     this.textures = LAYERS.flatMap((layer) => Object.values(layers[layer])).filter((map): map is THREE.Texture => Boolean(map));
     const fragmentControlSampling = quality !== "high";
     const packTextures = fragmentControlSampling ? Array.from({ length: controlMap.packCount }, (_, pack) => {
@@ -216,12 +232,12 @@ export class AlvoraTerrainMaterial {
     const secondaryZoneIndex = zoneBlend.g.mul(recipeLibrary.zoneOrder.length).add(0.5).floor();
     const zoneFeather = zoneBlend.b;
     const viewDistance = cameraPosition.sub(positionWorld).length();
-    const microVisibility = smoothstep(260, quality === "high" ? 2200 : 1500, viewDistance).oneMinus();
+    const microVisibility = smoothstep(this.highDetailDistanceNode.mul(0.08), this.highDetailDistanceNode, viewDistance).oneMinus();
     // Keep real scanned albedo readable during low flight, while still
     // fading it before sub-pixel texels turn into the repeated dot/grid
     // pattern that prompted the previous material correction.
-    const scannedAlbedoVisibility = smoothstep(180, quality === "high" ? 1800 : quality === "compatibility" ? 1400 : 1600, viewDistance).oneMinus();
-    const midDistanceDetail = smoothstep(600, quality === "compatibility" ? 3000 : 3800, viewDistance).oneMinus();
+    const scannedAlbedoVisibility = smoothstep(this.highDetailDistanceNode.mul(0.04), this.highDetailDistanceNode, viewDistance).oneMinus();
+    const midDistanceDetail = smoothstep(this.highDetailDistanceNode.mul(0.6), this.midDetailDistanceNode, viewDistance).oneMinus();
     const landTransition = smoothstep(-3, 5, height);
     const macro = mx_noise_float(worldPosition.xz.mul(0.00042)).mul(0.5).add(0.5);
     const fineMacro = mx_noise_float(worldPosition.xz.mul(0.0021).add(vec2(31.7, -14.2))).mul(0.5).add(0.5);
@@ -341,7 +357,10 @@ export class AlvoraTerrainMaterial {
       const shore: any = smoothstep(rules.shoreRange[0], rules.shoreRange[1], shoreInfluence)
         .mul(coastBeach.max(coastEstuary.mul(0.42))).mul(steep.oneMinus());
       const wet: any = smoothstep(rules.wetnessRange[0], rules.wetnessRange[1], wetness)
-        .mul(shoreInfluence.mul(0.55).add(drainage.mul(0.45))).max(coastEstuary.mul(0.9));
+        // Moist ocean-adjacent ground is not automatically an empty mud
+        // basin. Require meaningful drainage for the dark wet material; real
+        // tidal inlets are now physically carved below sea level upstream.
+        .mul(drainage.mul(0.78).add(shoreInfluence.mul(drainage).mul(0.22))).max(coastEstuary.mul(0.72));
       const cold = smoothstep(rules.snowElevationM[0], rules.snowElevationM[1], height)
         .mul(smoothstep(0.42, 0.62, temperature).oneMinus())
         .mul(smoothstep(24, 44, slopeDegrees).oneMinus());
@@ -451,6 +470,11 @@ export class AlvoraTerrainMaterial {
   }
 
   updateOrigin(offset: THREE.Vector3): void { this.originNode.value.copy(offset); }
+
+  setTextureTuning(tuning: TerrainTextureTuning): void {
+    this.highDetailDistanceNode.value = Math.max(500, tuning.highDetailDistanceM);
+    this.midDetailDistanceNode.value = Math.max(this.highDetailDistanceNode.value + 500, tuning.midDetailDistanceM);
+  }
 
   setDebugMode(mode: TerrainMaterialDebugMode): void {
     this.debugMode = mode;

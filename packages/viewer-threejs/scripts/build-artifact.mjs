@@ -113,7 +113,10 @@ const moduleTag = '<script type="module" src="/src/main.ts"></script>';
 const inlineScripts = `<script>window.__NEVORA_WORLD__ = ${embeddedJson};window.__NEVORA_TERRAIN_ASSETS__ = ${terrainJson};window.__NAVORA_ENVIRONMENT_ASSETS__ = ${environmentJson};window.__NAVORA_RESOURCE_TEXTURES__ = ${resourceTextureJson};</script>\n<script>${bundledJs}</script>`;
 const sourceHtml = readFileSync(path.join(packageRoot, "index.html"), "utf-8");
 if (!sourceHtml.includes(moduleTag)) throw new Error(`Expected module tag not found in ${path.join(packageRoot, "index.html")}`);
-const html = sourceHtml.replace(moduleTag, inlineScripts);
+// Use a replacement callback so minified JavaScript sequences such as `$&`
+// are inserted literally instead of being interpreted as String.replace
+// substitution tokens (which would reinsert the development module tag).
+const html = sourceHtml.replace(moduleTag, () => inlineScripts);
 
 const outDir = path.join(packageRoot, "dist-artifact");
 mkdirSync(outDir, { recursive: true });

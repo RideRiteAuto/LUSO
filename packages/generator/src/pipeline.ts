@@ -66,8 +66,8 @@ export function generateWorld(opts: GenerateOptions): WorldOutput {
     const uncarvedHeight = height.data.slice();
     heightFields[continent] = height;
 
-    const { water: waterData, riverCellMask, lakeCellMask, drainage } = generateWaterData(height, continent);
-    carveRiverChannels(height, waterData, continentTileSize, riverCellMask);
+    const { water: waterData, riverCellMask, lakeCellMask, drainage } = generateWaterData(height, continent, continentTileSize);
+    carveRiverChannels(height, waterData, continentTileSize, riverCellMask, lakeCellMask);
     water[continent] = waterData;
 
     // The streamed viewer and future engine importers consume the unified

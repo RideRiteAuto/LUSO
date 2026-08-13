@@ -2,6 +2,7 @@ import * as THREE from "three/webgpu";
 import { stepCapsule, type CapsuleState, type LocomotionState } from "./traversalPhysics.js";
 
 export type MovementMode = "fly" | "walk";
+export type InteractionMode = "navigate" | "ui";
 
 const LOOK_SENSITIVITY = 0.0023;
 const MAX_PITCH = Math.PI / 2 - 0.02;
@@ -43,6 +44,11 @@ export interface FlightControllerOptions {
   worldBounds: { minX: number; maxX: number; minZ: number; maxZ: number };
   getStaticObstacles?: () => StaticCollisionProxy[];
   getWater?: (worldX: number, worldZ: number) => { surfaceY: number; velocityX: number; velocityZ: number } | null;
+  onInteractionModeChange?: (mode: InteractionMode) => void;
+}
+
+export function shouldToggleInspector(event: Pick<KeyboardEvent, "code" | "target">): boolean {
+  return event.code === "Tab";
 }
 
 /** Scouting flight plus a physical first-person capsule used by Walk mode. */
@@ -50,7 +56,10 @@ export class FlightController {
   private mode: MovementMode = "fly";
   private flySpeed = FLY_SPEED.base;
   private readonly move = { forward: false, back: false, left: false, right: false, up: false, down: false, boost: false };
+  private readonly touchMove = { strafe: 0, forward: 0, up: false, down: false, boost: false };
   private enabled = false;
+  private interactionMode: InteractionMode = "ui";
+  private hadPointerLock = false;
   private dragging = false;
   private jumpQueued = false;
   private lastX = 0;
@@ -84,12 +93,30 @@ export class FlightController {
   get currentMode(): MovementMode { return this.mode; }
   get locomotionState(): LocomotionState | "flying" { return this.mode === "fly" ? "flying" : this.capsule.state; }
   get isEnabled(): boolean { return this.enabled; }
+  get currentInteractionMode(): InteractionMode { return this.interactionMode; }
+
+  /** Analog movement supplied by the optional coarse-pointer control overlay. */
+  setTouchMovement(strafe: number, forward: number): void {
+    this.touchMove.strafe = THREE.MathUtils.clamp(strafe, -1, 1);
+    this.touchMove.forward = THREE.MathUtils.clamp(forward, -1, 1);
+  }
+
+  setTouchAction(action: "up" | "down" | "boost", pressed: boolean): void {
+    this.touchMove[action] = pressed;
+    if (action === "up" && pressed && this.mode === "walk") this.jumpQueued = true;
+  }
+
+  applyTouchLook(dx: number, dy: number): void {
+    if (!this.enabled || this.interactionMode !== "navigate") return;
+    this.applyLook(dx, dy);
+  }
 
   enable(onExit: () => void, mode: MovementMode = "fly", walkAnchorWorld?: { x: number; z: number }) {
     this.enabled = true;
     this.mode = mode;
     this.flySpeed = FLY_SPEED.base;
     this.onExit = onExit;
+    this.setInteractionMode("ui");
     const euler = new THREE.Euler().setFromQuaternion(this.camera.quaternion, "YXZ");
     this.yaw = euler.y;
     this.pitch = mode === "walk" ? WALK_ENTRY_PITCH_RAD : euler.x;
@@ -127,7 +154,7 @@ export class FlightController {
   }
 
   update(deltaSeconds: number) {
-    if (!this.enabled) return;
+    if (!this.enabled || this.interactionMode === "ui") return;
     if (this.mode === "fly") this.updateFly(deltaSeconds);
     else this.updateWalk(deltaSeconds);
   }
@@ -144,13 +171,15 @@ export class FlightController {
     if (this.move.back) { inputX -= this.forward.x; inputZ -= this.forward.z; }
     if (this.move.right) { inputX += this.right.x; inputZ += this.right.z; }
     if (this.move.left) { inputX -= this.right.x; inputZ -= this.right.z; }
+    inputX += this.forward.x * this.touchMove.forward + this.right.x * this.touchMove.strafe;
+    inputZ += this.forward.z * this.touchMove.forward + this.right.z * this.touchMove.strafe;
 
     stepCapsule(this.capsule, {
       moveX: inputX,
       moveZ: inputZ,
-      sprint: this.move.boost,
-      jump: this.jumpQueued || this.move.up,
-      descend: this.move.down,
+      sprint: this.move.boost || this.touchMove.boost,
+      jump: this.jumpQueued || this.move.up || this.touchMove.up,
+      descend: this.move.down || this.touchMove.down,
     }, deltaSeconds, this.opts.getGroundHeight, undefined, this.opts.getWater);
     this.jumpQueued = false;
     this.resolveStaticObstacles();
@@ -160,15 +189,17 @@ export class FlightController {
   }
 
   private updateFly(deltaSeconds: number): void {
-    const step = this.flySpeed * (this.move.boost ? FLY_SPEED.boost : 1) * deltaSeconds;
+    const step = this.flySpeed * (this.move.boost || this.touchMove.boost ? FLY_SPEED.boost : 1) * deltaSeconds;
     this.camera.getWorldDirection(this.forward);
     this.right.crossVectors(this.forward, this.worldUp).normalize();
     if (this.move.forward) this.camera.position.addScaledVector(this.forward, step);
     if (this.move.back) this.camera.position.addScaledVector(this.forward, -step);
     if (this.move.right) this.camera.position.addScaledVector(this.right, step);
     if (this.move.left) this.camera.position.addScaledVector(this.right, -step);
-    if (this.move.up) this.camera.position.y += step;
-    if (this.move.down) this.camera.position.y -= step;
+    this.camera.position.addScaledVector(this.forward, this.touchMove.forward * step);
+    this.camera.position.addScaledVector(this.right, this.touchMove.strafe * step);
+    if (this.move.up || this.touchMove.up) this.camera.position.y += step;
+    if (this.move.down || this.touchMove.down) this.camera.position.y -= step;
     const offset = this.opts.getWorldOffset();
     const worldX = Math.max(this.clampBounds.minX, Math.min(this.clampBounds.maxX, this.camera.position.x + offset.x));
     const worldZ = Math.max(this.clampBounds.minZ, Math.min(this.clampBounds.maxZ, this.camera.position.z + offset.z));
@@ -202,8 +233,29 @@ export class FlightController {
     this.camera.quaternion.setFromEuler(new THREE.Euler(this.pitch, this.yaw, 0, "YXZ"));
   }
 
+  setInteractionMode(mode: InteractionMode, requestLock = false): void {
+    if (!this.enabled && mode === "navigate") return;
+    this.interactionMode = mode;
+    if (mode === "ui") {
+      this.dragging = false;
+      this.clearMovement();
+      if (document.pointerLockElement === this.domElement) document.exitPointerLock();
+    } else if (requestLock && document.pointerLockElement !== this.domElement && this.domElement.requestPointerLock) {
+      this.domElement.requestPointerLock().catch(() => { /* unlocked drag-look remains available */ });
+    }
+    this.opts.onInteractionModeChange?.(mode);
+  }
+
+  toggleInteractionMode(): void {
+    this.setInteractionMode(this.interactionMode === "navigate" ? "ui" : "navigate", this.interactionMode === "ui");
+  }
+
   private onPointerDown = (event: PointerEvent) => {
-    if (!this.enabled || event.button !== 0) return;
+    // Touch look is handled by the dedicated multi-touch overlay. Letting the
+    // canvas also treat it as mouse drag causes double-look and a futile
+    // pointer-lock request on mobile Safari.
+    if (!this.enabled || event.button !== 0 || event.pointerType === "touch") return;
+    this.setInteractionMode("navigate");
     this.dragging = true;
     this.lastX = event.clientX;
     this.lastY = event.clientY;
@@ -224,10 +276,27 @@ export class FlightController {
   };
   private onPointerUp = () => { this.dragging = false; };
   private onPointerLockChange = () => {
-    if (document.pointerLockElement !== this.domElement) this.dragging = false;
+    const locked = document.pointerLockElement === this.domElement;
+    if (locked) {
+      this.hadPointerLock = true;
+      this.setInteractionMode("navigate");
+    } else {
+      this.dragging = false;
+      if (this.enabled && this.hadPointerLock) this.setInteractionMode("ui");
+      this.hadPointerLock = false;
+    }
   };
   private onKeyDown = (event: KeyboardEvent) => {
     if (!this.enabled) return;
+    if (shouldToggleInspector(event)) {
+      event.preventDefault();
+      this.toggleInteractionMode();
+      return;
+    }
+    if (this.interactionMode === "ui") {
+      if (event.code === "Escape") this.onExit?.();
+      return;
+    }
     switch (event.code) {
       case "KeyW": case "ArrowUp": this.move.forward = true; break;
       case "KeyS": case "ArrowDown": this.move.back = true; break;
@@ -236,7 +305,7 @@ export class FlightController {
       case "Space": this.move.up = true; if (!event.repeat) this.jumpQueued = true; event.preventDefault(); break;
       case "ControlLeft": case "KeyC": this.move.down = true; break;
       case "ShiftLeft": case "ShiftRight": this.move.boost = true; break;
-      case "Escape": this.onExit?.(); break;
+      case "Escape": this.setInteractionMode("ui"); break;
     }
   };
   private onKeyUp = (event: KeyboardEvent) => {
@@ -257,6 +326,9 @@ export class FlightController {
   };
   private clearMovement(): void {
     for (const key of Object.keys(this.move) as Array<keyof typeof this.move>) this.move[key] = false;
+    this.touchMove.strafe = 0;
+    this.touchMove.forward = 0;
+    this.touchMove.up = this.touchMove.down = this.touchMove.boost = false;
     this.jumpQueued = false;
   }
 

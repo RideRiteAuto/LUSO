@@ -3,10 +3,10 @@ import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { loadWorld, loadEmbeddedWorld } from "./worldData.js";
 import { sampleHeightWithSkirt, SKIRT_REACH } from "./terrain.js";
 import { CollisionHeightCache, sampleLocalTerrainDetail } from "./terrainLod.js";
-import { TerrainStreamer } from "./terrainStreaming.js";
-import { buildZoneBoundaries, buildLakes, buildRoads, buildSettlements, buildSeaRegions } from "./overlays.js";
+import { defaultTerrainRenderTuning, TerrainStreamer, type TerrainRenderTuning } from "./terrainStreaming.js";
+import { buildZoneBoundaries, buildRoads, buildSettlements, buildSeaRegions } from "./overlays.js";
 import { uvToWorld } from "./layout.js";
-import { FlightController, resolveWalkTransitionAnchor } from "./flightControls.js";
+import { FlightController, resolveWalkTransitionAnchor, type InteractionMode } from "./flightControls.js";
 import { CameraRelativeOrigin } from "./worldOrigin.js";
 import { buildTraversalBookmarks, findSafeTraversalPoint, type TraversalBookmark } from "./traversalSpawns.js";
 import type { TerrainMaterialDebugMode } from "./terrainMaterial.js";
@@ -15,6 +15,7 @@ import { NavoraAtmosphere } from "./atmosphere.js";
 import { ResourceReviewYard } from "./resourceReviewYard.js";
 import { NavoraWaterSystem } from "./waterSystem.js";
 import { buildRiverChannelField, sampleRiverCarvedHeight } from "./riverChannelField.js";
+import { TouchControls } from "./touchControls.js";
 
 const params = new URLSearchParams(location.search);
 const seed = Number(params.get("seed") ?? 48291);
@@ -59,6 +60,20 @@ const sceneStatsEl = document.getElementById("sceneStats")!;
 const streamingStatsEl = document.getElementById("streamingStats")!;
 const dressingStatsEl = document.getElementById("dressingStats")!;
 const legendEl = document.getElementById("legend")!;
+const hudEl = document.getElementById("hud")!;
+const interactionStatusEl = document.getElementById("interactionStatus")!;
+const interactionNoteEl = document.getElementById("interactionNote")!;
+const toggleInteractionBtn = document.getElementById("toggleInteraction") as HTMLButtonElement;
+const highDetailDistanceInput = document.getElementById("highDetailDistance") as HTMLInputElement;
+const midDetailDistanceInput = document.getElementById("midDetailDistance") as HTMLInputElement;
+const terrainDrawDistanceInput = document.getElementById("terrainDrawDistance") as HTMLInputElement;
+const meshDetailReachInput = document.getElementById("meshDetailReach") as HTMLInputElement;
+const highDetailDistanceValue = document.getElementById("highDetailDistanceValue")!;
+const midDetailDistanceValue = document.getElementById("midDetailDistanceValue")!;
+const terrainDrawDistanceValue = document.getElementById("terrainDrawDistanceValue")!;
+const meshDetailReachValue = document.getElementById("meshDetailReachValue")!;
+const terrainQualityNote = document.getElementById("terrainQualityNote")!;
+let touchControls: TouchControls | null = null;
 
 seedValEl.textContent = String(seed);
 
@@ -139,6 +154,72 @@ let traversalBookmarks: TraversalBookmark[] = [];
 let loadedWorld: Awaited<ReturnType<typeof loadWorld>> | null = null;
 let resourceReviewYard: ResourceReviewYard | null = null;
 let waterSystem: NavoraWaterSystem | null = null;
+const terrainTuningDefaults = defaultTerrainRenderTuning(qualityName);
+
+function readTerrainTuning(): TerrainRenderTuning {
+  return {
+    highDetailDistanceM: Number(highDetailDistanceInput.value) * 1_000,
+    midDetailDistanceM: Number(midDetailDistanceInput.value) * 1_000,
+    drawDistanceM: Number(terrainDrawDistanceInput.value) * 1_000,
+    meshDetailPercent: Number(meshDetailReachInput.value),
+  };
+}
+
+function writeTerrainTuning(tuning: TerrainRenderTuning): void {
+  highDetailDistanceInput.value = String(tuning.highDetailDistanceM / 1_000);
+  midDetailDistanceInput.value = String(tuning.midDetailDistanceM / 1_000);
+  terrainDrawDistanceInput.value = String(tuning.drawDistanceM / 1_000);
+  meshDetailReachInput.value = String(tuning.meshDetailPercent);
+  updateTerrainTuningLabels();
+}
+
+function updateTerrainTuningLabels(): void {
+  const tuning = readTerrainTuning();
+  highDetailDistanceValue.textContent = `${(tuning.highDetailDistanceM / 1_000).toFixed(1)} km`;
+  midDetailDistanceValue.textContent = `${(tuning.midDetailDistanceM / 1_000).toFixed(1)} km`;
+  terrainDrawDistanceValue.textContent = `${Math.round(tuning.drawDistanceM / 1_000)} km`;
+  meshDetailReachValue.textContent = `${tuning.meshDetailPercent}%`;
+}
+
+function applyTerrainTuning(): void {
+  const tuning = readTerrainTuning();
+  if (tuning.midDetailDistanceM <= tuning.highDetailDistanceM) {
+    tuning.midDetailDistanceM = tuning.highDetailDistanceM + 500;
+    midDetailDistanceInput.value = String(tuning.midDetailDistanceM / 1_000);
+  }
+  updateTerrainTuningLabels();
+  terrainStreamer?.setRenderTuning(tuning);
+}
+
+writeTerrainTuning(terrainTuningDefaults);
+terrainQualityNote.textContent = qualityName === "high"
+  ? "High: albedo + available normal/roughness maps."
+  : `${qualityName[0].toUpperCase()}${qualityName.slice(1)}: scanned albedo only; use ?quality=high for surface normals.`;
+for (const input of [highDetailDistanceInput, midDetailDistanceInput, terrainDrawDistanceInput, meshDetailReachInput]) {
+  input.addEventListener("input", applyTerrainTuning);
+}
+document.getElementById("resetTerrainTuning")!.addEventListener("click", () => {
+  writeTerrainTuning(terrainTuningDefaults);
+  applyTerrainTuning();
+});
+
+function updateInteractionUi(mode: InteractionMode | "orbit"): void {
+  const navigating = mode === "navigate";
+  hudEl.classList.toggle("navigation-active", navigating);
+  interactionStatusEl.textContent = navigating ? "Navigating" : mode === "ui" ? "Controls active" : "Inspector ready";
+  interactionNoteEl.textContent = mode === "ui"
+    ? "Movement paused. Tab or Enter world resumes."
+    : "Choose Fly or Walk to enter the world.";
+  toggleInteractionBtn.disabled = mode === "orbit";
+  toggleInteractionBtn.textContent = mode === "orbit" ? "Choose Fly / Walk" : "Enter world";
+  if (flying) {
+    crosshairEl.classList.toggle("visible", navigating);
+    flyHintEl.textContent = navigating
+      ? `${flight?.currentMode === "walk" ? "WASD move · Shift sprint · Space jump/swim" : "WASD move · Space/Ctrl altitude · Shift boost · scroll speed"} · Tab controls · Esc mouse`
+      : "Controls open · movement paused · Tab resumes · Esc exits Fly/Walk";
+  }
+  touchControls?.sync(mode);
+}
 
 async function boot() {
   statusEl.textContent = "loading manifest…";
@@ -154,6 +235,7 @@ async function boot() {
   const carveRiverHeight = (x: number, z: number, height: number) => sampleRiverCarvedHeight(riverChannels, x, z, height);
   collisionHeights = new CollisionHeightCache(world.worldHeight, manifest.seed, sampleHeightWithSkirt, 128, 4, 64, carveRiverHeight);
   terrainStreamer = await TerrainStreamer.create(world, qualityName, renderer, riverChannels);
+  terrainStreamer.setRenderTuning(readTerrainTuning());
   worldRoot.add(terrainStreamer.group);
   statusEl.textContent = "initializing navigable water…";
   waterSystem = new NavoraWaterSystem(world, qualityName, sun.position.clone().normalize());
@@ -196,7 +278,6 @@ async function boot() {
     flying = true;
     setGroundCameraProjection(true);
     flyHintEl.classList.add("visible");
-    crosshairEl.classList.add("visible");
     if (!flight.isEnabled || flight.currentMode !== "walk") flight.enable(exitFlight, "walk", bookmark);
     flight.teleport(bookmark.x, bookmark.z, bookmark.heading);
   });
@@ -218,8 +299,11 @@ async function boot() {
       const water = waterSystem?.sample(x, z);
       return water ? { surfaceY: water.surfaceY, velocityX: water.velocityX, velocityZ: water.velocityZ } : null;
     },
+    onInteractionModeChange: updateInteractionUi,
     worldBounds: expandedBounds,
   });
+  touchControls = new TouchControls(flight);
+  touchControls.sync("orbit");
 
   const zonesById = new Map(world.zones.map((z) => [z.id, z]));
 
@@ -232,8 +316,7 @@ async function boot() {
   worldRoot.add(zoneOverlay);
 
   riverOverlay = waterSystem.riverGroup;
-  lakeOverlay = buildLakes(world.continents, manifest);
-  worldRoot.add(lakeOverlay);
+  lakeOverlay = waterSystem.lakeGroup;
 
   roadOverlay = buildRoads(world.continents, manifest);
   roadOverlay.visible = false;
@@ -393,7 +476,9 @@ function animate(timestamp: number) {
     cameraPosEl.textContent = `${worldX.toFixed(0)}, ${worldZ.toFixed(0)} m`;
     altitudeEl.textContent = `${camera.position.y.toFixed(1)} / ${ground.toFixed(1)} m`;
     movementEl.textContent = flying && flight
-      ? `${flight.currentMode} / ${flight.currentSpeed.toFixed(1)} m/s`
+      ? flight.currentInteractionMode === "ui"
+        ? `${flight.currentMode} / controls open`
+        : `${flight.currentMode} / ${flight.currentSpeed.toFixed(1)} m/s`
       : "orbit";
     locomotionEl.textContent = flying && flight ? flight.locomotionState : "camera orbit";
   }
@@ -421,6 +506,12 @@ const viewWalkBtn = document.getElementById("viewWalk")!;
 const flyHintEl = document.getElementById("flyHint")!;
 const crosshairEl = document.getElementById("crosshair")!;
 
+toggleInteractionBtn.addEventListener("click", () => {
+  if (!flight?.isEnabled) return;
+  flight.setInteractionMode("navigate", true);
+});
+updateInteractionUi("orbit");
+
 function setActiveView(active: HTMLElement) {
   for (const btn of [viewOrbitBtn, viewTopBtn, viewWorldBtn, viewFlyBtn, viewWalkBtn]) btn.classList.remove("active");
   active.classList.add("active");
@@ -438,11 +529,13 @@ function setGroundCameraProjection(grounded: boolean) {
 }
 
 function exitFlight() {
+  flight?.disable();
   flying = false;
   controls.enabled = true;
   setGroundCameraProjection(false);
   flyHintEl.classList.remove("visible");
   crosshairEl.classList.remove("visible");
+  updateInteractionUi("orbit");
   if (![viewOrbitBtn, viewTopBtn, viewWorldBtn].some((b) => b.classList.contains("active"))) {
     setActiveView(viewOrbitBtn);
   }
@@ -460,6 +553,7 @@ viewOrbitBtn.addEventListener("click", () => {
   setActiveView(viewOrbitBtn);
   setGroundCameraProjection(false);
   controls.maxPolarAngle = Math.PI * 0.49;
+  updateInteractionUi("orbit");
 });
 viewTopBtn.addEventListener("click", () => {
   flight?.disable();
@@ -474,6 +568,7 @@ viewTopBtn.addEventListener("click", () => {
   camera.position.set(target.x, distance, target.z + 0.01);
   controls.maxPolarAngle = 0.01;
   controls.update();
+  updateInteractionUi("orbit");
 });
 viewWorldBtn.addEventListener("click", () => {
   flight?.disable();
@@ -489,6 +584,7 @@ viewWorldBtn.addEventListener("click", () => {
     worldOrigin.localZ(worldFrame.center.z + worldFrame.distance * 0.75),
   );
   controls.update();
+  updateInteractionUi("orbit");
 });
 viewFlyBtn.addEventListener("click", () => {
   if (!flight) return;
@@ -508,9 +604,7 @@ viewFlyBtn.addEventListener("click", () => {
   atmosphere.setMode("flight");
   terrainStreamer?.setViewMode("flight");
   camera.updateProjectionMatrix();
-  flyHintEl.textContent = "Click world for mouse lock (drag fallback) · WASD move · Space/Ctrl up-down · Shift boost · scroll = speed · Esc exit";
   flyHintEl.classList.add("visible");
-  crosshairEl.classList.add("visible");
   flight.enable(exitFlight, "fly");
 });
 viewWalkBtn.addEventListener("click", () => {
@@ -526,9 +620,7 @@ viewWalkBtn.addEventListener("click", () => {
   setActiveView(viewWalkBtn);
   flying = true;
   setGroundCameraProjection(true);
-  flyHintEl.textContent = "Click world for mouse lock (drag fallback) · WASD move · Shift inspector sprint (32 m/s) · Space jump / swim up · Ctrl swim down · Esc exit";
   flyHintEl.classList.add("visible");
-  crosshairEl.classList.add("visible");
   // Coming from Fly, start walking right where you were flying (the camera
   // IS the current viewpoint there). Coming from Orbit/Top-down/World,
   // stand at whatever point the camera was last looking AT (controls.target)
@@ -562,11 +654,7 @@ document.getElementById("teleportBookmark")!.addEventListener("click", () => {
   setActiveView(reviewMode === "fly" ? viewFlyBtn : viewWalkBtn);
   flying = true;
   setGroundCameraProjection(reviewMode === "walk");
-  flyHintEl.textContent = reviewMode === "fly"
-    ? "Click world for mouse lock (drag fallback) · WASD move · Space/Ctrl up-down · Shift boost · scroll = speed · Esc exit"
-    : "Click world for mouse lock (drag fallback) · WASD move · Shift inspector sprint (32 m/s) · Space jump / swim up · Ctrl swim down · Esc exit";
   flyHintEl.classList.add("visible");
-  crosshairEl.classList.add("visible");
   if (!flight.isEnabled || flight.currentMode !== reviewMode) flight.enable(exitFlight, reviewMode, bookmark);
   flight.teleport(bookmark.x, bookmark.z, bookmark.heading, bookmark.altitudeM, bookmark.pitch);
 });

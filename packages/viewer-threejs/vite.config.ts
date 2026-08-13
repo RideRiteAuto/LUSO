@@ -45,6 +45,7 @@ function serveGeneratorOutput(): Plugin {
 }
 
 export default defineConfig({
+  base: "./",
   plugins: [serveGeneratorOutput()],
   server: { port: 5183 },
 });

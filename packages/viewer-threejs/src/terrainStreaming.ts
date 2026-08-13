@@ -1,9 +1,10 @@
 import * as THREE from "three/webgpu";
 import type { WorldData } from "./worldData.js";
 import { buildTerrainControlMap, SKIRT_REACH, type TerrainControlMap } from "./terrain.js";
-import { selectTerrainTiles, type TerrainLodSettings, type TerrainTileSpec } from "./terrainLod.js";
-import { AlvoraTerrainMaterial, type TerrainMaterialDebugMode, type TerrainQuality } from "./terrainMaterial.js";
+import { selectTerrainTiles, type TerrainLodSettings, type TerrainRefinementRegion, type TerrainTileSpec } from "./terrainLod.js";
+import { AlvoraTerrainMaterial, defaultTerrainTextureTuning, type TerrainMaterialDebugMode, type TerrainQuality } from "./terrainMaterial.js";
 import type { RiverChannelField } from "./riverChannelField.js";
+import { uvToWorld } from "./layout.js";
 
 export interface TerrainStreamingStats {
   active: number;
@@ -31,6 +32,45 @@ interface TileResult {
   indices: ArrayBuffer;
   controls: ArrayBuffer[];
   workerMs: number;
+}
+
+export interface TerrainRenderTuning {
+  highDetailDistanceM: number;
+  midDetailDistanceM: number;
+  drawDistanceM: number;
+  meshDetailPercent: number;
+}
+
+export function defaultTerrainRenderTuning(quality: TerrainQuality): TerrainRenderTuning {
+  return {
+    ...defaultTerrainTextureTuning(quality),
+    drawDistanceM: quality === "high" ? 20_000 : quality === "balanced" ? 16_000 : 12_000,
+    meshDetailPercent: quality === "compatibility" ? 125 : 140,
+  };
+}
+
+/**
+ * Lakes remain visible in the strategic camera, so their terrain cannot use
+ * the ordinary distance-only LOD. Otherwise a kilometre-wide water polygon
+ * sits over a terrain triangle whose vertices all missed the carved basin.
+ */
+export function buildWaterRefinementRegions(world: WorldData, maxTileSize = 512): TerrainRefinementRegion[] {
+  const bankMarginM = 320;
+  const regions: TerrainRefinementRegion[] = [];
+  for (const continent of Object.values(world.continents)) {
+    for (const lake of continent.lakes) {
+      if (lake.polygon.length < 3) continue;
+      const points = lake.polygon.map(([u, v]) => uvToWorld(u, v, continent.id, world.manifest));
+      regions.push({
+        minX: Math.min(...points.map(([x]) => x)) - bankMarginM,
+        minZ: Math.min(...points.map(([, z]) => z)) - bankMarginM,
+        maxX: Math.max(...points.map(([x]) => x)) + bankMarginM,
+        maxZ: Math.max(...points.map(([, z]) => z)) + bankMarginM,
+        maxTileSize,
+      });
+    }
+  }
+  return regions;
 }
 
 const CONTROL_PACK_IDS = ["climate", "hydrology", "terrain", "ecology", "resources", "habitat"] as const;
@@ -310,7 +350,9 @@ function terrainWorkerMain() {
 export class TerrainStreamer {
   readonly group = new THREE.Group();
   private readonly settings: TerrainLodSettings;
-  private readonly groundViewDistance: number;
+  private readonly baseSplitDistance: number;
+  private explorationDrawDistance: number;
+  private viewMode: "ground" | "flight" | "overview" = "overview";
   private readonly workers: WorkerSlot[] = [];
   private readonly active = new Map<string, THREE.Mesh>();
   private readonly staging = new Map<string, THREE.Mesh>();
@@ -360,12 +402,16 @@ export class TerrainStreamer {
     // compatibility profile dropped to an 8 m vertex grid almost directly
     // below a low-flying reviewer, which made rivers and material boundaries
     // disappear until the last moment despite ample frame-time headroom.
+    const refinementRegions = buildWaterRefinementRegions(world, quality === "compatibility" ? 1024 : 512);
     this.settings = quality === "high"
-      ? { minTileSize: 128, splitDistance: 2.1, maxTiles: 280 }
+      ? { minTileSize: 128, splitDistance: 2.1, maxTiles: 420, refinementRegions }
       : quality === "compatibility"
-        ? { minTileSize: 256, splitDistance: 2.05, maxTiles: 180 }
-        : { minTileSize: 256, splitDistance: 2, maxTiles: 230 };
-    this.groundViewDistance = quality === "high" ? 36000 : quality === "compatibility" ? 18000 : 28000;
+        ? { minTileSize: 256, splitDistance: 2.05, maxTiles: 260, refinementRegions }
+        : { minTileSize: 256, splitDistance: 2, maxTiles: 340, refinementRegions };
+    this.baseSplitDistance = this.settings.splitDistance;
+    const tuning = defaultTerrainRenderTuning(quality);
+    this.explorationDrawDistance = tuning.drawDistanceM;
+    this.setRenderTuning(tuning);
     const b = world.worldHeight.bounds;
     this.expandedBounds = { minX: b.minX - SKIRT_REACH, minZ: b.minZ - SKIRT_REACH, maxX: b.maxX + SKIRT_REACH, maxZ: b.maxZ + SKIRT_REACH };
 
@@ -437,12 +483,26 @@ export class TerrainStreamer {
   setMaterialDebugMode(mode: TerrainMaterialDebugMode): void { this.terrainMaterial.setDebugMode(mode); }
   updateWorldOrigin(offset: THREE.Vector3): void { this.terrainMaterial.updateOrigin(offset); }
 
+  setRenderTuning(tuning: TerrainRenderTuning): void {
+    this.terrainMaterial.setTextureTuning(tuning);
+    this.explorationDrawDistance = Math.max(4_000, tuning.drawDistanceM);
+    this.settings.splitDistance = this.baseSplitDistance * Math.max(0.75, Math.min(2, tuning.meshDetailPercent / 100));
+    this.applyViewDistance();
+    this.invalidateSelection();
+  }
+
   setViewMode(mode: "ground" | "flight" | "overview"): void {
-    const next = mode === "ground" ? this.groundViewDistance
-      : mode === "flight" ? this.groundViewDistance * 2.5
-        : undefined;
-    if (this.settings.viewDistance === next) return;
-    this.settings.viewDistance = next;
+    if (this.viewMode === mode) return;
+    this.viewMode = mode;
+    this.applyViewDistance();
+    this.invalidateSelection();
+  }
+
+  private applyViewDistance(): void {
+    this.settings.viewDistance = this.viewMode === "overview" ? undefined : this.explorationDrawDistance;
+  }
+
+  private invalidateSelection(): void {
     this.lastSelectionX = Number.NaN;
     this.lastSelectionZ = Number.NaN;
     this.lastSelectionAt = Number.NEGATIVE_INFINITY;

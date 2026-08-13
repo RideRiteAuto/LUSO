@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { resolveWalkTransitionAnchor, WALK_ENTRY_PITCH_RAD, WALK_EYE_HEIGHT_M } from "./flightControls.js";
+import { resolveWalkTransitionAnchor, shouldToggleInspector, WALK_ENTRY_PITCH_RAD, WALK_EYE_HEIGHT_M } from "./flightControls.js";
 
 test("walk camera starts at adult eye height with a near-horizontal gaze", () => {
   assert.ok(WALK_EYE_HEIGHT_M >= 1.75 && WALK_EYE_HEIGHT_M <= 1.85);
@@ -29,4 +29,12 @@ test("entering Walk from orbit still resolves a safe player coordinate", () => {
     (target) => ({ x: target.x + 12, z: target.z - 8 }),
   );
   assert.deepEqual(anchor, { x: 42_012, z: 10_992 });
+});
+
+test("Tab consistently toggles the inspector from world and panel focus", () => {
+  const world = { closest: () => null } as unknown as EventTarget;
+  const control = { closest: (selector: string) => selector === "#hud" ? {} : null } as unknown as EventTarget;
+  assert.equal(shouldToggleInspector({ code: "Tab", target: world }), true);
+  assert.equal(shouldToggleInspector({ code: "Tab", target: control }), true);
+  assert.equal(shouldToggleInspector({ code: "KeyW", target: world }), false);
 });

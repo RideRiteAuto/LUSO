@@ -194,6 +194,7 @@ export function validateTerrainMaterialRecipes(
 /** A depression-resolved lake with an explicit spill saddle and outlet. */
 export interface LakeRecord {
   id: string;
+  kind?: "lake" | "wetland-pool" | "coastal-pool";
   polygon: [number, number][];
   depthM: number;
   surfaceElevationM: number;
@@ -248,7 +249,7 @@ export interface WorldData {
 }
 
 function base(seed: number) {
-  return `/world-data/${seed}`;
+  return new URL(`world-data/${seed}`, document.baseURI).href.replace(/\/$/, "");
 }
 
 async function fetchJson<T>(url: string): Promise<T> {
