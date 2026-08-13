@@ -1792,7 +1792,7 @@
       ],
       "climate": {
         "avgTemperatureC": 23.8,
-        "avgMoisture": 0.78
+        "avgMoisture": 0.77
       },
       "housingDistricts": [
         {
@@ -1997,8 +1997,8 @@
           0.4056695992179863
         ],
         [
-          0.21212121212121213,
-          0.3763440860215054
+          0.21407624633431085,
+          0.38514173998044965
         ],
         [
           0.2101661779081134,
@@ -2717,8 +2717,8 @@
         "great-lakes-country"
       ],
       "climate": {
-        "avgTemperatureC": 17.8,
-        "avgMoisture": 0.74
+        "avgTemperatureC": 18,
+        "avgMoisture": 0.75
       }
     },
     {
