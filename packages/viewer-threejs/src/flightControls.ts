@@ -6,8 +6,12 @@ export type MovementMode = "fly" | "walk";
 const LOOK_SENSITIVITY = 0.0023;
 const MAX_PITCH = Math.PI / 2 - 0.02;
 // Neutral adult standing eye height; this is camera height above the
-// capsule's feet, not total character height.
-const EYE_HEIGHT_M = 1.72;
+// capsule's feet, not total character height. Keep it near a six-foot
+// character's eyes rather than chest height.
+export const WALK_EYE_HEIGHT_M = 1.78;
+// A tiny downward bias reads naturally without making Walk mode stare at the
+// ground. Never inherit an orbit/top-down pitch when entering first person.
+export const WALK_ENTRY_PITCH_RAD = -0.035;
 const CAPSULE_RADIUS_M = 0.35;
 const FLY_SPEED = { base: 4000, min: 200, max: 20000, boost: 4 };
 
@@ -72,7 +76,7 @@ export class FlightController {
     this.onExit = onExit;
     const euler = new THREE.Euler().setFromQuaternion(this.camera.quaternion, "YXZ");
     this.yaw = euler.y;
-    this.pitch = mode === "walk" ? Math.max(-0.6, Math.min(0.6, euler.x)) : euler.x;
+    this.pitch = mode === "walk" ? WALK_ENTRY_PITCH_RAD : euler.x;
     if (mode === "walk") {
       const offset = this.opts.getWorldOffset();
       const x = walkAnchorWorld?.x ?? this.camera.position.x + offset.x;
@@ -86,14 +90,14 @@ export class FlightController {
     }
   }
 
-  teleport(worldX: number, worldZ: number, heading = this.yaw, altitudeM = 0, pitch = -0.2): void {
+  teleport(worldX: number, worldZ: number, heading = this.yaw, altitudeM = 0, pitch?: number): void {
     this.capsule.x = worldX;
     this.capsule.z = worldZ;
     this.capsule.feetY = this.opts.getGroundHeight(worldX, worldZ);
     this.capsule.velocityX = this.capsule.velocityY = this.capsule.velocityZ = 0;
     this.capsule.state = "grounded";
     this.yaw = heading;
-    this.pitch = pitch;
+    this.pitch = pitch ?? (this.mode === "walk" ? WALK_ENTRY_PITCH_RAD : -0.2);
     this.camera.quaternion.setFromEuler(new THREE.Euler(this.pitch, this.yaw, 0, "YXZ"));
     this.syncCameraToCapsule();
     if (this.mode === "fly" && altitudeM > 0) this.camera.position.y += altitudeM;
@@ -159,7 +163,7 @@ export class FlightController {
 
   private syncCameraToCapsule(): void {
     const offset = this.opts.getWorldOffset();
-    this.camera.position.set(this.capsule.x - offset.x, this.capsule.feetY + EYE_HEIGHT_M, this.capsule.z - offset.z);
+    this.camera.position.set(this.capsule.x - offset.x, this.capsule.feetY + WALK_EYE_HEIGHT_M, this.capsule.z - offset.z);
   }
 
   private resolveStaticObstacles(): void {

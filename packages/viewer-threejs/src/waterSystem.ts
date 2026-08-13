@@ -141,9 +141,23 @@ function buildRiverGeometry(
   widthScale = 1,
 ): THREE.BufferGeometry | null {
   if (path.length < 2) return null;
-  const points = buildRiverCenterline(
+  const centerline = buildRiverCenterline(
     river, path.map(([u, v]) => uvToWorld(u, v, continent.id, manifest)), progressStart, widthScale,
   );
+  const oceanMouth = river.terminatesIn?.type === "ocean" || river.mouthKind === "estuary" || river.mouthKind === "delta";
+  const points = [...centerline];
+  if (oceanMouth && centerline.length >= 2) {
+    const mouth = centerline[centerline.length - 1];
+    const previous = centerline[centerline.length - 2];
+    const [outX, outZ] = normalizedDirection(mouth.x - previous.x, mouth.z - previous.z);
+    // Carry the ocean-matched river surface beyond the coastline. The broad
+    // overlapping apron removes the square spline cap without pretending a
+    // foam decal is a real breaking wave simulation.
+    points.push(
+      { ...mouth, x: mouth.x + outX * mouth.width * 0.32, z: mouth.z + outZ * mouth.width * 0.32, y: 0.04, width: mouth.width * 1.04 },
+      { ...mouth, x: mouth.x + outX * mouth.width * 0.72, z: mouth.z + outZ * mouth.width * 0.72, y: 0.02, width: mouth.width * 1.10 },
+    );
+  }
   const positions: number[] = [], uvs: number[] = [], colors: number[] = [], oceanBlends: number[] = [], indices: number[] = [];
   let distanceAlong = 0;
   for (let i = 0; i < points.length; i++) {
@@ -160,15 +174,15 @@ function buildRiverGeometry(
       // Cover nearly the full carved bed. The final four percent on each side
       // stays exposed as a wet bank, without revealing low-resolution terrain
       // triangles through the water at tight estuary bends.
-      const offset = across * point.width * 0.48;
+      const mouthFlare = oceanMouth ? 1 + Math.max(0, Math.min(1, (point.progress - 0.68) / 0.32)) ** 2 * 0.28 : 1;
+      const offset = across * point.width * mouthFlare * 0.48;
       positions.push(point.x + sideX * offset, point.y, point.z + sideZ * offset);
       uvs.push(cross / crossSegments, distanceAlong / 28);
       const edge = Math.pow(Math.abs(across), 1.7);
       colors.push(0.48 + edge * 0.28, 0.72 + edge * 0.22, 0.82 + edge * 0.18);
-      const oceanMouth = river.terminatesIn?.type === "ocean" || river.mouthKind === "estuary" || river.mouthKind === "delta";
-      oceanBlends.push(oceanMouth ? Math.max(0, Math.min(1, (point.progress - 0.82) / 0.18)) : 0);
+      oceanBlends.push(oceanMouth ? Math.max(0, Math.min(1, (point.progress - 0.68) / 0.24)) : 0);
     }
-    if (i < points.length - 1) segments.push({
+    if (i < centerline.length - 1) segments.push({
       riverId: river.id, ax: point.x, az: point.z, ay: point.y,
       bx: next.x, bz: next.z, by: next.y,
       widthA: point.width, widthB: next.width,
@@ -248,15 +262,11 @@ export class NavoraWaterSystem {
     oceanMaterial.clearcoatRoughness = 0.16;
     this.ocean = new THREE.Mesh(oceanGeometry, oceanMaterial);
     this.ocean.name = "camera-relative-gerstner-ocean";
-    // The horizon plane is deliberately enormous. Its grid carries only
-    // wavelengths that remain safely resolvable at this spacing; short
-    // gameplay waves remain in sampleOceanWaves and future near-water detail.
-    oceanMaterial.positionNode = Fn(() => {
-      const p = positionLocal.toVar();
-      const wave = sin(p.x.mul(0.00052).add(p.z.mul(0.00019)).add(time.mul(0.31))).mul(0.48)
-        .add(sin(p.x.mul(-0.00028).add(p.z.mul(0.00043)).add(time.mul(0.43))).mul(0.22));
-      return p.add(vec3(0, wave, 0));
-    })();
+    // This horizon mesh has kilometre-scale vertices. Displacing it as if it
+    // carried shoreline waves created a second, visibly independent surface
+    // motion at beaches. Keep its waterline coherent and express wave motion
+    // in the shared normal field until a terrain-aware near-water clipmap can
+    // support real breakers.
     this.ocean.renderOrder = 1;
     this.group.add(this.ocean);
 
@@ -286,7 +296,8 @@ export class NavoraWaterSystem {
       const riverMacro = mx_noise_float(positionWorld.xz.mul(0.0042)).mul(0.5).add(0.5);
       const riverFlow = sin(positionWorld.x.mul(0.028).add(positionWorld.z.mul(0.017)).sub(time.mul(1.7))).mul(0.5).add(0.5);
       const riverColor = mix(color(0x063848), color(0x2d8190), riverMacro.mul(0.34).add(riverFlow.mul(0.1)));
-      const oceanColor = mix(color(0x052b3d), color(0x0b5368), riverMacro.mul(0.42));
+      const sharedOceanMacro = mx_noise_float(positionWorld.xz.mul(0.00018)).mul(0.5).add(0.5);
+      const oceanColor = mix(color(0x052b3d), color(0x0b5368), sharedOceanMacro.mul(0.42));
       const mouthBlend = smoothstep(0, 1, attribute("oceanBlend", "float"));
       const waterBodyColor = mix(riverColor, oceanColor, mouthBlend);
       material.colorNode = mix(waterBodyColor, color(0x7894a5), waterFresnel.mul(0.46));
@@ -297,7 +308,9 @@ export class NavoraWaterSystem {
         const point = positionLocal.toVar();
         const ripple = sin(point.x.mul(0.035).add(point.z.mul(0.021)).sub(time.mul(1.8))).mul(0.055)
           .add(sin(point.x.mul(-0.019).add(point.z.mul(0.044)).sub(time.mul(1.15))).mul(0.03));
-        return point.add(vec3(0, ripple, 0));
+        // The estuary progressively gives up its independent river ripple so
+        // there is one coherent surface where it overlaps the ocean apron.
+        return point.add(vec3(0, mix(ripple, float(0), mouthBlend), 0));
       })();
       // Deep rivers are optically opaque at an aerial viewing angle. Writing
       // depth prevents the global ocean surface underneath the carved mouth

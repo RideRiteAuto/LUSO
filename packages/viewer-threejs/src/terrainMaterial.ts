@@ -216,8 +216,12 @@ export class AlvoraTerrainMaterial {
     const secondaryZoneIndex = zoneBlend.g.mul(recipeLibrary.zoneOrder.length).add(0.5).floor();
     const zoneFeather = zoneBlend.b;
     const viewDistance = cameraPosition.sub(positionWorld).length();
-    const microVisibility = smoothstep(180, 900, viewDistance).oneMinus();
-    const scannedAlbedoVisibility = smoothstep(35, 260, viewDistance).oneMinus();
+    const microVisibility = smoothstep(260, quality === "high" ? 2200 : 1500, viewDistance).oneMinus();
+    // Keep real scanned albedo readable during low flight, while still
+    // fading it before sub-pixel texels turn into the repeated dot/grid
+    // pattern that prompted the previous material correction.
+    const scannedAlbedoVisibility = smoothstep(180, quality === "high" ? 1800 : quality === "compatibility" ? 1400 : 1600, viewDistance).oneMinus();
+    const midDistanceDetail = smoothstep(600, quality === "compatibility" ? 3000 : 3800, viewDistance).oneMinus();
     const landTransition = smoothstep(-3, 5, height);
     const macro = mx_noise_float(worldPosition.xz.mul(0.00042)).mul(0.5).add(0.5);
     const fineMacro = mx_noise_float(worldPosition.xz.mul(0.0021).add(vec2(31.7, -14.2))).mul(0.5).add(0.5);
@@ -378,10 +382,22 @@ export class AlvoraTerrainMaterial {
     const seabed = mix(sand, color(0xcab88e), macro.mul(0.25)).mul(color(0x31525a));
     const recipeColor = selectRecipe("color");
     let finalColor = mix(seabed, recipeColor, landTransition);
-    finalColor = finalColor.mul(macro.mul(0.07).add(fineMacro.mul(0.03)).add(0.95));
+    // Non-periodic middle-frequency breakup survives after scanned texels
+    // fade, preventing the terrain from collapsing to broad flat color while
+    // hovering a kilometre or two above it.
+    const middleFrequencyTint = fineMacro.sub(0.5).mul(midDistanceDetail).mul(0.13).add(1);
+    finalColor = finalColor.mul(macro.mul(0.07).add(fineMacro.mul(0.03)).add(0.95)).mul(middleFrequencyTint);
+    // A terrain-driven wet-sand band gives the water/shore contact a natural
+    // darkened edge without a detached foam ribbon. It follows actual shore
+    // influence and elevation, so it also remains stable as LOD changes.
+    const wetSandBand = smoothstep(-0.45, 0.25, height)
+      .mul(smoothstep(0.8, 3.4, height).oneMinus())
+      .mul(shoreInfluence)
+      .clamp(0, 1);
+    finalColor = finalColor.mul(mix(float(1), float(0.76), wetSandBand));
     const recipeRoughness = selectRecipe("roughness");
     const recipeMaterialId = selectRecipe("materialId");
-    const wetSurfaceMask = wetness.mul(shoreInfluence.mul(0.55).add(drainage.mul(0.45)));
+    const wetSurfaceMask = wetness.mul(shoreInfluence.mul(0.55).add(drainage.mul(0.45))).max(wetSandBand.mul(0.9));
 
     const material = new THREE.MeshStandardNodeMaterial();
     material.name = "Navora scanned PBR terrain";

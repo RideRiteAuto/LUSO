@@ -356,12 +356,16 @@ export class TerrainStreamer {
     riverChannels: RiverChannelField,
   ) {
     this.terrainMaterial = terrainMaterial;
+    // Keep the fine rings materially farther from the camera. The previous
+    // compatibility profile dropped to an 8 m vertex grid almost directly
+    // below a low-flying reviewer, which made rivers and material boundaries
+    // disappear until the last moment despite ample frame-time headroom.
     this.settings = quality === "high"
-      ? { minTileSize: 128, splitDistance: 1.8, maxTiles: 240 }
+      ? { minTileSize: 128, splitDistance: 2.1, maxTiles: 280 }
       : quality === "compatibility"
-        ? { minTileSize: 512, splitDistance: 1.55, maxTiles: 140 }
-        : { minTileSize: 256, splitDistance: 1.7, maxTiles: 200 };
-    this.groundViewDistance = quality === "high" ? 30000 : quality === "compatibility" ? 12000 : 22000;
+        ? { minTileSize: 256, splitDistance: 2.05, maxTiles: 180 }
+        : { minTileSize: 256, splitDistance: 2, maxTiles: 230 };
+    this.groundViewDistance = quality === "high" ? 36000 : quality === "compatibility" ? 18000 : 28000;
     const b = world.worldHeight.bounds;
     this.expandedBounds = { minX: b.minX - SKIRT_REACH, minZ: b.minZ - SKIRT_REACH, maxX: b.maxX + SKIRT_REACH, maxZ: b.maxZ + SKIRT_REACH };
 
