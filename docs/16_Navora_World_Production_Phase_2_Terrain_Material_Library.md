@@ -46,13 +46,14 @@ Measured disk sizes use the committed 2048×2048 mipmapped KTX2 library:
 |---|---:|---:|---:|
 | Compatibility | 7 albedo | 5.95 MiB | 19–37 MiB |
 | Balanced | 7 albedo | 5.95 MiB | 19–37 MiB |
-| High | 7 albedo + 7 normal + 7 roughness | 45.36 MiB | 75–112 MiB |
+| High | 7 albedo + 5 normal + 1 roughness | 31.43 MiB | 48–72 MiB |
+| Complete KTX2 disk library | 7 albedo + 7 normal + 7 roughness | 45.36 MiB | not all bound simultaneously |
 | Reviewed JPEG source library | 21 source maps | 59.65 MiB | not runtime-resident in browser build |
 | Canonical standalone HTML | all source maps + world data + viewer | 226.88 MiB | decoded on demand by selected profile |
 
 \*GPU figures are conservative estimates for full 2K mip chains after Basis transcoding. The exact value depends on the device-selected BC/ETC/ASTC target and browser implementation; it is not presented as observed telemetry. Peak CPU memory also includes compressed downloads and temporary transcoder buffers. Budget **120–180 MiB transient CPU memory** for High material initialization and **30–70 MiB** for Compatibility/Balanced. Phase 13 must add observed RAM/VRAM telemetry before distribution lock.
 
-Compatibility and Balanced intentionally resident albedo only. High opts into all physical PBR channels. All three are manifest-driven; changing a recipe/profile does not require editing the loader. `maxResolution` and anisotropy are explicit profile fields.
+Compatibility and Balanced intentionally resident albedo only. High binds 13 KTX2 maps, leaving room for recipe-control and engine bindings under the practical WebGPU per-stage texture/sampler ceiling: all seven albedos; sand/grass/soil/rock/snow normals; and rock roughness. Forest and scree reuse compatible soil/rock normal structure, while other families use their authored scalar roughness response. All 21 complete maps remain on disk for future channel packing or virtual-texture work. All tiers are manifest-driven; changing a recipe/profile does not require editing the loader. `maxResolution` and anisotropy are explicit profile fields.
 
 ## Browser and desktop distribution paths
 
@@ -76,7 +77,7 @@ Walking-height grass/soil/sand use world-space sampling with a rotated alternate
 - Viewer production build: passed; `1,059.53 kB` minified / `306.88 kB` gzip main bundle, with the existing chunk-size advisory.
 - Canonical production generation: passed at resolution 1024 in **18.924 s**; 16 zones, 543 resources, 16 spawn regions, 38 settlements, 36 roads.
 - Standalone artifact build: passed at **226.88 MiB**.
-- Visual review page: 33 cards, seven sources, 21 PBR maps, clean console.
+- Visual review page: 33 cards, seven sources, 21 complete PBR maps / 13 High-resident maps, clean console.
 - WebGPU Compatibility runtime: clean console; observed snapshot `172 fps`, `5.8 ms` median, `20.6 ms` p95, adaptive `0.85×` pixel ratio.
 - WebGPU High runtime: clean console; observed snapshot `66 fps`, `15.1 ms` median, `18.9 ms` p95, adaptive `0.80×` pixel ratio.
 

@@ -154,6 +154,42 @@ export interface TerrainMaterialLibraryDesign {
   }>;
 }
 
+export type TerrainRecipeDriver = "moisture" | "wetness" | "vegetation" | "exposure" | "macro";
+
+export interface TerrainMaterialRecipeDesign {
+  id: string;
+  zoneId: string;
+  biomeIds: string[];
+  allowedMaterialFamilies: string[];
+  primary: string;
+  secondary: string;
+  tertiary: string;
+  shore: string;
+  steep: string;
+  wet: string;
+  cold: string;
+  rules: {
+    secondaryDriver: TerrainRecipeDriver;
+    secondaryRange: [number, number];
+    secondaryInvert: boolean;
+    tertiaryMacroRange: [number, number];
+    tertiaryStrength: number;
+    shoreRange: [number, number];
+    steepSlopeDegrees: [number, number];
+    wetnessRange: [number, number];
+    snowElevationM: [number, number];
+    macroTintStrength: number;
+  };
+  forbiddenCombinations: [string, string][];
+}
+
+export interface TerrainMaterialRecipeLibraryDesign {
+  version: number;
+  libraryId: string;
+  zoneOrder: string[];
+  recipes: TerrainMaterialRecipeDesign[];
+}
+
 export interface ResourceEligibilityFields {
   forest: ScalarField;
   forage: ScalarField;
@@ -181,6 +217,7 @@ export interface EnvironmentalFields {
   soilClass: CategoricalField;
   geologyClass: CategoricalField;
   weatherRegionClass: CategoricalField;
+  zoneClass: CategoricalField;
   resources: ResourceEligibilityFields;
 }
 
@@ -308,6 +345,7 @@ export interface WorldOutput {
   biomeFields: Record<ContinentId, ScalarField>;
   environmentalFields: Record<ContinentId, EnvironmentalFields>;
   terrainMaterialLibrary: TerrainMaterialLibraryDesign;
+  terrainMaterialRecipes: TerrainMaterialRecipeLibraryDesign;
   water: Record<ContinentId, WaterData>;
   zones: ResolvedZone[];
   resources: PlacedResource[];

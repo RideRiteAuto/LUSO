@@ -118,6 +118,40 @@ export interface TerrainMaterialLibrary {
   }>;
 }
 
+export interface TerrainMaterialRecipe {
+  id: string;
+  zoneId: string;
+  biomeIds: string[];
+  allowedMaterialFamilies: string[];
+  primary: string;
+  secondary: string;
+  tertiary: string;
+  shore: string;
+  steep: string;
+  wet: string;
+  cold: string;
+  rules: {
+    secondaryDriver: "moisture" | "wetness" | "vegetation" | "exposure" | "macro";
+    secondaryRange: [number, number];
+    secondaryInvert: boolean;
+    tertiaryMacroRange: [number, number];
+    tertiaryStrength: number;
+    shoreRange: [number, number];
+    steepSlopeDegrees: [number, number];
+    wetnessRange: [number, number];
+    snowElevationM: [number, number];
+    macroTintStrength: number;
+  };
+  forbiddenCombinations: [string, string][];
+}
+
+export interface TerrainMaterialRecipeLibrary {
+  version: number;
+  libraryId: string;
+  zoneOrder: string[];
+  recipes: TerrainMaterialRecipe[];
+}
+
 export function validateTerrainMaterialLibrary(library: TerrainMaterialLibrary): TerrainMaterialLibrary {
   if (library.version !== 1) throw new Error(`Unsupported terrain material library v${library.version}`);
   if (library.families.length < 25 || library.families.length > 35) throw new Error(`Terrain material family count ${library.families.length} is outside 25-35`);
@@ -131,6 +165,27 @@ export function validateTerrainMaterialLibrary(library: TerrainMaterialLibrary):
     for (const setId of setIds) if (!profile.channelsByTextureSet[setId]?.includes("albedo")) throw new Error(`${quality} residency is missing ${setId}/albedo`);
   }
   return library;
+}
+
+export function validateTerrainMaterialRecipes(
+  recipes: TerrainMaterialRecipeLibrary,
+  materials: TerrainMaterialLibrary,
+  controls: ControlFieldManifest,
+): TerrainMaterialRecipeLibrary {
+  if (recipes.version !== 1) throw new Error(`Unsupported terrain material recipe library v${recipes.version}`);
+  if (recipes.recipes.length !== recipes.zoneOrder.length || new Set(recipes.zoneOrder).size !== recipes.zoneOrder.length) throw new Error("Terrain recipe zone coverage is invalid");
+  const materialIds = new Set(materials.families.map((family) => family.id));
+  const recipeZones = new Set<string>();
+  for (const recipe of recipes.recipes) {
+    if (recipeZones.has(recipe.zoneId) || !recipes.zoneOrder.includes(recipe.zoneId)) throw new Error(`Terrain recipe has duplicate or unknown zone ${recipe.zoneId}`);
+    recipeZones.add(recipe.zoneId);
+    for (const role of ["primary", "secondary", "tertiary", "shore", "steep", "wet", "cold"] as const) {
+      if (!materialIds.has(recipe[role]) || !recipe.allowedMaterialFamilies.includes(recipe[role])) throw new Error(`Terrain recipe ${recipe.id}/${role} is invalid`);
+    }
+  }
+  const zoneChannel = controls.packs.flatMap((pack) => pack.channels).find((channel) => channel.field === "zone-class");
+  if (!zoneChannel?.labels || zoneChannel.labels.slice(1).join(",") !== recipes.zoneOrder.join(",")) throw new Error("Terrain recipes do not match the compiler zone-class contract");
+  return recipes;
 }
 
 /** A closed-basin pit lake (hydrology/index.ts) -- generated since Phase 2 but never wired into the viewer until now, which is why low inland basins rendered as flat "ocean" biome color with no actual water surface (Kevin: "not sure if it's water or a lake"). */
@@ -183,6 +238,7 @@ export interface WorldData {
   worldHeight: WorldHeightData;
   controlFields: ControlFieldManifest;
   terrainMaterialLibrary: TerrainMaterialLibrary;
+  terrainMaterialRecipes: TerrainMaterialRecipeLibrary;
 }
 
 function base(seed: number) {
@@ -228,6 +284,7 @@ export interface EmbeddedWorld {
     continents: Record<string, Record<string, string>>;
   };
   terrainMaterialLibrary: TerrainMaterialLibrary;
+  terrainMaterialRecipes: TerrainMaterialRecipeLibrary;
 }
 
 function base64ToFloat32Array(b64: string): Float32Array {
@@ -251,6 +308,7 @@ export async function loadEmbeddedWorld(onProgress?: (msg: string) => void): Pro
   const continents: Record<string, ContinentData> = {};
   const controlFields = embedded.controlFields.manifest;
   const terrainMaterialLibrary = validateTerrainMaterialLibrary(embedded.terrainMaterialLibrary);
+  const terrainMaterialRecipes = validateTerrainMaterialRecipes(embedded.terrainMaterialRecipes, terrainMaterialLibrary, controlFields);
   for (const id of embedded.manifest.continents) {
     onProgress?.(`decoding ${id}…`);
     const src = embedded.continents[id];
@@ -287,6 +345,7 @@ export async function loadEmbeddedWorld(onProgress?: (msg: string) => void): Pro
     worldHeight,
     controlFields,
     terrainMaterialLibrary,
+    terrainMaterialRecipes,
   };
 }
 
@@ -328,6 +387,11 @@ export async function loadWorld(seed: number, onProgress?: (msg: string) => void
   }
   onProgress?.("terrain material library");
   const terrainMaterialLibrary = validateTerrainMaterialLibrary(await fetchJson<TerrainMaterialLibrary>(`${b}/terrainMaterials.json`));
+  const terrainMaterialRecipes = validateTerrainMaterialRecipes(
+    await fetchJson<TerrainMaterialRecipeLibrary>(`${b}/terrainMaterialRecipes.json`),
+    terrainMaterialLibrary,
+    controlFields,
+  );
 
   const continents: Record<string, ContinentData> = {};
   for (const continent of manifest.continents) {
@@ -365,5 +429,5 @@ export async function loadWorld(seed: number, onProgress?: (msg: string) => void
     bounds: manifest.worldHeightmap.bounds,
   };
 
-  return { manifest, zones: zonesRaw.zones, settlements: poi.settlements, seaRegions: seaRegionsData.regions, continents, worldHeight, controlFields, terrainMaterialLibrary };
+  return { manifest, zones: zonesRaw.zones, settlements: poi.settlements, seaRegions: seaRegionsData.regions, continents, worldHeight, controlFields, terrainMaterialLibrary, terrainMaterialRecipes };
 }

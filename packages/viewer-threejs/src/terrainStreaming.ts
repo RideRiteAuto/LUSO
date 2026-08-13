@@ -1,6 +1,6 @@
 import * as THREE from "three/webgpu";
 import type { WorldData } from "./worldData.js";
-import { buildTerrainColorMap, buildTerrainControlMap, SKIRT_REACH } from "./terrain.js";
+import { buildTerrainControlMap, SKIRT_REACH, type TerrainControlMap } from "./terrain.js";
 import { selectTerrainTiles, type TerrainLodSettings, type TerrainTileSpec } from "./terrainLod.js";
 import { AlvoraTerrainMaterial, type TerrainMaterialDebugMode, type TerrainQuality } from "./terrainMaterial.js";
 
@@ -26,7 +26,6 @@ interface TileResult {
   spec: TerrainTileSpec;
   positions: ArrayBuffer;
   normals: ArrayBuffer;
-  colors: ArrayBuffer;
   uvs: ArrayBuffer;
   indices: ArrayBuffer;
   controls: ArrayBuffer[];
@@ -46,9 +45,6 @@ function terrainWorkerMain() {
     width: number;
     height: number;
     bounds: { minX: number; minZ: number; maxX: number; maxZ: number };
-    colorData: Uint8Array;
-    colorWidth: number;
-    colorHeight: number;
     controlData: Uint8Array;
     controlWidth: number;
     controlHeight: number;
@@ -117,22 +113,6 @@ function terrainWorkerMain() {
     const macro = macroHeight(x, z);
     return macro + detail(x, z, macro);
   }
-  function sampleColor(x: number, z: number, out: Float32Array, index: number): void {
-    const s = state!;
-    const b = s.bounds;
-    const cx = Math.max(b.minX, Math.min(b.maxX, x));
-    const cz = Math.max(b.minZ, Math.min(b.maxZ, z));
-    const px = Math.round((cx - b.minX) / (b.maxX - b.minX) * (s.colorWidth - 1));
-    const pz = Math.round((cz - b.minZ) / (b.maxZ - b.minZ) * (s.colorHeight - 1));
-    const ci = (pz * s.colorWidth + px) * 3;
-    let r = s.colorData[ci] / 255, g = s.colorData[ci + 1] / 255, bl = s.colorData[ci + 2] / 255;
-    const past = Math.max(0, b.minX - x, x - b.maxX, b.minZ - z, z - b.maxZ);
-    if (past > 0) {
-      const t = smoothstep(0, s.skirtReach, past);
-      r += (0.031 - r) * t; g += (0.110 - g) * t; bl += (0.200 - bl) * t;
-    }
-    out[index] = r; out[index + 1] = g; out[index + 2] = bl;
-  }
   function sampleControls(x: number, z: number, outputs: Float32Array[], vertexIndex: number): void {
     const s = state!;
     const b = s.bounds;
@@ -156,7 +136,6 @@ function terrainWorkerMain() {
     const coreCount = n * n;
     const positions = new Float32Array(coreCount * 3);
     const normals = new Float32Array(coreCount * 3);
-    const colors = new Float32Array(coreCount * 3);
     const uvs = new Float32Array(coreCount * 2);
     const controls = Array.from({ length: state!.controlPackCount }, () => new Float32Array(coreCount * 4));
     const step = spec.size / spec.segments;
@@ -198,7 +177,6 @@ function terrainWorkerMain() {
         const ny = normalStep * 2;
         const length = Math.hypot(nx, ny, nz) || 1;
         normals[i] = nx / length; normals[i + 1] = ny / length; normals[i + 2] = nz / length;
-        sampleColor(worldX, worldZ, colors, i);
         sampleControls(worldX, worldZ, controls, vi);
         uvs[vi * 2] = x / spec.segments;
         uvs[vi * 2 + 1] = z / spec.segments;
@@ -215,16 +193,15 @@ function terrainWorkerMain() {
         indices[ii++] = b; indices[ii++] = c; indices[ii++] = d;
       }
     }
-    return { positions, normals, colors, uvs, indices, controls, workerMs: performance.now() - started };
+    return { positions, normals, uvs, indices, controls, workerMs: performance.now() - started };
   }
 
   scope.onmessage = (event: MessageEvent) => {
-    const message = event.data as { type: string; token?: number; spec?: WorkerTile; state?: Omit<WorkerState, "heights" | "colorData" | "controlData"> & { heights: ArrayBuffer; colorData: ArrayBuffer; controlData: ArrayBuffer } };
+    const message = event.data as { type: string; token?: number; spec?: WorkerTile; state?: Omit<WorkerState, "heights" | "controlData"> & { heights: ArrayBuffer; controlData: ArrayBuffer } };
     if (message.type === "init" && message.state) {
       state = {
         ...message.state,
         heights: new Float32Array(message.state.heights),
-        colorData: new Uint8Array(message.state.colorData),
         controlData: new Uint8Array(message.state.controlData),
       };
       scope.postMessage({ type: "ready" });
@@ -235,10 +212,10 @@ function terrainWorkerMain() {
     const response = {
       type: "tile", token: message.token, spec: message.spec, workerMs: result.workerMs,
       positions: result.positions.buffer, normals: result.normals.buffer,
-      colors: result.colors.buffer, uvs: result.uvs.buffer, indices: result.indices.buffer,
+      uvs: result.uvs.buffer, indices: result.indices.buffer,
       controls: result.controls.map((control) => control.buffer),
     };
-    scope.postMessage(response, [response.positions, response.normals, response.colors, response.uvs, response.indices, ...response.controls]);
+    scope.postMessage(response, [response.positions, response.normals, response.uvs, response.indices, ...response.controls]);
   };
 }
 
@@ -270,10 +247,23 @@ export class TerrainStreamer {
   private readonly expandedBounds: { minX: number; minZ: number; maxX: number; maxZ: number };
 
   static async create(world: WorldData, quality: TerrainQuality, renderer: THREE.WebGPURenderer): Promise<TerrainStreamer> {
-    return new TerrainStreamer(world, quality, await AlvoraTerrainMaterial.create(renderer, quality, world.terrainMaterialLibrary));
+    const controlMap = buildTerrainControlMap(world, quality === "compatibility" ? 512 : 1024);
+    return new TerrainStreamer(world, quality, await AlvoraTerrainMaterial.create(
+      renderer,
+      quality,
+      world.terrainMaterialLibrary,
+      world.terrainMaterialRecipes,
+      controlMap,
+      world.worldHeight.bounds,
+    ), controlMap);
   }
 
-  private constructor(private readonly world: WorldData, quality: TerrainQuality, terrainMaterial: AlvoraTerrainMaterial) {
+  private constructor(
+    private readonly world: WorldData,
+    quality: TerrainQuality,
+    terrainMaterial: AlvoraTerrainMaterial,
+    controlMap: TerrainControlMap,
+  ) {
     this.terrainMaterial = terrainMaterial;
     this.settings = quality === "high"
       ? { minTileSize: 128, splitDistance: 1.8, maxTiles: 240 }
@@ -284,8 +274,6 @@ export class TerrainStreamer {
     const b = world.worldHeight.bounds;
     this.expandedBounds = { minX: b.minX - SKIRT_REACH, minZ: b.minZ - SKIRT_REACH, maxX: b.maxX + SKIRT_REACH, maxZ: b.maxZ + SKIRT_REACH };
 
-    const colorMap = buildTerrainColorMap(world, quality === "compatibility" ? 512 : 1024);
-    const controlMap = buildTerrainControlMap(world, quality === "compatibility" ? 512 : 1024);
     const packIds = world.controlFields.packs.map((pack) => pack.id);
     if (packIds.join(",") !== CONTROL_PACK_IDS.join(",")) throw new Error(`Unsupported terrain control-pack order: ${packIds.join(",")}`);
     const workerUrl = URL.createObjectURL(new Blob([`(${terrainWorkerMain.toString()})()`], { type: "text/javascript" }));
@@ -300,19 +288,17 @@ export class TerrainStreamer {
         this.dispatch();
       };
       const heights = world.worldHeight.data.slice().buffer;
-      const colors = colorMap.data.slice().buffer;
       const controls = controlMap.data.slice().buffer;
       worker.postMessage({
         type: "init",
         state: {
           heights, width: world.worldHeight.width, height: world.worldHeight.height,
-          bounds: world.worldHeight.bounds, colorData: colors,
-          colorWidth: colorMap.width, colorHeight: colorMap.height,
+          bounds: world.worldHeight.bounds,
           controlData: controls, controlWidth: controlMap.width, controlHeight: controlMap.height,
           controlPackCount: controlMap.packCount,
           seed: world.manifest.seed, skirtReach: SKIRT_REACH,
         },
-      }, [heights, colors, controls]);
+      }, [heights, controls]);
       this.workers.push(slot);
     }
     URL.revokeObjectURL(workerUrl);
@@ -417,7 +403,7 @@ export class TerrainStreamer {
     if (message.type !== "tile") return;
     slot.busy = false;
     if (message.token === this.generation && message.spec && this.desired.has(message.spec.id)
-      && message.positions && message.normals && message.colors && message.uvs && message.indices && message.controls) {
+      && message.positions && message.normals && message.uvs && message.indices && message.controls) {
       const mesh = this.createMesh(message as TileResult);
       mesh.visible = false;
       this.staging.set(message.spec.id, mesh);
@@ -434,7 +420,9 @@ export class TerrainStreamer {
     const geometry = new THREE.BufferGeometry();
     geometry.setAttribute("position", new THREE.BufferAttribute(new Float32Array(result.positions), 3));
     geometry.setAttribute("normal", new THREE.BufferAttribute(new Float32Array(result.normals), 3));
-    geometry.setAttribute("color", new THREE.BufferAttribute(new Float32Array(result.colors), 3));
+    // Biome class is already in controlEcology.z. Keeping the legacy RGB
+    // color attribute would push this adapter beyond its eight vertex-buffer
+    // limit and reintroduce biome-paint tinting into the final material.
     geometry.setAttribute("uv", new THREE.BufferAttribute(new Float32Array(result.uvs), 2));
     geometry.setIndex(new THREE.BufferAttribute(new Uint32Array(result.indices), 1));
     result.controls.forEach((control, index) => {

@@ -33,6 +33,12 @@ export const WEATHER_REGION_CLASSES = [
   "luminous-hollow",
 ] as const;
 
+export const ZONE_CLASSES = [
+  "ocean-unclaimed",
+  "alvora", "valedouro", "serravela", "cavora", "azurama", "montemoura", "corvento", "lumevara",
+  "fonteira", "riveira", "vermara", "solmara", "vidrala", "altavera", "fendoura", "lumeira",
+] as const;
+
 const soilIndex = new Map<string, number>(SOIL_CLASSES.map((id, index) => [id, index]));
 const geologyIndex = new Map<string, number>(GEOLOGY_CLASSES.map((id, index) => [id, index]));
 const weatherIndex = new Map<string, number>(WEATHER_REGION_CLASSES.map((id, index) => [id, index]));
@@ -134,6 +140,7 @@ export function generateEnvironmentalFields(options: GenerateEnvironmentalFields
     slopeDegrees: scalar(width, fieldHeight), exposure: scalar(width, fieldHeight), erosionScree: scalar(width, fieldHeight),
     buildability: scalar(width, fieldHeight), vegetationEligibility: scalar(width, fieldHeight),
     soilClass: scalar(width, fieldHeight), geologyClass: scalar(width, fieldHeight), weatherRegionClass: scalar(width, fieldHeight),
+    zoneClass: scalar(width, fieldHeight),
     resources: {
       forest: scalar(width, fieldHeight), forage: scalar(width, fieldHeight), ore: scalar(width, fieldHeight),
       stone: scalar(width, fieldHeight), reeds: scalar(width, fieldHeight), aquatic: scalar(width, fieldHeight),
@@ -154,6 +161,9 @@ export function generateEnvironmentalFields(options: GenerateEnvironmentalFields
       const elevation = elevations[index];
       const zoneIndex = zoneAssignment.zoneIndexGrid[index];
       const profile = zoneIndex >= 0 ? profiles[zoneIndex] : null;
+      const zoneId = zoneIndex >= 0 ? continentZones[zoneIndex]?.id : null;
+      const zoneClass = zoneId ? ZONE_CLASSES.indexOf(zoneId as typeof ZONE_CLASSES[number]) : 0;
+      if (zoneId && zoneClass <= 0) throw new Error(`Unknown canonical zone class: ${zoneId}`);
       const west = elevations[y * width + Math.max(0, x - 1)];
       const east = elevations[y * width + Math.min(width - 1, x + 1)];
       const north = elevations[Math.max(0, y - 1) * width + x];
@@ -238,6 +248,7 @@ export function generateEnvironmentalFields(options: GenerateEnvironmentalFields
       fields.soilClass.data[index] = soil;
       fields.geologyClass.data[index] = geology;
       fields.weatherRegionClass.data[index] = weather;
+      fields.zoneClass.data[index] = zoneClass;
       fields.resources.forest.data[index] = forest;
       fields.resources.forage.data[index] = forage;
       fields.resources.ore.data[index] = ore;

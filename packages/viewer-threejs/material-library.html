@@ -54,7 +54,7 @@
       document.querySelector("#stats").innerHTML = `
         <span class="stat"><b>${library.families.length}</b> families</span>
         <span class="stat"><b>${library.textureSets.length}</b> scan sets</span>
-        <span class="stat"><b>${highChannels}</b> KTX2 maps</span>
+        <span class="stat"><b>21</b> KTX2 maps · ${highChannels} High resident</span>
         <span class="stat"><b>CC0</b> provenance</span>`;
       for (const family of library.families) {
         const set = sets.get(family.textureSet);

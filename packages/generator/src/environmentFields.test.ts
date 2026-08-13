@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { generateWorld } from "./pipeline.js";
 import { writeWorldOutput } from "./export/index.js";
-import { GEOLOGY_CLASSES, SOIL_CLASSES, WEATHER_REGION_CLASSES } from "./environment/index.js";
+import { GEOLOGY_CLASSES, SOIL_CLASSES, WEATHER_REGION_CLASSES, ZONE_CLASSES } from "./environment/index.js";
 
 function assertRange(label: string, values: Float32Array, min: number, max: number): void {
   let actualMin = Number.POSITIVE_INFINITY, actualMax = Number.NEGATIVE_INFINITY;
@@ -47,6 +47,7 @@ test("compiler environmental truth is finite, bounded, and ecologically varied",
       ["soil", fields.soilClass.data, SOIL_CLASSES.length],
       ["geology", fields.geologyClass.data, GEOLOGY_CLASSES.length],
       ["weather", fields.weatherRegionClass.data, WEATHER_REGION_CLASSES.length],
+      ["zone", fields.zoneClass.data, ZONE_CLASSES.length],
     ] as const) for (const value of values) {
       assert.ok(Number.isInteger(value), `${continent}.${name} must contain integer class IDs`);
       assert.ok(value >= 0 && value < classCount, `${continent}.${name} class ${value} is invalid`);
@@ -60,7 +61,7 @@ test("compiler environmental truth is deterministic per seed", () => {
   for (const continent of first.manifest.continents) {
     const a = first.environmentalFields[continent];
     const b = second.environmentalFields[continent];
-    for (const key of ["temperatureC", "precipitation", "moisture", "wetness", "drainage", "distanceToWaterM", "shorelineInfluence", "slopeDegrees", "exposure", "erosionScree", "buildability", "vegetationEligibility", "soilClass", "geologyClass", "weatherRegionClass"] as const) {
+    for (const key of ["temperatureC", "precipitation", "moisture", "wetness", "drainage", "distanceToWaterM", "shorelineInfluence", "slopeDegrees", "exposure", "erosionScree", "buildability", "vegetationEligibility", "soilClass", "geologyClass", "weatherRegionClass", "zoneClass"] as const) {
       assert.deepEqual(a[key].data, b[key].data, `${continent}.${key} changed for the same seed`);
     }
     for (const key of ["forest", "forage", "ore", "stone", "reeds", "aquatic", "generic"] as const) {
@@ -77,13 +78,15 @@ test("control-map export is versioned, complete, and dimensionally valid", () =>
     const manifest = JSON.parse(readFileSync(path.join(outDir, "controlFields.json"), "utf8")) as {
       version: number;
       encoding: string;
-      packs: { id: string; channels: { field: string }[] }[];
+      packs: { id: string; channels: { field: string; labels?: string[] }[] }[];
       continents: Record<string, { width: number; height: number; files: Record<string, string> }>;
     };
     assert.equal(manifest.version, 1);
     assert.equal(manifest.encoding, "rgba8");
     assert.equal(manifest.packs.length, 6);
     assert.ok(manifest.packs.every((pack) => pack.channels.length === 4));
+    const zoneChannel = manifest.packs.flatMap((pack) => pack.channels).find((channel) => channel.field === "zone-class");
+    assert.deepEqual((zoneChannel as { labels?: string[] } | undefined)?.labels, [...ZONE_CLASSES]);
     for (const continent of output.manifest.continents) {
       const record = manifest.continents[continent];
       assert.deepEqual([record.width, record.height], [48, 48]);

@@ -9,7 +9,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { PNG } from "pngjs";
 import { BIOMES } from "../biomes/palette.js";
-import { GEOLOGY_CLASSES, SOIL_CLASSES, WEATHER_REGION_CLASSES } from "../environment/index.js";
+import { GEOLOGY_CLASSES, SOIL_CLASSES, WEATHER_REGION_CLASSES, ZONE_CLASSES } from "../environment/index.js";
 import type { WorldOutput, ContinentId, EnvironmentalFields } from "../types/index.js";
 
 type ControlFieldKind = "continuous" | "category";
@@ -70,7 +70,7 @@ const CONTROL_PACKS: ControlPackSpec[] = [
     continuous("resource-reeds", 0, 1, (environment) => environment.resources.reeds.data),
     continuous("resource-aquatic", 0, 1, (environment) => environment.resources.aquatic.data),
     continuous("resource-generic", 0, 1, (environment) => environment.resources.generic.data),
-    continuous("reserved", 0, 1, () => null),
+    category("zone-class", ZONE_CLASSES, (environment) => environment.zoneClass.data),
   ] },
 ];
 
@@ -227,6 +227,7 @@ export function writeWorldOutput(output: WorldOutput, outputRootDir: string) {
   );
   writeFileSync(path.join(outDir, "seaRegions.json"), JSON.stringify({ regions: output.seaRegions }, null, 2));
   writeFileSync(path.join(outDir, "terrainMaterials.json"), JSON.stringify(output.terrainMaterialLibrary, null, 2));
+  writeFileSync(path.join(outDir, "terrainMaterialRecipes.json"), JSON.stringify(output.terrainMaterialRecipes, null, 2));
   writeFileSync(path.join(outDir, "manifest.json"), JSON.stringify(output.manifest, null, 2));
 
   return outDir;

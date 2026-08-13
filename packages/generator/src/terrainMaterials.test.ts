@@ -4,7 +4,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { loadTerrainMaterialLibrary } from "./designData.js";
+import { loadTerrainMaterialLibrary, loadTerrainMaterialRecipes } from "./designData.js";
 import { generateWorld } from "./pipeline.js";
 import { writeWorldOutput } from "./export/index.js";
 
@@ -30,7 +30,7 @@ test("terrain material library defines a bounded semantic vocabulary over comple
   }
   assert.equal(Object.values(library.residencyProfiles.compatibility.channelsByTextureSet).flat().length, 7);
   assert.equal(Object.values(library.residencyProfiles.balanced.channelsByTextureSet).flat().length, 7);
-  assert.equal(Object.values(library.residencyProfiles.high.channelsByTextureSet).flat().length, 21);
+  assert.equal(Object.values(library.residencyProfiles.high.channelsByTextureSet).flat().length, 13);
 });
 
 test("world output exports the versioned terrain material contract", () => {
@@ -40,7 +40,21 @@ test("world output exports the versioned terrain material contract", () => {
     const exported = JSON.parse(readFileSync(path.join(outDir, "terrainMaterials.json"), "utf8")) as { version: number; families: unknown[] };
     assert.equal(exported.version, 1);
     assert.equal(exported.families.length, 33);
+    const recipes = JSON.parse(readFileSync(path.join(outDir, "terrainMaterialRecipes.json"), "utf8")) as { version: number; recipes: unknown[] };
+    assert.equal(recipes.version, 1);
+    assert.equal(recipes.recipes.length, 16);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
+});
+
+test("all canonical zones have valid recipes and every material family is used", () => {
+  const materials = loadTerrainMaterialLibrary();
+  const recipes = loadTerrainMaterialRecipes(materials);
+  assert.equal(recipes.zoneOrder.length, 16);
+  assert.equal(recipes.recipes.length, 16);
+  const used = new Set(recipes.recipes.flatMap((recipe) => [
+    recipe.primary, recipe.secondary, recipe.tertiary, recipe.shore, recipe.steep, recipe.wet, recipe.cold,
+  ]));
+  assert.deepEqual([...used].sort(), materials.families.map((family) => family.id).sort());
 });

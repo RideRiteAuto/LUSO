@@ -8,7 +8,9 @@ import path from "node:path";
 import type {
   ZoneDesign, ResourceDesign, CreatureDesign, ContinentLayoutDesign, EnvironmentalRegionDesign,
   TerrainMaterialLibraryDesign, TerrainResidencyQuality, TerrainTextureChannel,
+  TerrainMaterialRecipeLibraryDesign,
 } from "./types/index.js";
+import { BIOMES } from "./biomes/palette.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // packages/generator/src -> repo root is four levels up (src -> generator -> packages -> root)
@@ -130,5 +132,54 @@ export function loadTerrainMaterialLibrary(): TerrainMaterialLibraryDesign {
     }
     for (const setId of textureSetIds) if (!profile.channelsByTextureSet[setId]?.includes("albedo")) throw new Error(`Material residency profile ${quality} is missing ${setId}/albedo`);
   }
+  return library;
+}
+
+function assertAscendingRange(range: [number, number], label: string): void {
+  if (!range.every(Number.isFinite) || range[0] >= range[1]) throw new Error(`${label} must be a finite ascending range`);
+}
+
+export function loadTerrainMaterialRecipes(
+  materialLibrary = loadTerrainMaterialLibrary(),
+): TerrainMaterialRecipeLibraryDesign {
+  const library = loadJson<TerrainMaterialRecipeLibraryDesign>("terrain-recipes.json");
+  if (library.version !== 1 || !library.libraryId) throw new Error("terrain-recipes.json has an unsupported or missing version");
+  assertUniqueIds(library.recipes, "terrain-recipes.json recipes");
+  if (new Set(library.zoneOrder).size !== library.zoneOrder.length) throw new Error("terrain-recipes.json zoneOrder contains duplicates");
+  const canonicalZones = loadZoneDesigns();
+  const canonicalZoneIds = canonicalZones.map((zone) => zone.id);
+  if (library.zoneOrder.join(",") !== canonicalZoneIds.join(",")) throw new Error("terrain-recipes.json zoneOrder must match canonical zones.json order");
+  const recipeByZone = new Map(library.recipes.map((recipe) => [recipe.zoneId, recipe]));
+  for (const zoneId of canonicalZoneIds) if (!recipeByZone.has(zoneId)) throw new Error(`terrain-recipes.json is missing zone ${zoneId}`);
+  for (const zoneId of recipeByZone.keys()) if (!canonicalZoneIds.includes(zoneId)) throw new Error(`terrain-recipes.json references unknown zone ${zoneId}`);
+
+  const materialIds = new Set(materialLibrary.families.map((family) => family.id));
+  const biomeIds = new Set(BIOMES.map((biome) => biome.id));
+  const usedMaterials = new Set<string>();
+  const roles = ["primary", "secondary", "tertiary", "shore", "steep", "wet", "cold"] as const;
+  for (const recipe of library.recipes) {
+    if (recipe.biomeIds.length === 0 || recipe.biomeIds.some((id) => !biomeIds.has(id))) throw new Error(`Recipe ${recipe.id} has invalid biome IDs`);
+    const allowed = new Set(recipe.allowedMaterialFamilies);
+    if (allowed.size !== recipe.allowedMaterialFamilies.length || [...allowed].some((id) => !materialIds.has(id))) throw new Error(`Recipe ${recipe.id} has invalid allowed materials`);
+    for (const role of roles) {
+      const familyId = recipe[role];
+      if (!allowed.has(familyId)) throw new Error(`Recipe ${recipe.id}/${role} must be in allowedMaterialFamilies`);
+      usedMaterials.add(familyId);
+    }
+    assertAscendingRange(recipe.rules.secondaryRange, `${recipe.id}.secondaryRange`);
+    assertAscendingRange(recipe.rules.tertiaryMacroRange, `${recipe.id}.tertiaryMacroRange`);
+    assertAscendingRange(recipe.rules.shoreRange, `${recipe.id}.shoreRange`);
+    assertAscendingRange(recipe.rules.steepSlopeDegrees, `${recipe.id}.steepSlopeDegrees`);
+    assertAscendingRange(recipe.rules.wetnessRange, `${recipe.id}.wetnessRange`);
+    assertAscendingRange(recipe.rules.snowElevationM, `${recipe.id}.snowElevationM`);
+    for (const value of [recipe.rules.tertiaryStrength, recipe.rules.macroTintStrength]) {
+      if (!Number.isFinite(value) || value < 0 || value > 1) throw new Error(`Recipe ${recipe.id} has invalid strength`);
+    }
+    for (const pair of recipe.forbiddenCombinations) {
+      if (pair.length !== 2 || pair[0] === pair[1] || pair.some((id) => !materialIds.has(id))) throw new Error(`Recipe ${recipe.id} has an invalid forbidden combination`);
+      if (pair.every((id) => roles.some((role) => recipe[role] === id))) throw new Error(`Recipe ${recipe.id} selects forbidden combination ${pair.join("+")}`);
+    }
+  }
+  for (const materialId of materialIds) if (!usedMaterials.has(materialId)) throw new Error(`terrain-recipes.json never uses material family ${materialId}`);
   return library;
 }

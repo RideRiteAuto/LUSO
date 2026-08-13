@@ -40,6 +40,7 @@ const roads = readJson("roads.json").roads;
 const waterways = readJson("waterways.json");
 const controlFieldManifest = readJson("controlFields.json");
 const terrainMaterialLibrary = readJson("terrainMaterials.json");
+const terrainMaterialRecipes = readJson("terrainMaterialRecipes.json");
 
 const continents = {};
 const embeddedControls = {};
@@ -65,13 +66,14 @@ const embedded = {
   worldHeightBase64: readBase64("heightmap.world.raw"),
   controlFields: { manifest: controlFieldManifest, continents: embeddedControls },
   terrainMaterialLibrary,
+  terrainMaterialRecipes,
 };
 
 // Standalone file:// artifacts cannot fetch KTX2 transcoder workers. Embed the
 // reviewed 2K sources instead; the normal Vite build uses GPU-compressed KTX2.
 const terrainAssets = {};
 for (const set of terrainMaterialLibrary.textureSets) {
-  terrainAssets[set.id] = Object.fromEntries(["albedo", "normal", "roughness"].map((channel) => [
+  terrainAssets[set.id] = Object.fromEntries(terrainMaterialLibrary.residencyProfiles.high.channelsByTextureSet[set.id].map((channel) => [
     channel,
     readTerrainTexture(set.id, channel),
   ]));

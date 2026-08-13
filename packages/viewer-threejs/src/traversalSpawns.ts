@@ -46,6 +46,52 @@ export function findSafeTraversalPoint(
   return best ? { x: best.x, z: best.z } : { x: centerX, z: centerZ };
 }
 
+export function findZoneShoreBookmark(world: WorldData, zoneId: string): TraversalBookmark | null {
+  const zone = world.zones.find((candidate) => candidate.id === zoneId);
+  const continent = zone ? world.continents?.[zone.continent] : null;
+  if (!zone || !continent) return null;
+  const habitatIndex = world.controlFields.packs.findIndex((pack) => pack.id === "habitat");
+  const hydrologyIndex = world.controlFields.packs.findIndex((pack) => pack.id === "hydrology");
+  const zoneChannel = world.controlFields.packs[habitatIndex]?.channels[3];
+  const zoneClass = zoneChannel?.labels?.indexOf(zoneId) ?? -1;
+  if (habitatIndex < 0 || hydrologyIndex < 0 || zoneClass < 1) return null;
+  const habitat = continent.controlPacks[habitatIndex];
+  const hydrology = continent.controlPacks[hydrologyIndex];
+  const width = continent.controlWidth, height = continent.controlHeight;
+  let best: { x: number; z: number; gridX: number; gridZ: number; score: number } | null = null;
+  for (let gridZ = 0; gridZ < height; gridZ++) {
+    for (let gridX = 0; gridX < width; gridX++) {
+      const pixel = gridZ * width + gridX;
+      const decodedZone = Math.round((habitat[pixel * 4 + 3] / 255) * zoneChannel.max);
+      if (decodedZone !== zoneClass) continue;
+      const elevation = continent.heightData[pixel];
+      const shore = hydrology[pixel * 4 + 2] / 255;
+      const slope = (hydrology[pixel * 4 + 3] / 255) * 60;
+      if (elevation < 3.2 || elevation > 18 || shore < 0.58 || slope > 12) continue;
+      const score = Math.abs(elevation - 6) * 4 + (1 - shore) * 45 + slope * 0.4;
+      if (!best || score < best.score) {
+        const [x, z] = uvToWorld(gridX / Math.max(1, width - 1), gridZ / Math.max(1, height - 1), zone.continent, world.manifest);
+        best = { x, z, gridX, gridZ, score };
+      }
+    }
+  }
+  if (!best) return null;
+  let oceanDx = 0, oceanDz = -1, lowest = Number.POSITIVE_INFINITY;
+  for (let dz = -6; dz <= 6; dz++) for (let dx = -6; dx <= 6; dx++) {
+    const x = Math.max(0, Math.min(width - 1, best.gridX + dx));
+    const z = Math.max(0, Math.min(height - 1, best.gridZ + dz));
+    const elevation = continent.heightData[z * width + x];
+    if (elevation < lowest) { lowest = elevation; oceanDx = dx; oceanDz = dz; }
+  }
+  return {
+    id: `${zoneId}-shore`,
+    label: `${zone.properName} — Starter Beach`,
+    x: best.x,
+    z: best.z,
+    heading: Math.atan2(-oceanDx, -oceanDz),
+  };
+}
+
 export function buildTraversalBookmarks(world: WorldData, sampleHeight: (x: number, z: number) => number): TraversalBookmark[] {
   const preferred = ["alvora", "valedouro", "serravela", "cavora", "solmara"];
   const bookmarks: TraversalBookmark[] = [];
@@ -56,6 +102,8 @@ export function buildTraversalBookmarks(world: WorldData, sampleHeight: (x: numb
     const safe = findSafeTraversalPoint(sampleHeight, center.x, center.z);
     bookmarks.push({ id: zone.id, label: `${zone.properName} — ${zone.descriptor}`, ...safe, heading: Math.PI });
   }
+  const alvoraShore = findZoneShoreBookmark(world, "alvora");
+  if (alvoraShore) bookmarks.splice(1, 0, alvoraShore);
   const alvora = bookmarks.find((bookmark) => bookmark.id === "alvora");
   if (alvora) {
     const review = findSafeTraversalPoint(sampleHeight, alvora.x + 180, alvora.z + 120, 240);

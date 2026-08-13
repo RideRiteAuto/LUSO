@@ -40,7 +40,7 @@ npm run viewer
 
 Orbit / top-down / "World" (frames both continents + the Bruma) camera presets, a free-fly mode (drag to look, WASD to move, Space/Ctrl for up-down, hold Shift to go fast, scroll to change speed — click **Fly** in the HUD), and zone-boundary/river/settlement overlay toggles. The viewer only reads files under `output/<seed>/` — it never talks to the generator directly, per the engine-independence contract in `docs/01_Nevora_World_Generation_Architecture.md`.
 
-The shipping terrain library is generated with `npm run textures:ktx2 -w @nevora/viewer-threejs`. Its 33 semantic families share seven reviewed CC0 scan sets; `terrainMaterials.json` controls which albedo/normal/roughness channels become resident at each quality tier. After generating a seed, open `http://localhost:5183/material-library.html?seed=48291` for the complete family review sheet.
+The shipping terrain library is generated with `npm run textures:ktx2 -w @nevora/viewer-threejs`. Its 33 semantic families share seven reviewed CC0 scan sets; `terrainMaterials.json` controls which albedo/normal/roughness channels become resident at each quality tier, while `terrainMaterialRecipes.json` maps all 16 canonical zones to compiler-driven primary/secondary/tertiary/shore/steep/wet/cold recipes. After generating a seed, open `http://localhost:5183/material-library.html?seed=48291` for the complete family review sheet. The viewer adds exact `Recipe / zone`, `Material ID`, and `LOD / mip stress` diagnostics to the environmental debug modes.
 
 ## Sharing it as a link (no server required)
 

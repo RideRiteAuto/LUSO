@@ -111,7 +111,7 @@
     },
     "high": {
       "anisotropy": 16, "maxResolution": 2048,
-      "channelsByTextureSet": { "sand": ["albedo", "normal", "roughness"], "grass": ["albedo", "normal", "roughness"], "soil": ["albedo", "normal", "roughness"], "forest": ["albedo", "normal", "roughness"], "rock": ["albedo", "normal", "roughness"], "scree": ["albedo", "normal", "roughness"], "snow": ["albedo", "normal", "roughness"] }
+      "channelsByTextureSet": { "sand": ["albedo", "normal"], "grass": ["albedo", "normal"], "soil": ["albedo", "normal"], "forest": ["albedo"], "rock": ["albedo", "normal", "roughness"], "scree": ["albedo"], "snow": ["albedo", "normal"] }
     }
   }
 }

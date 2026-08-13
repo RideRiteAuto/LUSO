@@ -17,14 +17,15 @@ import {
   uniform,
   vec2,
   vec3,
-  vertexColor,
 } from "three/tsl";
-import type { TerrainMaterialLibrary, TerrainTextureChannel } from "./worldData.js";
+import type { TerrainMaterialLibrary, TerrainMaterialRecipeLibrary, TerrainTextureChannel } from "./worldData.js";
+import type { TerrainControlMap } from "./terrain.js";
 
 export type TerrainMaterialDebugMode =
   | "final" | "biome" | "height" | "temperature" | "rainfall" | "moisture" | "wetness"
   | "drainage" | "distanceWater" | "slope" | "shore" | "soil" | "geology"
-  | "exposure" | "scree" | "buildability" | "vegetation" | "resource" | "macro";
+  | "exposure" | "scree" | "buildability" | "vegetation" | "resource" | "macro"
+  | "materialId" | "recipe" | "lodMip";
 export type TerrainQuality = "high" | "balanced" | "compatibility";
 
 type TerrainLayer = "sand" | "grass" | "soil" | "forest" | "rock" | "scree" | "snow";
@@ -81,14 +82,36 @@ export class AlvoraTerrainMaterial {
   private readonly textures: THREE.Texture[];
   private debugMode: TerrainMaterialDebugMode = "final";
 
-  static async create(renderer: THREE.WebGPURenderer, quality: TerrainQuality, library: TerrainMaterialLibrary): Promise<AlvoraTerrainMaterial> {
-    return new AlvoraTerrainMaterial(await loadTerrainTextures(renderer, quality, library), quality);
+  static async create(
+    renderer: THREE.WebGPURenderer,
+    quality: TerrainQuality,
+    library: TerrainMaterialLibrary,
+    recipes: TerrainMaterialRecipeLibrary,
+    controlMap: TerrainControlMap,
+    worldBounds: { minX: number; minZ: number; maxX: number; maxZ: number },
+  ): Promise<AlvoraTerrainMaterial> {
+    return new AlvoraTerrainMaterial(await loadTerrainTextures(renderer, quality, library), quality, library, recipes, controlMap, worldBounds);
   }
 
-  private constructor(layers: TerrainTextureSet, quality: TerrainQuality) {
+  private constructor(
+    layers: TerrainTextureSet,
+    quality: TerrainQuality,
+    library: TerrainMaterialLibrary,
+    recipeLibrary: TerrainMaterialRecipeLibrary,
+    controlMap: TerrainControlMap,
+    worldBounds: { minX: number; minZ: number; maxX: number; maxZ: number },
+  ) {
     this.textures = LAYERS.flatMap((layer) => Object.values(layers[layer])).filter((map): map is THREE.Texture => Boolean(map));
+    const habitatPackIndex = 5;
+    const zoneBytes = new Uint8Array(controlMap.width * controlMap.height);
+    for (let pixel = 0; pixel < zoneBytes.length; pixel++) zoneBytes[pixel] = controlMap.data[(pixel * controlMap.packCount + habitatPackIndex) * 4 + 3];
+    const zoneTexture = new THREE.DataTexture(zoneBytes, controlMap.width, controlMap.height, THREE.RedFormat, THREE.UnsignedByteType);
+    zoneTexture.minFilter = zoneTexture.magFilter = THREE.NearestFilter;
+    zoneTexture.wrapS = zoneTexture.wrapT = THREE.ClampToEdgeWrapping;
+    zoneTexture.colorSpace = THREE.NoColorSpace;
+    zoneTexture.needsUpdate = true;
+    this.textures.push(zoneTexture);
     const worldPosition = positionWorld.add(this.originNode);
-    const biome = vertexColor();
     const height = worldPosition.y;
     const controlClimate: any = attribute("controlClimate", "vec4");
     const controlHydrology: any = attribute("controlHydrology", "vec4");
@@ -103,6 +126,7 @@ export class AlvoraTerrainMaterial {
     const drainage = controlHydrology.r;
     const distanceWater = controlHydrology.g;
     const shoreInfluence = controlHydrology.b;
+    const slopeDegrees = controlHydrology.a.mul(60);
     // The packed field stores 0..60 degrees. Convert it to the previous
     // 1-cos(theta) metric so existing physically meaningful thresholds stay
     // readable while their source becomes compiler-authoritative.
@@ -113,7 +137,13 @@ export class AlvoraTerrainMaterial {
     const screeTendency = controlTerrain.a;
     const buildability = controlEcology.r;
     const vegetationEligibility = controlEcology.g;
+    const biomeClass = controlEcology.b;
     const resourceEligibility = controlHabitat.b.max(controlResources.r.max(controlResources.g).max(controlResources.b).max(controlResources.a));
+    const zoneUv = vec2(
+      worldPosition.x.sub(worldBounds.minX).div(worldBounds.maxX - worldBounds.minX),
+      worldPosition.z.sub(worldBounds.minZ).div(worldBounds.maxZ - worldBounds.minZ),
+    );
+    const zoneIndex = texture(zoneTexture, zoneUv).r.mul(recipeLibrary.zoneOrder.length).add(0.5).floor();
     const viewDistance = cameraPosition.sub(positionWorld).length();
     const microVisibility = smoothstep(180, 900, viewDistance).oneMinus();
     const landTransition = smoothstep(-3, 5, height);
@@ -122,15 +152,9 @@ export class AlvoraTerrainMaterial {
     // High keeps independent stochastic fields and spatial warping. Balanced
     // reuses its two macro fields, cutting five expensive procedural-noise
     // evaluations per terrain fragment while preserving large-scale breakup.
-    const regionalGreen = quality === "high"
-      ? smoothstep(0.12, 0.88, mx_noise_float(worldPosition.xz.mul(0.0018).add(vec2(-83.1, 47.6))).mul(0.5).add(0.5))
-      : smoothstep(0.1, 0.9, macro);
     const localPatch = quality === "high"
       ? smoothstep(0.18, 0.82, mx_noise_float(worldPosition.xz.mul(0.011).add(vec2(19.4, 91.7))).mul(0.5).add(0.5))
       : smoothstep(0.14, 0.86, fineMacro);
-    const groundMottle = quality === "high"
-      ? smoothstep(0.46, 0.84, mx_noise_float(worldPosition.xz.mul(0.027).add(vec2(-27.8, 64.3))).mul(0.5).add(0.5))
-      : smoothstep(0.5, 0.86, fineMacro);
     const warpedPosition = quality === "high"
       ? worldPosition
         .add(mx_noise_vec3(worldPosition.mul(0.018).add(vec3(17.3, -41.8, 73.1))).mul(1.8))
@@ -157,68 +181,111 @@ export class AlvoraTerrainMaterial {
       texture(map), null, null, float(repeatsPerMeter), warpedPosition, normalWorld,
     );
 
-    // Scan dimensions determine world-space texel scale. Triplanar projection
-    // remains on cliffs; warped planar projection is cheaper on flat ground.
+    // Seven physical scans stay shared and resident. Authored family/recipe
+    // tables choose semantic tint and response over these common samples,
+    // avoiding a texture-fetch explosion while giving all 16 zones distinct
+    // compiler-driven terrain identities.
     const sand = planarAlbedo("sand", 1 / 30, macro);
     const grass = planarAlbedo("grass", 1 / 1.4, localPatch);
     const soil = planarAlbedo("soil", 1 / 1.3, fineMacro);
     const forest = planarAlbedo("forest", 1 / 2, localPatch);
-    const rockDetail = triplanarSample(layers.rock.albedo!, 1 / 12).rgb;
-    const rock = quality === "high"
-      ? mix(triplanarSample(layers.rock.albedo!, 1 / 52).rgb, rockDetail, microVisibility.mul(0.72))
-      : rockDetail;
-    const screeDetail = triplanarSample(layers.scree.albedo!, 1 / 18).rgb;
-    const scree = quality === "high"
-      ? mix(triplanarSample(layers.scree.albedo!, 1 / 80).rgb, screeDetail, microVisibility.mul(0.62))
-      : screeDetail;
+    const rock = triplanarSample(layers.rock.albedo!, 1 / 12).rgb;
+    const scree = triplanarSample(layers.scree.albedo!, 1 / 18).rgb;
     const snow = planarAlbedo("snow", 1 / 2, fineMacro);
+    const baseAlbedo: Record<TerrainLayer, any> = { sand, grass, soil, forest, rock, scree, snow };
+    const familyById = new Map(library.families.map((family) => [family.id, family]));
+    const familyIndex = new Map(library.families.map((family, index) => [family.id, index]));
+    const recipeByZone = new Map(recipeLibrary.recipes.map((recipe) => [recipe.zoneId, recipe]));
+    const orderedRecipes = recipeLibrary.zoneOrder.map((zoneId) => {
+      const recipe = recipeByZone.get(zoneId);
+      if (!recipe) throw new Error(`Terrain material recipe is missing zone ${zoneId}`);
+      return recipe;
+    });
+    const family = (id: string) => {
+      const entry = familyById.get(id);
+      if (!entry) throw new Error(`Terrain material family is missing ${id}`);
+      return entry;
+    };
+    const familyColor = (id: string) => {
+      const entry = family(id);
+      return baseAlbedo[entry.textureSet as TerrainLayer].mul(vec3(entry.tint[0], entry.tint[1], entry.tint[2]));
+    };
+    const scalarRoughness = (id: string) => float(THREE.MathUtils.clamp(0.88 + family(id).roughnessBias, 0.48, 1));
+    const familyIdNode = (id: string) => float(familyIndex.get(id) ?? 0);
 
-    const landMask = smoothstep(1, 9, height);
-    const sandMask = smoothstep(-0.5, 2.5, height).mul(smoothstep(4, 11, height).oneMinus());
-    const wetMask = wetness.mul(shoreInfluence.mul(0.65).add(drainage.mul(0.35))).mul(landTransition);
-    // slope = 1-cos(theta): 0.06≈20°, 0.13≈30°, 0.23≈40°.
-    // The previous 0.34 rock threshold was roughly 49°, leaving almost every
-    // mountain grass-covered. Low-frequency breakup softens selection while
-    // staying stable across geometry LOD.
-    const slopeVariation = macro.sub(0.5).mul(0.045).add(fineMacro.sub(0.5).mul(0.018));
-    const classifiedSlope = slope.add(slopeVariation);
-    const forestMask = moisture.mul(vegetationEligibility).mul(smoothstep(18, 90, height)).mul(smoothstep(0.07, 0.16, classifiedSlope).oneMinus());
-    const screeMask = smoothstep(0.075, 0.14, classifiedSlope).mul(smoothstep(0.21, 0.32, classifiedSlope).oneMinus()).max(screeTendency.mul(0.72));
-    const rockMask = smoothstep(0.14, 0.27, classifiedSlope).max(geologyClass.mul(exposure).mul(0.16));
-    const snowMask = smoothstep(1050, 1450, height).mul(smoothstep(0.05, 0.25, slope).oneMinus());
+    const baseRoughness = quality === "high" ? {
+      rock: triplanarSample(layers.rock.roughness!, 1 / 12).r,
+    } as Partial<Record<TerrainLayer, any>> : null;
+    const familyRoughness = (id: string) => {
+      const entry = family(id);
+      const scanned = baseRoughness?.[entry.textureSet as TerrainLayer];
+      return scanned ? scanned.add(entry.roughnessBias).clamp(0.48, 1) : scalarRoughness(id);
+    };
+    const baseNormal = quality === "high" ? {
+      sand: planarSample(layers.sand.normal!, 1 / 30).rgb,
+      grass: planarSample(layers.grass.normal!, 1 / 1.4).rgb,
+      soil: planarSample(layers.soil.normal!, 1 / 1.3).rgb,
+      forest: planarSample(layers.soil.normal!, 1 / 2).rgb,
+      rock: triplanarSample(layers.rock.normal!, 1 / 12).rgb,
+      scree: triplanarSample(layers.rock.normal!, 1 / 18).rgb,
+      snow: planarSample(layers.snow.normal!, 1 / 2).rgb,
+    } as Record<TerrainLayer, any> : null;
+    const familyNormal = (id: string) => baseNormal![family(id).textureSet as TerrainLayer];
+    const familyNormalStrength = (id: string) => float(family(id).normalStrength);
 
-    const paleSand = mix(sand, color(0xcab88e), macro.mul(0.3));
-    const mottledSand = mix(paleSand, sand.mul(color(0x7a7970)), localPatch.mul(0.34));
-    const wetSand = mottledSand.mul(color(0x77786f));
-    const mud = soil.mul(color(0x766d62));
-    const meadowGreen = mix(grass, color(0x328c38), 0.72);
-    const lushGreen = mix(grass, color(0x45b84c), 0.78);
-    const variedGrass = mix(meadowGreen, lushGreen, regionalGreen.mul(0.68).add(localPatch.mul(0.32)));
-    const dappledGrass = mix(variedGrass, color(0x2c6e32), groundMottle.mul(0.3));
-    // Broad overlapping organic and exposed-soil patches fill the visual gap
-    // between meshes without adding geometry. Balanced deliberately reuses
-    // macro/fineMacro, so the richer coverage is effectively free.
-    const dryPatch = smoothstep(0.64, 0.9, fineMacro.add(macro.mul(0.18)));
-    const heathPatch = smoothstep(0.58, 0.86, macro.sub(fineMacro.mul(0.22)));
-    const dirtyGrass = mix(dappledGrass, soil.mul(color(0x8b7e68)), dryPatch.mul(0.48));
-    const heathGrass = mix(dirtyGrass, color(0x536c36), heathPatch.mul(0.22));
-    const wornGround = mix(heathGrass, soil, smoothstep(0.78, 0.96, fineMacro).mul(0.34));
-    const grassCoverage = vegetationEligibility.mul(0.18).add(moisture.mul(0.08)).add(regionalGreen.mul(0.08)).add(0.68).clamp(0, 1);
-    const grassSoil = mix(soil, wornGround, grassCoverage);
-    const lowland = mix(mud, grassSoil, smoothstep(1.5, 12, height));
-    const variedScree = mix(scree, rock, localPatch.mul(0.38));
-    const seabed = mottledSand.mul(color(0x31525a));
-
-    let finalColor = mix(seabed, wetSand, landTransition);
-    finalColor = mix(finalColor, lowland, landMask);
-    finalColor = mix(finalColor, mottledSand, sandMask);
-    finalColor = mix(finalColor, wetSand, wetMask);
-    finalColor = mix(finalColor, forest, forestMask.mul(0.82));
-    finalColor = mix(finalColor, variedScree, screeMask);
-    finalColor = mix(finalColor, rock, rockMask);
-    finalColor = mix(finalColor, snow, snowMask);
-    finalColor = finalColor.mul(macro.mul(0.1).add(fineMacro.mul(0.04)).add(0.93));
-    finalColor = mix(finalColor, biome.rgb, 0.035);
+    const recipeDriver = (driver: typeof orderedRecipes[number]["rules"]["secondaryDriver"]) => ({
+      moisture,
+      wetness,
+      vegetation: vegetationEligibility,
+      exposure,
+      macro,
+    })[driver];
+    const masksFor = (recipe: typeof orderedRecipes[number]) => {
+      const rules = recipe.rules;
+      let secondary = smoothstep(rules.secondaryRange[0], rules.secondaryRange[1], recipeDriver(rules.secondaryDriver));
+      if (rules.secondaryInvert) secondary = secondary.oneMinus();
+      const tertiary = smoothstep(rules.tertiaryMacroRange[0], rules.tertiaryMacroRange[1], fineMacro).mul(rules.tertiaryStrength);
+      const steep = smoothstep(rules.steepSlopeDegrees[0], rules.steepSlopeDegrees[1], slopeDegrees).max(screeTendency.mul(0.74));
+      const shore = smoothstep(rules.shoreRange[0], rules.shoreRange[1], shoreInfluence).mul(steep.oneMinus());
+      const wet = smoothstep(rules.wetnessRange[0], rules.wetnessRange[1], wetness)
+        .mul(shoreInfluence.mul(0.55).add(drainage.mul(0.45)));
+      const cold = smoothstep(rules.snowElevationM[0], rules.snowElevationM[1], height)
+        .mul(smoothstep(0.42, 0.62, temperature).oneMinus())
+        .mul(smoothstep(24, 44, slopeDegrees).oneMinus());
+      return { secondary, tertiary, shore, steep, wet, cold };
+    };
+    const compose = (recipe: typeof orderedRecipes[number], getter: (id: string) => any, masks: ReturnType<typeof masksFor>) => {
+      let value = mix(getter(recipe.primary), getter(recipe.secondary), masks.secondary);
+      value = mix(value, getter(recipe.tertiary), masks.tertiary);
+      value = mix(value, getter(recipe.wet), masks.wet);
+      value = mix(value, getter(recipe.shore), masks.shore);
+      value = mix(value, getter(recipe.steep), masks.steep);
+      value = mix(value, getter(recipe.cold), masks.cold);
+      return value;
+    };
+    const compiledRecipes = orderedRecipes.map((recipe) => {
+      const masks = masksFor(recipe);
+      return {
+        color: compose(recipe, familyColor, masks).mul(macro.sub(0.5).mul(recipe.rules.macroTintStrength).add(1)),
+        roughness: compose(recipe, familyRoughness, masks),
+        normal: baseNormal ? compose(recipe, familyNormal, masks) : null,
+        normalStrength: compose(recipe, familyNormalStrength, masks),
+        materialId: compose(recipe, familyIdNode, masks),
+      };
+    });
+    const zoneMask = (recipeIndex: number) => smoothstep(0.1, 0.49, zoneIndex.sub(recipeIndex + 1).abs()).oneMinus();
+    const selectRecipe = (key: keyof typeof compiledRecipes[number]) => {
+      let selected = compiledRecipes[0][key];
+      for (let i = 1; i < compiledRecipes.length; i++) selected = mix(selected, compiledRecipes[i][key], zoneMask(i));
+      return selected;
+    };
+    const seabed = mix(sand, color(0xcab88e), macro.mul(0.25)).mul(color(0x31525a));
+    const recipeColor = selectRecipe("color");
+    let finalColor = mix(seabed, recipeColor, landTransition);
+    finalColor = finalColor.mul(macro.mul(0.07).add(fineMacro.mul(0.03)).add(0.95));
+    const recipeRoughness = selectRecipe("roughness");
+    const recipeMaterialId = selectRecipe("materialId");
+    const wetSurfaceMask = wetness.mul(shoreInfluence.mul(0.55).add(drainage.mul(0.45)));
 
     const material = new THREE.MeshStandardNodeMaterial();
     material.name = "Navora scanned PBR terrain";
@@ -229,35 +296,15 @@ export class AlvoraTerrainMaterial {
     // grazing angles and saves the corresponding fragment work.
     material.side = THREE.FrontSide;
 
-    if (quality !== "high") {
-      material.roughnessNode = mix(float(0.96), float(0.78), rockMask).sub(wetMask.mul(0.14));
-      // Balanced keeps geometry normals. Its former four-extra-sample detail
-      // normal path dominated GPU time at the laptop's 0.70x resolution
-      // floor; scanned albedo and scalar roughness retain surface identity.
-    } else {
-      const grassRoughness = planarSample(layers.grass.roughness!, 1 / 1.4).r;
-      const sandRoughness = planarSample(layers.sand.roughness!, 1 / 30).r;
-      const rockRoughness = triplanarSample(layers.rock.roughness!, 1 / 18).r;
-      let roughness = mix(grassRoughness, sandRoughness, sandMask);
-      roughness = mix(roughness, rockRoughness, rockMask.add(screeMask).clamp(0, 1));
-      material.roughnessNode = roughness.sub(wetMask.mul(0.18)).clamp(0.48, 1);
-
-      const soilNormal = planarSample(layers.soil.normal!, 1 / 1.3).rgb;
-      const grassNormal = planarSample(layers.grass.normal!, 1 / 1.4).rgb;
-      const sandNormal = planarSample(layers.sand.normal!, 1 / 30).rgb;
-      const rockNormal = triplanarSample(layers.rock.normal!, 1 / 18).rgb;
-      const snowNormal = planarSample(layers.snow.normal!, 1 / 2).rgb;
-      let normalSample = mix(soilNormal, grassNormal, moisture);
-      normalSample = mix(normalSample, sandNormal, sandMask);
-      normalSample = mix(normalSample, rockNormal, rockMask.add(screeMask).clamp(0, 1));
-      normalSample = mix(normalSample, snowNormal, snowMask);
-      const normalStrength = microVisibility.mul(quality === "high" ? 0.72 : 0.52);
-      material.normalNode = normalMap(normalSample, vec2(normalStrength));
+    material.roughnessNode = recipeRoughness.sub(wetSurfaceMask.mul(quality === "high" ? 0.18 : 0.12)).clamp(0.48, 1);
+    if (quality === "high") {
+      const recipeNormal = selectRecipe("normal");
+      const normalStrength = selectRecipe("normalStrength").mul(microVisibility).mul(0.72);
+      material.normalNode = normalMap(recipeNormal, vec2(normalStrength));
     }
     this.material = material;
 
     this.debugNodes.set("final", finalColor);
-    this.debugNodes.set("biome", biome.rgb);
     this.debugNodes.set("height", mix(color(0x163755), color(0xf4ead0), smoothstep(-300, 1500, height)));
     this.debugNodes.set("temperature", mix(color(0x2b63b8), color(0xf28b48), temperature));
     this.debugNodes.set("rainfall", mix(color(0xb99a68), color(0x3977bc), rainfall));
@@ -272,6 +319,7 @@ export class AlvoraTerrainMaterial {
       value.mul(53.7).add(1.9).sin().mul(0.5).add(0.5),
       value.mul(71.3).add(4.1).sin().mul(0.5).add(0.5),
     );
+    this.debugNodes.set("biome", categoryColor(biomeClass.mul(19).add(0.5).floor()));
     this.debugNodes.set("soil", categoryColor(soilClass.mul(11).add(0.5).floor()));
     this.debugNodes.set("geology", categoryColor(geologyClass.mul(8).add(0.5).floor()));
     this.debugNodes.set("exposure", mix(color(0x27485b), color(0xf0d09a), exposure));
@@ -280,6 +328,9 @@ export class AlvoraTerrainMaterial {
     this.debugNodes.set("vegetation", mix(color(0x6a4b2f), color(0x2dc45a), vegetationEligibility));
     this.debugNodes.set("resource", mix(color(0x242638), color(0xe9c45a), resourceEligibility));
     this.debugNodes.set("macro", vec3(macro));
+    this.debugNodes.set("materialId", categoryColor(recipeMaterialId.add(0.5).floor()));
+    this.debugNodes.set("recipe", categoryColor(zoneIndex));
+    this.debugNodes.set("lodMip", categoryColor(viewDistance.div(300).floor()));
   }
 
   updateOrigin(offset: THREE.Vector3): void { this.originNode.value.copy(offset); }
