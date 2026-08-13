@@ -201,7 +201,11 @@ export function writeWorldOutput(output: WorldOutput, outputRootDir: string) {
   const waterways = {
     oceanLevelM: 0,
     continents: Object.fromEntries(
-      output.manifest.continents.map((c) => [c, { rivers: output.water[c].rivers, lakes: output.water[c].lakes }])
+      output.manifest.continents.map((c) => [c, {
+        rivers: output.water[c].rivers,
+        lakes: output.water[c].lakes,
+        waterways: output.water[c].waterways,
+      }])
     ),
   };
 

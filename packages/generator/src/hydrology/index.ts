@@ -16,24 +16,43 @@ const NEIGHBORS: [number, number][] = [
 
 const idx = (x: number, y: number, width: number): number => y * width + x;
 
-/** Physical navigation rules shared by generation, rendering, fish volumes,
- * and future ship routing. The selected river network represents major world
- * waterways, not every seasonal creek, so every exported channel must carry
- * useful draft along its compiled route. */
-export const NAVIGABLE_WATERWAY_RULES = {
-  // These exported reaches are the world's trunk waterways, not creeks.
-  // 240 m leaves two generous ship lanes plus bank clearance even at the
-  // narrow upstream end; mouths broaden into kilometre-scale estuaries.
-  minimumWidthM: 240,
-  minimumDepthM: 9,
-  estuaryWidthM: 1_520,
-  estuaryDepthM: 30,
-  deltaWidthM: 1_800,
-  deltaDepthM: 34,
+/**
+ * Rules for SCENIC rivers — natural landscape water, deliberately not
+ * ship-navigable (boats live on the authored waterways, see waterways/).
+ * A scenic river's surface hugs the terrain it flows over: shallow terrain
+ * pits along the course are breached (carved through), genuine basins become
+ * ponds at their spill level with a real flooded shoreline, and steep ground
+ * becomes explicit waterfall nodes instead of a water ramp.
+ */
+export const SCENIC_RIVER_RULES = {
+  /** A terrain pit shallower than this is carved through, not pooled over. */
+  breachDepthM: 5,
+  /** A pooling basin must flood at least this many cells to become a pond. */
+  minPondCells: 8,
+  /** Surface gradient above this emits a waterfall node (0.22 ≈ 12.4°). */
+  fallSlope: 0.22,
+  minFallDropM: 3,
+  /** Channel width from upstream flow accumulation: creek → trunk. */
+  minWidthM: 7,
+  maxWidthM: 64,
+  widthPerSqrtAccumCell: 0.9,
+  /** Ocean mouths flare modestly — scenic scale, not shipping estuaries. */
+  mouthFlare: 1.2,
   coastalPoolDepthM: 14,
   wetlandPoolDepthM: 11,
   poolExpansionM: 260,
 } as const;
+
+export function scenicRiverWidthM(accumulationCells: number): number {
+  return Math.max(
+    SCENIC_RIVER_RULES.minWidthM,
+    Math.min(SCENIC_RIVER_RULES.maxWidthM, 7 + Math.sqrt(Math.max(0, accumulationCells)) * SCENIC_RIVER_RULES.widthPerSqrtAccumCell),
+  );
+}
+
+export function scenicRiverDepthM(widthM: number): number {
+  return Math.max(1.3, Math.min(4.6, widthM * 0.085));
+}
 
 class MinHeap {
   private values: { index: number; priority: number }[] = [];
@@ -393,7 +412,7 @@ function resolveBasins(
     const rawPolygon = tracedShoreline.length >= 3 ? tracedShoreline : convexHull(wetCells.map((cell) => [
       (cell % width) / (width - 1), Math.floor(cell / width) / (fieldHeight - 1),
     ]));
-    const expansionUv = isShallowPool ? NAVIGABLE_WATERWAY_RULES.poolExpansionM / continentTileSize : 0;
+    const expansionUv = isShallowPool ? SCENIC_RIVER_RULES.poolExpansionM / continentTileSize : 0;
     const polygon = roundedExpandedPolygon(rawPolygon, expansionUv);
     const outlet: Vec2 = [(outletIndex % width) / (width - 1), Math.floor(outletIndex / width) / (fieldHeight - 1)];
     basins.push({
@@ -406,7 +425,7 @@ function resolveBasins(
         depthM: Math.max(
           ...wetCells.map((cell) => surfaceElevationM - data[cell]),
           isShallowPool
-            ? poolKind === "coastal-pool" ? NAVIGABLE_WATERWAY_RULES.coastalPoolDepthM : NAVIGABLE_WATERWAY_RULES.wetlandPoolDepthM
+            ? poolKind === "coastal-pool" ? SCENIC_RIVER_RULES.coastalPoolDepthM : SCENIC_RIVER_RULES.wetlandPoolDepthM
             : 0,
         ),
         surfaceElevationM,
@@ -418,84 +437,162 @@ function resolveBasins(
   return { basins, membership, lakeCellMask };
 }
 
-function surfaceProfile(pathIndices: number[], height: HeightField, filled: Float32Array, lakeSurface?: number): number[] {
+/** Per-cell basin bookkeeping shared by surface derivation and pond emission. */
+interface BasinComponents {
+  componentId: Int32Array;
+  componentCells: number[][];
+  componentSpill: number[];
+}
+
+/**
+ * Flood-fills every depression component (filled surface at least 2 m above
+ * terrain) once, so river-surface derivation can ask "is this pit big enough
+ * to be a real pond, or do we carve through it?" in O(1) per path cell.
+ */
+function computeBasinComponents(height: HeightField, filled: Float32Array): BasinComponents {
+  const { width, height: fieldHeight, data } = height;
+  const count = width * fieldHeight;
+  const componentId = new Int32Array(count).fill(-1);
+  const componentCells: number[][] = [];
+  const componentSpill: number[] = [];
+  for (let start = 0; start < count; start++) {
+    if (componentId[start] >= 0 || data[start] <= 0 || filled[start] - data[start] < 2) continue;
+    const id = componentCells.length;
+    const cells: number[] = [];
+    let spill = filled[start];
+    const queue = [start];
+    componentId[start] = id;
+    let head = 0;
+    while (head < queue.length) {
+      const current = queue[head++];
+      cells.push(current);
+      spill = Math.max(spill, filled[current]);
+      const x = current % width, y = Math.floor(current / width);
+      for (const [dx, dy] of NEIGHBORS) {
+        const nx = x + dx, ny = y + dy;
+        if (nx < 0 || ny < 0 || nx >= width || ny >= fieldHeight) continue;
+        const neighbor = idx(nx, ny, width);
+        if (componentId[neighbor] >= 0 || data[neighbor] <= 0 || filled[neighbor] - data[neighbor] < 2) continue;
+        componentId[neighbor] = id;
+        queue.push(neighbor);
+      }
+    }
+    componentCells.push(cells);
+    componentSpill.push(spill);
+  }
+  return { componentId, componentCells, componentSpill };
+}
+
+/**
+ * The scenic-river surface HUGS THE TERRAIN. This is the core fix for the
+ * floating-ribbon defect: the old profile rode the priority-flood spill
+ * surface, which is a staircase of flats hovering up to hundreds of metres
+ * above the real valley floor. Here the surface follows the ground itself;
+ * shallow pits are breached (the carve brush cuts through them), and only
+ * genuine basins pool — at their spill level, as real ponds with real
+ * shorelines emitted separately.
+ */
+function deriveScenicSurface(
+  pathIndices: number[],
+  height: HeightField,
+  filled: Float32Array,
+  basins: BasinComponents,
+  lakeSurface?: number,
+): number[] {
   const result: number[] = [];
-  let previous = Number.POSITIVE_INFINITY;
+  let level = Number.POSITIVE_INFINITY;
   for (let i = 0; i < pathIndices.length; i++) {
     const cell = pathIndices[i];
-    const candidate = height.data[cell] <= 0 ? 0 : Math.max(height.data[cell], filled[cell]);
-    const surface = i === 0 && lakeSurface !== undefined ? lakeSurface : Math.min(previous, candidate);
-    result.push(surface);
-    previous = surface;
+    const ground = height.data[cell];
+    let candidate: number;
+    if (ground <= 0) {
+      candidate = 0;
+    } else {
+      const component = basins.componentId[cell];
+      const depression = filled[cell] - ground;
+      const pools = component >= 0
+        && depression >= SCENIC_RIVER_RULES.breachDepthM
+        && basins.componentCells[component].length >= SCENIC_RIVER_RULES.minPondCells;
+      candidate = pools ? Math.min(filled[cell], basins.componentSpill[component]) : ground;
+    }
+    if (i === 0 && lakeSurface !== undefined) candidate = lakeSurface;
+    level = Math.min(level, Math.max(candidate, 0));
+    result.push(level);
   }
   return result;
 }
 
-function smoothRiverPath(path: Vec2[], surfaces: number[], iterations = 2): { path: Vec2[]; surfaces: number[] } {
+/**
+ * Corner-cutting subdivision smoothing of the D8 drainage path, carrying the
+ * surface and width channels through the same subdivision so all three stay
+ * aligned. The old deterministic lateral "migration" wobble is gone: it
+ * pushed the centreline up to ~170 m off the valley line, which in mountains
+ * meant tens of metres of altitude error and a hovering channel.
+ */
+function smoothRiverPath(
+  path: Vec2[],
+  surfaces: number[],
+  widths: number[],
+  iterations = 2,
+): { path: Vec2[]; surfaces: number[]; widths: number[] } {
   let points = path;
   let elevations = surfaces;
+  let breadths = widths;
   for (let iteration = 0; iteration < iterations && points.length > 2; iteration++) {
     const nextPoints: Vec2[] = [points[0]];
     const nextElevations: number[] = [elevations[0]];
+    const nextBreadths: number[] = [breadths[0]];
     for (let i = 0; i < points.length - 1; i++) {
       const a = points[i], b = points[i + 1];
-      const surfaceA = elevations[i], surfaceB = elevations[i + 1];
       nextPoints.push(
         [a[0] * 0.75 + b[0] * 0.25, a[1] * 0.75 + b[1] * 0.25],
         [a[0] * 0.25 + b[0] * 0.75, a[1] * 0.25 + b[1] * 0.75],
       );
-      nextElevations.push(
-        surfaceA * 0.75 + surfaceB * 0.25,
-        surfaceA * 0.25 + surfaceB * 0.75,
-      );
+      nextElevations.push(elevations[i] * 0.75 + elevations[i + 1] * 0.25, elevations[i] * 0.25 + elevations[i + 1] * 0.75);
+      nextBreadths.push(breadths[i] * 0.75 + breadths[i + 1] * 0.25, breadths[i] * 0.25 + breadths[i + 1] * 0.75);
     }
     nextPoints.push(points[points.length - 1]);
     nextElevations.push(elevations[elevations.length - 1]);
+    nextBreadths.push(breadths[breadths.length - 1]);
     points = nextPoints;
     elevations = nextElevations;
+    breadths = nextBreadths;
   }
   // Floating-point interpolation can introduce sub-millimetre rises. Clamp
   // them so the exported navigation/rendering surface remains monotonic.
   for (let i = 1; i < elevations.length; i++) elevations[i] = Math.min(elevations[i - 1], elevations[i]);
-  // D8 drainage is physically correct but visually resolves into regular
-  // grid-diagonal curves. Add deterministic multi-scale lateral migration to
-  // the smoothed centreline. It tapers to zero at source and receiver, so
-  // confluences, lake contacts, and ocean mouths remain exactly connected.
-  if (points.length > 4) {
-    const phase = (points[0][0] * 91.7 + points[0][1] * 57.3 + points.at(-1)![0] * 37.1) * Math.PI;
-    points = points.map((point, i) => {
-      if (i === 0 || i === points.length - 1) return point;
-      const before = points[Math.max(0, i - 2)], after = points[Math.min(points.length - 1, i + 2)];
-      const tx = after[0] - before[0], ty = after[1] - before[1];
-      const length = Math.max(1e-8, Math.hypot(tx, ty));
-      const progress = i / (points.length - 1);
-      const taper = Math.sin(progress * Math.PI) ** 0.72;
-      const migration = (Math.sin(progress * Math.PI * 5.4 + phase) * 0.0018
-        + Math.sin(progress * Math.PI * 11.7 + phase * 0.61) * 0.00065) * taper;
-      return [
-        Math.max(0, Math.min(1, point[0] - ty / length * migration)),
-        Math.max(0, Math.min(1, point[1] + tx / length * migration)),
-      ] as Vec2;
-    });
-  }
-  return { path: points, surfaces: elevations };
+  return { path: points, surfaces: elevations, widths: breadths };
 }
 
-function profileForMouth(mouthKind: River["mouthKind"]): River["profile"] {
-  switch (mouthKind) {
-    case "delta":
-      return { widthM: [360, 1_800], depthM: [12, 34], currentMps: [1.65, 0.28], navigableFromT: 0 };
-    case "estuary":
-      return { widthM: [320, 1_520], depthM: [11, 30], currentMps: [1.8, 0.32], navigableFromT: 0 };
-    case "lake-outlet":
-      return { widthM: [300, 1_120], depthM: [11, 26], currentMps: [0.85, 0.34], navigableFromT: 0 };
-    case "lake-inlet":
-      return { widthM: [240, 960], depthM: [9, 24], currentMps: [1.9, 0.42], navigableFromT: 0 };
-    case "confluence":
-      return { widthM: [240, 840], depthM: [9, 22], currentMps: [2.1, 0.62], navigableFromT: 0 };
-    default:
-      return { widthM: [240, 1_040], depthM: [9, 25], currentMps: [2, 0.42], navigableFromT: 0 };
+/** Contiguous steep runs of the surface become explicit waterfall nodes. */
+function detectFalls(path: Vec2[], surfaces: number[], continentTileSize: number): River["falls"] {
+  const falls: NonNullable<River["falls"]> = [];
+  const segmentSlope = (i: number): { slope: number; drop: number } => {
+    const length = Math.hypot(
+      (path[i + 1][0] - path[i][0]) * continentTileSize,
+      (path[i + 1][1] - path[i][1]) * continentTileSize,
+    );
+    const drop = surfaces[i] - surfaces[i + 1];
+    return { slope: length > 0 ? drop / length : 0, drop };
+  };
+  let i = 0;
+  while (i < path.length - 1) {
+    const head = segmentSlope(i);
+    if (head.slope <= SCENIC_RIVER_RULES.fallSlope) { i++; continue; }
+    let end = i + 1;
+    let totalDrop = head.drop;
+    while (end < path.length - 1) {
+      const next = segmentSlope(end);
+      if (next.slope <= SCENIC_RIVER_RULES.fallSlope) break;
+      totalDrop += next.drop;
+      end++;
+    }
+    if (totalDrop >= SCENIC_RIVER_RULES.minFallDropM) {
+      falls.push({ t: i / Math.max(1, path.length - 1), position: path[i], dropM: totalDrop });
+    }
+    i = end;
   }
+  return falls.length ? falls : undefined;
 }
 
 function pointInPolygon(x: number, y: number, polygon: Vec2[]): boolean {
@@ -552,9 +649,13 @@ function closestPointOnSegment(px: number, py: number, ax: number, ay: number, b
 }
 
 /**
- * Cuts resolved watercourses into the authoritative terrain. The exported
- * water surface, navigation depth, fish volume, and visible river now share
- * one cross-section instead of a decorative strip floating over dry land.
+ * Cuts resolved watercourses into the authoritative terrain — and, new with
+ * the terrain-anchored rivers, RAISES the low bank where the ground beside
+ * the channel sits below the water surface. The carve-only brush was one of
+ * the two root causes of the floating-ribbon defect: it could dig a bed but
+ * never build the bank that keeps water in, so on any cross-slope the
+ * downhill edge of the river hung in the air. Every water edge now meets
+ * ground at a small freeboard levee.
  */
 export function carveRiverChannels(
   height: HeightField,
@@ -562,63 +663,79 @@ export function carveRiverChannels(
   continentTileSize: number,
   riverCellMask?: Uint8Array,
   lakeCellMask?: Uint8Array,
+  waterwayChannelMask?: Uint8Array,
 ): void {
   const { width, height: fieldHeight, data } = height;
   const metersPerCellX = continentTileSize / Math.max(1, width - 1);
   const metersPerCellY = continentTileSize / Math.max(1, fieldHeight - 1);
+  const smooth01 = (t: number): number => {
+    const clamped = Math.max(0, Math.min(1, t));
+    return clamped * clamped * (3 - 2 * clamped);
+  };
   const carvePath = (
     path: Vec2[],
     surfaces: number[],
-    profile: River["profile"],
-    progressStart = 0,
-    widthScale = 1,
+    widths: number[],
   ) => {
     if (path.length < 2) return;
     for (let segment = 0; segment < path.length - 1; segment++) {
       const a = path[segment], b = path[segment + 1];
       const ax = a[0] * continentTileSize, ay = a[1] * continentTileSize;
       const bx = b[0] * continentTileSize, by = b[1] * continentTileSize;
-      const segmentStart = progressStart + (segment / Math.max(1, path.length - 1)) * (1 - progressStart);
-      const segmentEnd = progressStart + ((segment + 1) / Math.max(1, path.length - 1)) * (1 - progressStart);
-      const maxWidth = (profile.widthM[0] + Math.pow(segmentEnd, 1.35) * (profile.widthM[1] - profile.widthM[0])) * widthScale;
-      const outerRadius = maxWidth * 0.5 + Math.max(110, maxWidth * 0.7);
+      const maxWidth = Math.max(widths[segment], widths[segment + 1]);
+      const outerRadius = maxWidth * 0.5 + Math.max(16, maxWidth * 0.8);
       const minX = Math.max(0, Math.floor((Math.min(ax, bx) - outerRadius) / metersPerCellX));
       const maxX = Math.min(width - 1, Math.ceil((Math.max(ax, bx) + outerRadius) / metersPerCellX));
       const minY = Math.max(0, Math.floor((Math.min(ay, by) - outerRadius) / metersPerCellY));
       const maxY = Math.min(fieldHeight - 1, Math.ceil((Math.max(ay, by) + outerRadius) / metersPerCellY));
       for (let y = minY; y <= maxY; y++) for (let x = minX; x <= maxX; x++) {
         const hit = closestPointOnSegment(x * metersPerCellX, y * metersPerCellY, ax, ay, bx, by);
-        const progress = segmentStart + (segmentEnd - segmentStart) * hit.t;
-        const widthM = (profile.widthM[0] + Math.pow(progress, 1.35) * (profile.widthM[1] - profile.widthM[0])) * widthScale;
-        const depthM = profile.depthM[0] + Math.pow(progress, 1.15) * (profile.depthM[1] - profile.depthM[0]);
+        const widthM = widths[segment] + (widths[segment + 1] - widths[segment]) * hit.t;
+        const depthM = scenicRiverDepthM(widthM);
         const halfWidth = Math.max(widthM * 0.5, Math.min(metersPerCellX, metersPerCellY) * 0.52);
-        const bankWidth = Math.max(110, widthM * 0.7);
+        const bankWidth = Math.max(14, widthM * 0.7);
         if (hit.distance > halfWidth + bankWidth) continue;
         const surfaceM = surfaces[segment] + (surfaces[segment + 1] - surfaces[segment]) * hit.t;
         const index = y * width + x;
-        let target: number;
         if (hit.distance <= halfWidth) {
+          // Channel: parabolic-ish bed easing to a half-metre shelf at the
+          // waterline, always a strict lowering.
           const across = hit.distance / Math.max(1, halfWidth);
-          const edgeT = Math.max(0, Math.min(1, (across - 0.58) / 0.42));
-          const smoothEdge = edgeT * edgeT * (3 - 2 * edgeT);
-          target = surfaceM - depthM * (1 - smoothEdge * 0.82);
+          const eased = smooth01((across - 0.5) / 0.5);
+          const target = surfaceM - depthM + (depthM - 0.5) * eased;
+          data[index] = Math.min(data[index], target);
           if (riverCellMask) riverCellMask[index] = 1;
         } else {
+          // Bank: where the ground is LOWER than the water needs, raise a
+          // small levee to surface + freeboard, then let it fall back toward
+          // natural terrain. Ground already higher than the levee crest is
+          // left alone — the hillside itself is the bank. Never raise ocean,
+          // navigable waterways, other channels, or resolved lake/pond water.
+          if (data[index] <= 0.3) continue;
+          if (riverCellMask?.[index] || lakeCellMask?.[index] || waterwayChannelMask?.[index]) continue;
+          const freeboard = 1.2 + widthM * 0.015;
           const bankT = (hit.distance - halfWidth) / bankWidth;
-          const eased = bankT * bankT * (3 - 2 * bankT);
-          target = surfaceM - depthM * 0.18 + eased * (depthM * 0.18 + Math.min(14, 3.5 + widthM * 0.025));
+          const crest = bankT <= 0.4
+            ? surfaceM - 0.5 + (freeboard + 0.5) * smooth01(bankT / 0.4)
+            : surfaceM + freeboard;
+          const settle = bankT <= 0.4 ? crest : crest + (data[index] - crest) * smooth01((bankT - 0.4) / 0.6);
+          const target = Math.min(settle, data[index] + 8);
+          if (target > data[index]) data[index] = target;
         }
-        data[index] = Math.min(data[index], target);
       }
     }
   };
 
   for (const river of water.rivers) {
-    carvePath(river.path, river.surfaceElevationM, river.profile);
+    const widths = river.widthProfileM
+      ?? river.path.map((_, index) => river.profile.widthM[0]
+        + (index / Math.max(1, river.path.length - 1)) * (river.profile.widthM[1] - river.profile.widthM[0]));
+    carvePath(river.path, river.surfaceElevationM, widths);
     for (const branch of river.distributaries ?? []) {
       const startSurface = river.surfaceElevationM[Math.max(0, river.surfaceElevationM.length - 9)] ?? 0;
       const branchSurfaces = branch.map((_, index) => startSurface * (1 - index / Math.max(1, branch.length - 1)));
-      carvePath(branch, branchSurfaces, river.profile, 0.68, 0.72);
+      const mouthWidth = widths[widths.length - 1] * 0.72;
+      carvePath(branch, branchSurfaces, branch.map(() => mouthWidth));
     }
   }
 
@@ -762,6 +879,8 @@ export function generateWaterData(height: HeightField, riverIdPrefix: string, co
   const rivers: River[] = [];
   let riverCount = 0;
   const toUv = (cell: number): Vec2 => [(cell % width) / (width - 1), Math.floor(cell / width) / (fieldHeight - 1)];
+  const basinComponents = computeBasinComponents(height, filled);
+  const riverPathIndices: number[][] = [];
   const makeRiver = (
     pathIndices: number[],
     terminatesIn: River["terminatesIn"],
@@ -773,16 +892,37 @@ export function generateWaterData(height: HeightField, riverIdPrefix: string, co
       riverCellMask[cell] = 1;
       if (riverOwner[cell] < 0) riverOwner[cell] = ownerIndex;
     }
-    const elevations = surfaceProfile(pathIndices, height, filled, lakeSurface);
-    const smoothed = smoothRiverPath(pathIndices.map(toUv), elevations);
+    riverPathIndices.push(pathIndices);
+    const elevations = deriveScenicSurface(pathIndices, height, filled, basinComponents, lakeSurface);
+    // Channel width grows with gathered flow and never narrows downstream;
+    // ocean mouths flare modestly past the last reach.
+    const rawWidths = pathIndices.map((cell) => scenicRiverWidthM(accumulation[cell]));
+    for (let i = 1; i < rawWidths.length; i++) rawWidths[i] = Math.max(rawWidths[i], rawWidths[i - 1]);
+    if (terminatesIn.type === "ocean") {
+      const n = rawWidths.length;
+      for (let i = 0; i < n; i++) {
+        const t = i / Math.max(1, n - 1);
+        if (t > 0.85) rawWidths[i] *= 1 + ((t - 0.85) / 0.15) ** 2 * SCENIC_RIVER_RULES.mouthFlare;
+      }
+    }
+    const smoothed = smoothRiverPath(pathIndices.map(toUv), elevations, rawWidths);
     return {
       id: `${riverIdPrefix}-river-${riverCount++}`,
       path: smoothed.path,
       sourceElevationM: smoothed.surfaces[0],
       surfaceElevationM: smoothed.surfaces,
+      widthProfileM: smoothed.widths.map((value) => Math.round(value * 10) / 10),
+      falls: detectFalls(smoothed.path, smoothed.surfaces, continentTileSize),
       terminatesIn,
       mouthKind,
-      profile: profileForMouth(mouthKind),
+      profile: {
+        widthM: [smoothed.widths[0], smoothed.widths[smoothed.widths.length - 1]],
+        depthM: [scenicRiverDepthM(smoothed.widths[0]), scenicRiverDepthM(smoothed.widths[smoothed.widths.length - 1])],
+        currentMps: [1.6, 0.45],
+        // Scenic rivers are never ship-navigable — boats belong to the
+        // authored waterway network, which is flat sea-level water.
+        navigableFromT: 1,
+      },
     };
   };
 
@@ -853,10 +993,46 @@ export function generateWaterData(height: HeightField, riverIdPrefix: string, co
     const lastLand = river.surfaceElevationM[Math.max(0, river.surfaceElevationM.length - 2)];
     if (lastLand < 65) river.mouthKind = "estuary";
   }
-  // Mouth classification determines the physical channel contract. Apply it
-  // after delta/estuary selection so rendering, carving, navigation, boats,
-  // and fish volumes all receive the same credible width and depth.
-  for (const river of rivers) river.profile = profileForMouth(river.mouthKind);
+
+  // Every genuine basin a river pools through becomes a real pond: flat water
+  // at the spill level with its true flooded shoreline. The old compiler
+  // discarded these components, which left each river riding a flat "water
+  // shelf" across an empty hole in the ground — the worst-hovering cases in
+  // the floating-ribbon audit were exactly these.
+  const ponds: Lake[] = [];
+  const emittedComponents = new Set<number>();
+  for (const pathIndices of riverPathIndices) {
+    for (const cell of pathIndices) {
+      if (data[cell] <= 0) continue;
+      const component = basinComponents.componentId[cell];
+      if (component < 0 || emittedComponents.has(component)) continue;
+      const depression = filled[cell] - data[cell];
+      if (depression < SCENIC_RIVER_RULES.breachDepthM) continue;
+      const cells = basinComponents.componentCells[component];
+      if (cells.length < SCENIC_RIVER_RULES.minPondCells) continue;
+      emittedComponents.add(component);
+      // Canonical lakes already own their basin; don't emit a duplicate pond.
+      if (cells.some((basinCell) => membership[basinCell] >= 0)) continue;
+      const spill = basinComponents.componentSpill[component];
+      const wetCells = cells.filter((basinCell) => data[basinCell] < spill - 0.5);
+      if (wetCells.length < SCENIC_RIVER_RULES.minPondCells) continue;
+      const traced = traceBasinShoreline(wetCells, width, fieldHeight);
+      if (traced.length < 3) continue;
+      const polygon = roundedExpandedPolygon(traced, 0);
+      let deepest = spill;
+      for (const wet of wetCells) deepest = Math.min(deepest, data[wet]);
+      for (const wet of wetCells) lakeCellMask[wet] = 1;
+      ponds.push({
+        id: `${riverIdPrefix}-pond-${ponds.length}`,
+        kind: "pond",
+        polygon,
+        depthM: spill - deepest,
+        surfaceElevationM: spill,
+        spillElevationM: spill,
+        outlet: toUv(cell),
+      });
+    }
+  }
 
   let maxLogAccumulation = 1;
   for (let i = 0; i < count; i++) if (data[i] > 0) maxLogAccumulation = Math.max(maxLogAccumulation, Math.log1p(accumulation[i]));
@@ -864,7 +1040,7 @@ export function generateWaterData(height: HeightField, riverIdPrefix: string, co
   for (let i = 0; i < count; i++) drainageData[i] = data[i] > 0 ? Math.log1p(accumulation[i]) / maxLogAccumulation : 0;
 
   return {
-    water: { oceanLevelM: 0, rivers, lakes: basins.map((basin) => basin.lake) },
+    water: { oceanLevelM: 0, rivers, lakes: [...basins.map((basin) => basin.lake), ...ponds], waterways: [] },
     riverCellMask,
     lakeCellMask,
     drainage: { width, height: fieldHeight, data: drainageData },

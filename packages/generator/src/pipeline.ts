@@ -4,6 +4,7 @@
 import { SeedRegistry } from "./seed/index.js";
 import { generateWorldHeightField, sliceContinentField } from "./elevation/index.js";
 import { carveRiverChannels, generateWaterData } from "./hydrology/index.js";
+import { carveNavigableWaterways } from "./waterways/index.js";
 import { assignZones, resolveZones } from "./zones/index.js";
 import { classifyBiomes } from "./biomes/index.js";
 import { generateEnvironmentalFields } from "./environment/index.js";
@@ -13,7 +14,7 @@ import { placeSettlements } from "./settlements/index.js";
 import { generateRoads } from "./roads/index.js";
 import { refineHousingSuitability } from "./development/index.js";
 import { generateSettlementName } from "./naming/index.js";
-import { loadZoneDesigns, loadResourceDesigns, loadCreatureDesigns, loadContinentLayout, loadEnvironmentalRegionDesigns, loadTerrainMaterialLibrary, loadTerrainMaterialRecipes } from "./designData.js";
+import { loadZoneDesigns, loadResourceDesigns, loadCreatureDesigns, loadContinentLayout, loadEnvironmentalRegionDesigns, loadTerrainMaterialLibrary, loadTerrainMaterialRecipes, loadWaterwayDesigns } from "./designData.js";
 import type { ContinentId, Landmark, ResolvedZone, WorldOutput } from "./types/index.js";
 
 const GENERATOR_VERSION = "0.4.0";
@@ -44,6 +45,7 @@ export function generateWorld(opts: GenerateOptions): WorldOutput {
   const environmentalRegionDesigns = loadEnvironmentalRegionDesigns();
   const terrainMaterialLibrary = loadTerrainMaterialLibrary();
   const terrainMaterialRecipes = loadTerrainMaterialRecipes(terrainMaterialLibrary);
+  const waterwayDesign = loadWaterwayDesigns();
 
   const worldHeight = generateWorldHeightField(seeds, continentLayout, zoneDesigns, metersPerCell);
 
@@ -66,18 +68,23 @@ export function generateWorld(opts: GenerateOptions): WorldOutput {
     const uncarvedHeight = height.data.slice();
     heightFields[continent] = height;
 
+    // Navigable trade waterways carve first: their channel beds sit below sea
+    // level, so the shoreline-seeded hydrology flood that follows treats them
+    // as ocean and resolves scenic-river drainage straight into them.
+    const { waterways, channelMask } = carveNavigableWaterways(height, continent, waterwayDesign, continentTileSize);
     const { water: waterData, riverCellMask, lakeCellMask, drainage } = generateWaterData(height, continent, continentTileSize);
-    carveRiverChannels(height, waterData, continentTileSize, riverCellMask, lakeCellMask);
-    water[continent] = waterData;
+    carveRiverChannels(height, waterData, continentTileSize, riverCellMask, lakeCellMask, channelMask);
+    water[continent] = { ...waterData, waterways };
 
     // The streamed viewer and future engine importers consume the unified
     // heightfield, while continent systems consume the local slice. Stamp
-    // only cells changed by channel carving back into unified world truth so
-    // both representations expose the identical riverbed.
+    // every cell changed by waterway/channel carving or bank raising back
+    // into unified world truth so both representations expose the identical
+    // riverbed and banks.
     const layoutRecord = continentLayout.continents.find((entry) => entry.id === continent)!;
     for (let y = 0; y < height.height; y++) for (let x = 0; x < height.width; x++) {
       const localIndex = y * height.width + x;
-      if (height.data[localIndex] >= uncarvedHeight[localIndex] - 0.0001) continue;
+      if (Math.abs(height.data[localIndex] - uncarvedHeight[localIndex]) < 0.0001) continue;
       const worldX = layoutRecord.worldOffset[0] + x / Math.max(1, height.width - 1) * continentTileSize;
       const worldZ = layoutRecord.worldOffset[1] + y / Math.max(1, height.height - 1) * continentTileSize;
       const worldGridX = Math.max(0, Math.min(worldHeight.field.width - 1, Math.round(
@@ -87,7 +94,7 @@ export function generateWorld(opts: GenerateOptions): WorldOutput {
         (worldZ - worldHeight.bounds.minZ) / (worldHeight.bounds.maxZ - worldHeight.bounds.minZ) * (worldHeight.field.height - 1),
       )));
       const worldIndex = worldGridY * worldHeight.field.width + worldGridX;
-      worldHeight.field.data[worldIndex] = Math.min(worldHeight.field.data[worldIndex], height.data[localIndex]);
+      worldHeight.field.data[worldIndex] = height.data[localIndex];
     }
 
     const zoneAssignment = assignZones(zoneDesigns, continent, resolution, height);

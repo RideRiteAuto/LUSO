@@ -8,7 +8,7 @@ import path from "node:path";
 import type {
   ZoneDesign, ResourceDesign, CreatureDesign, ContinentLayoutDesign, EnvironmentalRegionDesign,
   TerrainMaterialLibraryDesign, TerrainResidencyQuality, TerrainTextureChannel,
-  TerrainMaterialRecipeLibraryDesign,
+  TerrainMaterialRecipeLibraryDesign, WaterwayDesign,
 } from "./types/index.js";
 import { BIOMES } from "./biomes/palette.js";
 
@@ -69,6 +69,33 @@ export function loadCreatureDesigns(): CreatureDesign[] {
     if (creature.elevationRangeM[0] > creature.elevationRangeM[1] || creature.minDistanceFromSettlementM < 0) throw new Error(`Creature ${creature.creatureId} has invalid ranges`);
   }
   return creatures;
+}
+
+export function loadWaterwayDesigns(): WaterwayDesign {
+  const design = loadJson<WaterwayDesign>("waterways.json");
+  if (!design.channelClasses || !design.networks) throw new Error("waterways.json must define channelClasses and networks");
+  for (const [classId, channelClass] of Object.entries(design.channelClasses)) {
+    if (!(channelClass.surfaceWidthM > 0) || !(channelClass.bedDepthM > 0) || !(channelClass.bankWidthM > 0)) {
+      throw new Error(`waterways.json channel class ${classId} has invalid dimensions`);
+    }
+  }
+  assertUniqueIds(design.networks, "waterways.json networks");
+  for (const network of design.networks) {
+    if (!(["valora", "seradia"] as string[]).includes(network.continent)) throw new Error(`Waterway ${network.id} has invalid continent`);
+    if (!design.channelClasses[network.class]) throw new Error(`Waterway ${network.id} references unknown channel class ${network.class}`);
+    const nodeIds = new Set<string>();
+    for (const node of network.nodes) {
+      if (!node.id || nodeIds.has(node.id)) throw new Error(`Waterway ${network.id} has missing or duplicate node id ${node.id}`);
+      nodeIds.add(node.id);
+      if (node.uv.some((value) => !Number.isFinite(value) || value < -0.05 || value > 1.05)) throw new Error(`Waterway ${network.id} node ${node.id} has invalid uv`);
+    }
+    if (!network.edges.length) throw new Error(`Waterway ${network.id} has no edges`);
+    for (const [from, to] of network.edges) {
+      if (!nodeIds.has(from) || !nodeIds.has(to)) throw new Error(`Waterway ${network.id} edge references unknown node ${from} or ${to}`);
+    }
+    if (!network.nodes.some((node) => node.kind === "sea")) throw new Error(`Waterway ${network.id} must include a sea node — every navigable network connects to the ocean`);
+  }
+  return design;
 }
 
 export function loadContinentLayout(): ContinentLayoutDesign {

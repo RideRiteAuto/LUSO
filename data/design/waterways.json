@@ -1,0 +1,70 @@
+{
+  "_comment": "Hand-authored navigable trade waterways (docs/20). These are infrastructure like roads: the generator routes each corridor along real low ground and carves its channel bed BELOW sea level, so the global ocean fills it and boats sail it end to end with no waterfalls or steps. Node uv coordinates are continent-local [0,1]x[0,1] like zone anchors, chosen on ground verified low on the canonical seed. Scenic (non-navigable) rivers are generated separately by hydrology.",
+  "unitsAreMeters": true,
+  "channelClasses": {
+    "trunk": {
+      "_comment": "Two ~15 m-beam ships passing plus a mid-channel fishing boat: PIANC/RVW two-way (4x beam) + one lane (2x beam) = ~90 m floor; 120 m matches the Rhine commercial fairway and buys camera/PvP margin.",
+      "surfaceWidthM": 120,
+      "bedDepthM": 11,
+      "bankWidthM": 90
+    },
+    "harbor": {
+      "_comment": "Port approaches, estuary mouths, and delta channels flare wider for turning and anchorage.",
+      "surfaceWidthM": 320,
+      "bedDepthM": 14,
+      "bankWidthM": 140
+    }
+  },
+  "networks": [
+    {
+      "id": "firstwater-passage",
+      "name": "The Firstwater Passage",
+      "continent": "seradia",
+      "class": "trunk",
+      "_comment": "The bible's Seradia water-logistics spine: open sea into Fonteira's Firstwater Basin, on through Riveira's Reedwater, ending at the head of navigation below the Vermara steppe rise.",
+      "nodes": [
+        { "id": "luna-approach-west", "kind": "sea", "uv": [0.02, 0.52] },
+        { "id": "fonteira-landing", "kind": "port", "name": "Fonteira Landing", "uv": [0.127, 0.523] },
+        { "id": "riveira-wharves", "kind": "port", "name": "Riveira Wharves", "uv": [0.297, 0.427] },
+        { "id": "vermara-head", "kind": "port", "name": "Vermara Head of Navigation", "uv": [0.377, 0.457], "headOfNavigation": true }
+      ],
+      "edges": [
+        ["luna-approach-west", "fonteira-landing"],
+        ["fonteira-landing", "riveira-wharves"],
+        ["riveira-wharves", "vermara-head"]
+      ]
+    },
+    {
+      "id": "reedwater-run",
+      "name": "The Reedwater Run",
+      "continent": "seradia",
+      "class": "trunk",
+      "_comment": "Riveira south through the marsh country to the Solmara delta and the open sea; completes the coast-to-coast loop that lets trade circle western Seradia by water.",
+      "nodes": [
+        { "id": "riveira-wharves", "kind": "port", "name": "Riveira Wharves", "uv": [0.297, 0.427] },
+        { "id": "solmara-port", "kind": "port", "name": "Solmara Delta Port", "uv": [0.177, 0.773] },
+        { "id": "luna-approach-south", "kind": "sea", "uv": [0.127, 0.934] }
+      ],
+      "edges": [
+        ["riveira-wharves", "solmara-port"],
+        ["solmara-port", "luna-approach-south"]
+      ]
+    },
+    {
+      "id": "alvora-reach",
+      "name": "The Alvora Reach",
+      "continent": "valora",
+      "class": "trunk",
+      "_comment": "Valora's single navigable river: from the Luna Sea through the Crownlands to a falls-line landing at the Valedouro border, below that zone's canonical waterfalls. Everything upstream is scenic water and roads.",
+      "nodes": [
+        { "id": "luna-approach-east", "kind": "sea", "uv": [0.98, 0.477] },
+        { "id": "alvora-harbor", "kind": "port", "name": "Alvora Harbor", "uv": [0.831, 0.477] },
+        { "id": "valedouro-falls-landing", "kind": "port", "name": "Valedouro Falls Landing", "uv": [0.776, 0.508], "headOfNavigation": true }
+      ],
+      "edges": [
+        ["luna-approach-east", "alvora-harbor"],
+        ["alvora-harbor", "valedouro-falls-landing"]
+      ]
+    }
+  ]
+}

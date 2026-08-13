@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { generateWorld } from "./pipeline.js";
-import { NAVIGABLE_WATERWAY_RULES } from "./hydrology/index.js";
+import { SCENIC_RIVER_RULES } from "./hydrology/index.js";
 
 function edgeValues(data: Float32Array, width: number, height: number): number[] {
   const values: number[] = [];
@@ -89,7 +89,10 @@ test("lakes are filled basins with spill outlets and all rivers terminate in can
   for (const continent of world.manifest.continents) {
     for (const lake of world.water[continent].lakes) {
       assert.ok(lake.polygon.length >= 3, `${lake.id} lacks a shoreline`);
-      assert.ok(lake.kind === "lake" ? lake.depthM >= 10 : lake.depthM >= NAVIGABLE_WATERWAY_RULES.wetlandPoolDepthM, `${lake.id} is too shallow for aquatic gameplay`);
+      const minimumDepth = lake.kind === "lake" ? 10
+        : lake.kind === "pond" ? SCENIC_RIVER_RULES.breachDepthM * 0.8
+          : SCENIC_RIVER_RULES.wetlandPoolDepthM;
+      assert.ok(lake.depthM >= minimumDepth, `${lake.id} is too shallow for aquatic gameplay`);
       assert.ok(lake.surfaceElevationM > 0 && lake.spillElevationM === lake.surfaceElevationM, `${lake.id} lacks a valid spill level`);
       assert.ok(lake.outlet.every((coordinate) => coordinate >= 0 && coordinate <= 1), `${lake.id} has an invalid outlet`);
       if (lake.kind === "lake") assert.ok(world.water[continent].rivers.some((river) => river.mouthKind === "lake-outlet" && Math.abs(river.sourceElevationM - lake.surfaceElevationM) < 0.1), `${lake.id} has no compiled outlet river`);
@@ -132,17 +135,12 @@ test("lakes are filled basins with spill outlets and all rivers terminate in can
         || world.water[continent].rivers.some((candidate) => candidate.id === river.terminatesIn.featureId),
       );
       assert.equal(river.path.length, river.surfaceElevationM.length);
-      assert.ok(river.profile.widthM[0] >= NAVIGABLE_WATERWAY_RULES.minimumWidthM, `${river.id} begins narrower than the major-waterway rule`);
-      assert.ok(river.profile.depthM[0] >= NAVIGABLE_WATERWAY_RULES.minimumDepthM, `${river.id} begins shallower than the major-waterway rule`);
-      assert.ok(river.profile.widthM[1] >= NAVIGABLE_WATERWAY_RULES.minimumWidthM, `${river.id} cannot grow into a credible channel`);
-      assert.ok(river.profile.depthM[1] >= NAVIGABLE_WATERWAY_RULES.minimumDepthM, `${river.id} lacks a fish/boat-scale lower channel`);
-      if (river.mouthKind === "estuary") {
-        assert.ok(river.profile.widthM[1] >= NAVIGABLE_WATERWAY_RULES.estuaryWidthM, `${river.id} estuary is not ship-scale`);
-        assert.ok(river.profile.depthM[1] >= NAVIGABLE_WATERWAY_RULES.estuaryDepthM, `${river.id} estuary lacks a navigable bed`);
-      }
-      if (river.mouthKind === "delta") {
-        assert.ok(river.profile.widthM[1] >= NAVIGABLE_WATERWAY_RULES.deltaWidthM, `${river.id} delta is not ship-scale`);
-        assert.ok(river.profile.depthM[1] >= NAVIGABLE_WATERWAY_RULES.deltaDepthM, `${river.id} delta lacks a navigable bed`);
+      assert.ok(river.widthProfileM && river.widthProfileM.length === river.path.length, `${river.id} lacks a width profile`);
+      assert.ok(river.profile.widthM[0] >= SCENIC_RIVER_RULES.minWidthM * 0.9, `${river.id} begins implausibly narrow`);
+      assert.ok(river.profile.widthM[1] <= SCENIC_RIVER_RULES.maxWidthM * (1 + SCENIC_RIVER_RULES.mouthFlare) + 1, `${river.id} is waterway-scale — scenic rivers must stay creek-to-trunk scale`);
+      assert.equal(river.profile.navigableFromT, 1, `${river.id} claims ship navigability — boats belong to the waterway network`);
+      for (let i = 1; i < river.widthProfileM!.length; i++) {
+        assert.ok(river.widthProfileM![i] >= river.widthProfileM![i - 1] - 0.5, `${river.id} narrows downstream`);
       }
       for (let i = 1; i < river.surfaceElevationM.length; i++) {
         assert.ok(river.surfaceElevationM[i] <= river.surfaceElevationM[i - 1] + 0.001, `${river.id} flows uphill`);
@@ -153,6 +151,106 @@ test("lakes are filled basins with spill outlets and all rivers terminate in can
       const x = Math.round(u * (field.width - 1)), y = Math.round(v * (field.height - 1));
       const bed = field.data[y * field.width + x];
       assert.ok(bed < river.surfaceElevationM[sampleIndex] - 0.5, `${river.id} surface is not backed by a carved riverbed`);
+    }
+  }
+});
+
+test("scenic river surfaces hug the terrain — no floating ribbons", () => {
+  // The audit that motivated the water rework measured 87% of river length
+  // perched above the neighbouring ground, a third of it by >100 m. This
+  // gate asserts the fixed invariant: away from resolved lake/pond water,
+  // the water surface stays within breach depth of the ground beside it.
+  const world = generateWorld({ seed: 48291, heightmapResolution: 128 });
+  for (const continent of world.manifest.continents) {
+    const field = world.heightFields[continent];
+    const lakes = world.water[continent].lakes;
+    let stations = 0, violations = 0, worstHover = 0;
+    for (const river of world.water[continent].rivers) {
+      for (let i = 2; i < river.path.length - 2; i += 3) {
+        const surface = river.surfaceElevationM[i];
+        if (surface <= 1) continue; // sea-level handoff
+        const [u, v] = river.path[i];
+        if (lakes.some((lake) => pointInPolygon(u, v, lake.polygon))) continue;
+        const x = Math.round(u * (field.width - 1)), y = Math.round(v * (field.height - 1));
+        // Both lateral neighbours (the cells beside the channel at this
+        // resolution) must reach at least surface - breach - tolerance.
+        let sideMax = Number.NEGATIVE_INFINITY;
+        for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [0, 1]] as const) {
+          const nx = x + dx, ny = y + dy;
+          if (nx < 0 || ny < 0 || nx >= field.width || ny >= field.height) continue;
+          sideMax = Math.max(sideMax, field.data[ny * field.width + nx]);
+        }
+        stations++;
+        const hover = surface - sideMax;
+        worstHover = Math.max(worstHover, hover);
+        if (hover > SCENIC_RIVER_RULES.breachDepthM + 8) violations++;
+      }
+    }
+    assert.ok(stations > 12, `${continent} produced too few measurable river stations`);
+    assert.ok(
+      violations / stations <= 0.05,
+      `${continent}: ${(100 * violations / stations).toFixed(1)}% of river stations float above the terrain (worst hover ${worstHover.toFixed(1)} m)`,
+    );
+  }
+});
+
+test("navigable waterways run below sea level from the sea to every port", () => {
+  const world = generateWorld({ seed: 48291, heightmapResolution: 128 });
+  for (const continent of world.manifest.continents) {
+    const waterways = world.water[continent].waterways;
+    assert.ok(waterways.length >= 1, `${continent} has no navigable waterway network`);
+    const field = world.heightFields[continent];
+    const cellOf = ([u, v]: [number, number]) => {
+      const x = Math.max(0, Math.min(field.width - 1, Math.round(u * (field.width - 1))));
+      const y = Math.max(0, Math.min(field.height - 1, Math.round(v * (field.height - 1))));
+      return y * field.width + x;
+    };
+    for (const waterway of waterways) {
+      assert.ok(waterway.path.length >= 2, `${waterway.id} has no routed path`);
+      assert.ok(waterway.ports.length >= 1, `${waterway.id} serves no ports`);
+      // Channel bed reaches full authored draft near every path point.
+      for (let i = 0; i < waterway.path.length; i += 2) {
+        const cell = cellOf(waterway.path[i]);
+        const x = cell % field.width, y = Math.floor(cell / field.width);
+        let deepest = field.data[cell];
+        for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+          const nx = x + dx, ny = y + dy;
+          if (nx < 0 || ny < 0 || nx >= field.width || ny >= field.height) continue;
+          deepest = Math.min(deepest, field.data[ny * field.width + nx]);
+        }
+        assert.ok(deepest <= -(waterway.bedDepthM - 2), `${waterway.id} bed rises to ${deepest.toFixed(1)} m near path point ${i} — a hull would ground`);
+      }
+      // A boat can float (water >= 2 m deep) from the sea end to every port
+      // without leaving the water: BFS over submerged cells.
+      const startCell = cellOf(waterway.path[0]);
+      const reachable = new Uint8Array(field.width * field.height);
+      const queue = [startCell];
+      reachable[startCell] = 1;
+      let head = 0;
+      while (head < queue.length) {
+        const current = queue[head++];
+        const x = current % field.width, y = Math.floor(current / field.width);
+        for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+          if (!dx && !dy) continue;
+          const nx = x + dx, ny = y + dy;
+          if (nx < 0 || ny < 0 || nx >= field.width || ny >= field.height) continue;
+          const neighbor = ny * field.width + nx;
+          if (reachable[neighbor] || field.data[neighbor] > -2) continue;
+          reachable[neighbor] = 1;
+          queue.push(neighbor);
+        }
+      }
+      for (const port of waterway.ports) {
+        const portCell = cellOf(port.uv);
+        const px = portCell % field.width, py = Math.floor(portCell / field.width);
+        let portReachable = false;
+        for (let dy = -2; dy <= 2 && !portReachable; dy++) for (let dx = -2; dx <= 2 && !portReachable; dx++) {
+          const nx = px + dx, ny = py + dy;
+          if (nx < 0 || ny < 0 || nx >= field.width || ny >= field.height) continue;
+          if (reachable[ny * field.width + nx]) portReachable = true;
+        }
+        assert.ok(portReachable, `${waterway.id}: no floating route from the sea to ${port.name}`);
+      }
     }
   }
 });

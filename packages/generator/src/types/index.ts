@@ -229,6 +229,10 @@ export interface River {
   mouthKind: "open-coast" | "estuary" | "delta" | "lake-inlet" | "lake-outlet" | "confluence";
   /** Compiler-resolved, monotonically descending surface used by rendering and navigation. */
   surfaceElevationM: number[];
+  /** Per-path-point bank-to-bank width, derived from upstream flow accumulation. */
+  widthProfileM?: number[];
+  /** Steep drops emitted as explicit waterfall/rapids nodes for rendering and navigation blocking. */
+  falls?: { t: number; position: Vec2; dropM: number }[];
   /** Canonical deltas may split near the mouth while retaining one watershed ID. */
   distributaries?: Vec2[][];
   /** Runtime water contract sampled along the source-to-mouth path. */
@@ -242,7 +246,7 @@ export interface River {
 
 export interface Lake {
   id: string;
-  kind: "lake" | "wetland-pool" | "coastal-pool";
+  kind: "lake" | "wetland-pool" | "coastal-pool" | "pond";
   polygon: Vec2[];
   depthM: number;
   surfaceElevationM: number;
@@ -250,10 +254,48 @@ export interface Lake {
   outlet: Vec2;
 }
 
+/** Hand-authored channel cross-section shared by every waterway of a class. */
+export interface WaterwayChannelClassDesign {
+  surfaceWidthM: number;
+  bedDepthM: number;
+  bankWidthM: number;
+}
+
+export interface WaterwayNetworkDesign {
+  id: string;
+  name: string;
+  continent: ContinentId;
+  class: string;
+  nodes: { id: string; kind: "sea" | "port"; name?: string; uv: Vec2; headOfNavigation?: boolean }[];
+  edges: [string, string][];
+}
+
+export interface WaterwayDesign {
+  channelClasses: Record<string, WaterwayChannelClassDesign>;
+  networks: WaterwayNetworkDesign[];
+}
+
+/**
+ * A routed, carved, boat-navigable trade waterway. Its bed sits below sea
+ * level for its whole length, so the global ocean is its water surface —
+ * flat, continuous, and lock-free from the sea to every port.
+ */
+export interface NavigableWaterway {
+  id: string;
+  name: string;
+  class: string;
+  surfaceWidthM: number;
+  bedDepthM: number;
+  /** Continent-local uv polyline routed along low ground, sea end first. */
+  path: Vec2[];
+  ports: { id: string; name: string; uv: Vec2; headOfNavigation: boolean }[];
+}
+
 export interface WaterData {
   oceanLevelM: number;
   rivers: River[];
   lakes: Lake[];
+  waterways: NavigableWaterway[];
 }
 
 export interface ResolvedZone {
