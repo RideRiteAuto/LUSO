@@ -1,6 +1,6 @@
 # Navora water Phase 2 — production ocean renderer
 
-Date: 2026-08-13  
+Date: 2026-08-13
 Authority: Navora Worldbuilding Bible v11 and the accepted architecture in `docs/13_Navora_Water_Production_Roadmap_and_Phase_1.md`.
 
 ## Delivered
