@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { generateWorld } from "./pipeline.js";
 import { SCENIC_RIVER_RULES } from "./hydrology/index.js";
+import { loadZoneDesigns } from "./designData.js";
 
 function edgeValues(data: Float32Array, width: number, height: number): number[] {
   const values: number[] = [];
@@ -50,6 +51,25 @@ test("Valora and Seradia have distinct macro silhouettes", () => {
   });
   assert.ok(Math.abs(signatures[0].aspect - signatures[1].aspect) > 0.08, "continent aspect ratios are too similar");
   assert.ok(Math.abs(signatures[0].land - signatures[1].land) > 128, "continent land areas are suspiciously similar");
+});
+
+test("every zone anchor stands on dry land", () => {
+  // A zone whose anchor is underwater has no region: its settlements, roads
+  // and resources are placed into open sea. The silhouette is built from the
+  // zone layout precisely so this holds by construction, but "by construction"
+  // has failed twice — once when domain warp slid anchors off their own mass
+  // peak, and again when the coastal grain was allowed to subtract at an
+  // anchor — and in neither case did anything else in the suite notice.
+  const world = generateWorld({ seed: 48291, heightmapResolution: 192 });
+  const drowned: string[] = [];
+  for (const zone of loadZoneDesigns()) {
+    const field = world.heightFields[zone.continent];
+    const x = Math.round(zone.anchor[0] * (field.width - 1));
+    const y = Math.round(zone.anchor[1] * (field.height - 1));
+    const elevation = field.data[y * field.width + x];
+    if (elevation <= 0) drowned.push(`${zone.id} (${zone.continent}, ${elevation.toFixed(1)}m)`);
+  }
+  assert.deepEqual(drowned, [], `zone anchors below sea level: ${drowned.join(", ")}`);
 });
 
 test("world scale and relief meet the regional terrain floor", () => {

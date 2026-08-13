@@ -163,60 +163,28 @@ interface GulfCut {
 
 const AUTHORED_GULFS: Record<ContinentId, GulfCut[]> = {
   valora: [
-    // Stormwatch Gulf — a narrow entrance off the northern embayment opening
-    // into a broad rounded basin, the kind of sheltered water a fleet anchors
-    // in. The basin lobes are what give it its shape; the entrance is only
-    // the neck.
+    // The Southwatch Bight — one broad, shallow scoop out of Valora's
+    // southern coast. Every other authored gulf is gone: bays that drove
+    // deep into the interior read as the notches of a jigsaw piece rather
+    // than as geography, which is exactly what a coastline should not do.
+    // This one is wide and barely penetrates, the way a real bight sits in
+    // a coast rather than biting through it.
     {
+      // Ordered sea end first. The entrance lobe sits in open water beyond
+      // the coast on purpose: a bay whose lobes all land inside the shoreline
+      // cuts a lagoon parallel to the coast and leaves a thread of land
+      // between it and the sea, which is what the first placement did.
       lobes: [
-        { at: [0.482, 0.168], radius: 0.052 },
-        { at: [0.474, 0.238], radius: 0.058 },
-        { at: [0.461, 0.316], radius: 0.094 },
-        { at: [0.497, 0.348], radius: 0.071 },
-        { at: [0.437, 0.375], radius: 0.068 },
-        { at: [0.479, 0.424], radius: 0.052 },
+        { at: [0.330, 0.848], radius: 0.105 },
+        { at: [0.328, 0.782], radius: 0.092 },
+        { at: [0.428, 0.792], radius: 0.070 },
+        { at: [0.243, 0.788], radius: 0.068 },
+        { at: [0.330, 0.735], radius: 0.058 },
       ],
-      roughness: 0.30, phase: 0, flood: 1,
-    },
-    // The Elderwall Ria — a drowned river valley on the south-west coast:
-    // a rounded flooded basin with smaller lobes running off it, so its
-    // shoreline reads as flooded country rather than an excavation.
-    {
-      lobes: [
-        { at: [0.303, 0.836], radius: 0.046 },
-        { at: [0.297, 0.774], radius: 0.055 },
-        { at: [0.290, 0.714], radius: 0.076 },
-        { at: [0.328, 0.692], radius: 0.055 },
-        { at: [0.263, 0.680], radius: 0.049 },
-        { at: [0.305, 0.646], radius: 0.044 },
-      ],
-      roughness: 0.42, phase: 11.3, flood: 1,
+      roughness: 0.30, phase: 5.7, flood: 1,
     },
   ],
-  seradia: [
-    // The Hollow Bight — a wide scallop open to the eastern sea, nearly all
-    // basin and barely any neck.
-    {
-      lobes: [
-        { at: [0.968, 0.544], radius: 0.080 },
-        { at: [0.903, 0.560], radius: 0.092 },
-        { at: [0.848, 0.579], radius: 0.074 },
-        { at: [0.879, 0.512], radius: 0.052 },
-      ],
-      roughness: 0.24, phase: 23.7, flood: 1,
-    },
-    // The Glassmere Inlet — a slim northern entrance widening into a small
-    // sheltered basin; small-craft water.
-    {
-      lobes: [
-        { at: [0.443, 0.208], radius: 0.042 },
-        { at: [0.436, 0.272], radius: 0.046 },
-        { at: [0.450, 0.340], radius: 0.064 },
-        { at: [0.420, 0.396], radius: 0.055 },
-      ],
-      roughness: 0.38, phase: 41.1, flood: 0.95,
-    },
-  ],
+  seradia: [],
 };
 
 /**
@@ -260,14 +228,45 @@ function authoredGulfs(u: number, v: number, continent: ContinentId, noise: Silh
  * bight. Neither continent knows about the other; they just read the seam.
  */
 export function riftOffsetAt(v: number, noise: SilhouetteNoise): number {
+  // Three scales, and the middle one is the one that reads. The long term
+  // decides which continent is broader at a given latitude; the short term is
+  // shore texture. What makes a pair of coasts look torn apart rather than
+  // merely wiggly is matched headland-and-bay at roughly a zone's width, and
+  // with only a long and a short term the margins had none.
   return fbm(noise.rift, v * 1.6, 0.37, 3) * 0.150
+    + fbm(noise.rift, v * 2.9, 5.1, 2) * 0.080
     + fbm(noise.rift, v * 4.1, 11.3, 2) * 0.055;
 }
 
-/** Where each continent's rift-facing coast sits before the seam wanders. */
-const RIFT_COAST_BASE: Record<ContinentId, number> = { valora: 0.985, seradia: 0.015 };
-/** How fast land falls away past the seam. */
-const RIFT_FALLOFF = 3.4;
+/**
+ * Where each continent's rift-facing coast sits before the seam wanders.
+ *
+ * This has to sit INSIDE the mass, not at the tile edge. The compact masses
+ * stop around u=0.88/0.12 of their own accord, so a seam parked at the very
+ * edge of the tile never touched them and the tear silently stopped existing.
+ * Cutting a little inboard of the natural coast is also what gives each
+ * continent its half-moon read: a torn, near-straight face toward the sea it
+ * opened, and a rounded ocean-facing back.
+ */
+const RIFT_COAST_BASE: Record<ContinentId, number> = { valora: 0.895, seradia: 0.105 };
+/**
+ * How fast land falls away past the seam.
+ *
+ * Steeper is not better. The coast displacement that gives this margin its
+ * texture is a field offset, so the distance it moves the shoreline is that
+ * offset divided by this slope: at 3.4 the whole grain budget bought under a
+ * kilometre of wander and the tear came out pinned to the seam curve, arrow
+ * straight. Slackening it lets the same grain break the margin up.
+ */
+const RIFT_FALLOFF = 2.6;
+/**
+ * Width of the blend where the seam takes over from the natural coast.
+ *
+ * Where a near-vertical seam crosses a near-horizontal shoreline, the minimum
+ * of the two is an L. Too narrow a blend leaves that corner square, and a
+ * right angle in a coastline reads as a rendering fault rather than as land.
+ */
+const RIFT_BLEND = 0.11;
 
 /**
  * How far each margin wanders on its own, independent of the shared seam.
@@ -293,9 +292,16 @@ function applyRift(
   // differs on each side of the sea.
   const seam = RIFT_COAST_BASE[continent] + riftOffsetAt(v, noise) + riftDivergenceAt(v, noise);
   // Valora keeps the land west of the seam, Seradia the land east of it.
-  const past = (continent === "valora" ? u - seam : seam - u) * (1 - shield);
-  if (past <= 0) return field;
-  return Math.min(field, LAND_FIELD_THRESHOLD - past * RIFT_FALLOFF);
+  // The shield has to fade the finished clip out, NOT shrink the distance fed
+  // into it: scaling `past` toward zero lands a shielded point exactly on the
+  // seam, where the clip pins it to the waterline and the anchor drowns.
+  const past = continent === "valora" ? u - seam : seam - u;
+  if (past <= -RIFT_BLEND || shield >= 1) return field;
+  // Smooth minimum, not a hard one. A hard clip leaves a crease everywhere
+  // the seam crosses the natural coastline, and those creases are what read
+  // as the corners of a cut-out shape.
+  const clipped = smoothMin(field, LAND_FIELD_THRESHOLD - past * RIFT_FALLOFF, RIFT_BLEND);
+  return field + (clipped - field) * (1 - shield);
 }
 
 /** Field value a fully flooded gulf reaches: solidly open water. */
@@ -315,15 +321,26 @@ function applyGulfs(
   return flood > 0 ? field + (Math.min(field, GULF_WATER_FLOOR) - field) * flood : field;
 }
 
-/** Bold headlands that keep a gulf-cut continent from reading as a bitten disc. */
+/**
+ * Headlands that keep a rounded mass from reading as a plain oval.
+ *
+ * Each has to start on land and run out to sea; the pre-reshape capes were
+ * anchored where the old, larger continents used to reach, so on the compact
+ * masses they hung offshore and grew spurs out of open water. These are placed
+ * against the measured coast, and are deliberately modest — the silhouette is
+ * meant to be a rough semicircle with character, not a starfish.
+ */
 const AUTHORED_CAPES: Record<ContinentId, { a: Vec2; b: Vec2; radius: number; gain: number }[]> = {
   valora: [
-    { a: [0.30, 0.78], b: [0.14, 0.90], radius: 0.085, gain: 0.42 },
-    { a: [0.74, 0.20], b: [0.90, 0.10], radius: 0.070, gain: 0.34 },
+    // The southwestern horn, closing the western side of the Southwatch Bight.
+    { a: [0.185, 0.735], b: [0.145, 0.800], radius: 0.055, gain: 0.30 },
+    // A blunt northern shoulder above Cavora.
+    { a: [0.735, 0.265], b: [0.800, 0.205], radius: 0.058, gain: 0.26 },
   ],
   seradia: [
-    { a: [0.36, 0.86], b: [0.28, 0.99], radius: 0.075, gain: 0.38 },
-    { a: [0.82, 0.30], b: [0.95, 0.22], radius: 0.070, gain: 0.34 },
+    // The southern tail's outer point, and a shoulder on the ocean-facing east.
+    { a: [0.230, 0.900], b: [0.190, 0.975], radius: 0.055, gain: 0.30 },
+    { a: [0.930, 0.640], b: [0.985, 0.680], radius: 0.050, gain: 0.26 },
   ],
 };
 
@@ -337,14 +354,41 @@ function authoredCapes(u: number, v: number, continent: ContinentId): number {
 }
 
 /** Accumulated zone presence at the coastline, and the slope away from it. */
-const MASS_ISOLINE = 0.86;
-const MASS_GAIN = 0.62;
-const OFFSHORE_SLOPE = 0.30;
+const MASS_ISOLINE = 1.78;
+const MASS_GAIN = 0.46;
+const OFFSHORE_SLOPE = 0.34;
+
+/**
+ * The anchor guarantee.
+ *
+ * A zone's own gaussian peaks at exactly 1.0, so while the coastline isoline
+ * sat below 1.0 "every anchor is land" held for free. The compact ArcheAge-like
+ * masses moved the isoline to 2.0 — several zones' worth of presence — and the
+ * guarantee died with it: Cavora and Lumeira sit out on their continents'
+ * shoulders with few neighbours to lean on, and drowned. So each zone now also
+ * plants a tight core of its own that carries its anchor over the isoline.
+ *
+ * The core is smooth-MAXed into the accumulated mass, never added to it.
+ * Adding it lifted the field by a fixed amount at every anchor including the
+ * inland ones that never needed it, and since field height drives elevation
+ * that printed a smooth eleven-kilometre dome over each zone centre — plainly
+ * visible on Vidrala as an oval plateau stamped into the hill country. Taken
+ * as a maximum it does nothing at all where the mass is already ample, and
+ * only lifts the anchors that would otherwise drown.
+ */
+const ANCHOR_CORE_MARGIN = 0.30;
+const ANCHOR_CORE_REACH = 0.62;
 
 /** Polynomial smooth maximum — merges two fields without a visible crease. */
 function smoothMax(a: number, b: number, k: number): number {
   const h = Math.max(0, k - Math.abs(a - b)) / k;
   return Math.max(a, b) + h * h * k * 0.25;
+}
+
+/** Polynomial smooth minimum — clips one field by another without a crease. */
+function smoothMin(a: number, b: number, k: number): number {
+  const h = Math.max(0, k - Math.abs(a - b)) / k;
+  return Math.min(a, b) - h * h * k * 0.25;
 }
 
 /**
@@ -368,17 +412,22 @@ function zoneMassField(u: number, v: number, zones: ZoneDesign[], reach: number,
   // from an isotropic metric they converge on the same silhouette, because
   // both zone layouts have a similar spread.
   let presence = 0;
+  let core = 0;
   const cos = Math.cos(grain.angle), sin = Math.sin(grain.angle);
   for (const zone of zones) {
     const dx = u - zone.anchor[0], dy = v - zone.anchor[1];
     const alongX = (dx * cos - dy * sin) / grain.stretchAlong;
     const alongY = (dx * sin + dy * cos) / grain.stretchAcross;
-    const normalized = Math.hypot(alongX, alongY) / Math.max(1e-6, zone.radius * reach);
+    const distance = Math.hypot(alongX, alongY);
+    const normalized = distance / Math.max(1e-6, zone.radius * reach);
     presence += Math.exp(-normalized * normalized);
+    const tight = distance / Math.max(1e-6, zone.radius * ANCHOR_CORE_REACH);
+    core = Math.max(core, Math.exp(-tight * tight));
   }
-  // The coastline is the `MASS_ISOLINE` contour of that field. Because a
-  // zone contributes exactly 1.0 at its own anchor and the isoline sits
-  // below 1.0, every anchor is land by construction.
+  presence = smoothMax(presence, core * (MASS_ISOLINE + ANCHOR_CORE_MARGIN), 0.35);
+  // The coastline is the `MASS_ISOLINE` contour of that field. A zone
+  // contributes 1.0 at its own anchor plus its `ANCHOR_CORE_GAIN` core, which
+  // together clear the isoline, so every anchor is land by construction.
   if (presence >= MASS_ISOLINE) return LAND_FIELD_THRESHOLD + (presence - MASS_ISOLINE) * MASS_GAIN;
   // Offshore, gaussian presence decays toward zero and would floor the field
   // in the shelf band, leaving the Luna Sea uniformly shallow. Invert the
@@ -488,13 +537,27 @@ export function silhouetteFieldAt(
     // mass peak and drown it. Away from anchors the warp is untouched.
     const bu = ru + (u - ru) * shield, bv = rv + (v - rv) * shield;
     const body = applyRift(
-      redesignBody(bu, bv, continent, zones, 1.21) - canonicalCuts(u, v, continent, zones, false) * (1 - shield),
+      redesignBody(bu, bv, continent, zones, 1.92) - canonicalCuts(u, v, continent, zones, false) * (1 - shield),
       u, v, continent, noise, shield);
-    const grain = ridged(noise.cape, u * 2.7, v * 2.7, 4, 1.25) * 2 - 1;
-    const fine = fbm(noise.cape, u * 5.5, v * 5.5, 3) * 0.28;
+    // Coast displacement, built long-wavelength first.
+    //
+    // Driving this from ridged noise alone — the obvious reading of
+    // "ridge-cape" — gives a coastline of V-shaped creases, which at map
+    // scale renders as straight facets meeting at corners: a low-poly
+    // outline, not a shore. The smooth swell carries the shape, the ridged
+    // spine supplies the capes and inlets the treatment is named for at a
+    // fraction of the amplitude, and the fine octave keeps the edge from
+    // looking drawn with a compass.
+    const swell = fbm(noise.coast, u * 1.5 + 4.2, v * 1.5, 3);
+    const spine = ridged(noise.cape, u * 3.1, v * 3.1, 3, 1.0) * 2 - 1;
+    const fine = fbm(noise.cape, u * 7.0, v * 7.0, 2);
+    const grain = swell * 0.62 + spine * 0.26 + fine * 0.12;
+    // Shielded like every other coast-shaping term. Grain is signed, so a
+    // wide band around a zone anchor can subtract as easily as it adds, and
+    // widening the band far enough to break up the rift margin was enough to
+    // drown five inland zones outright.
     field = applyGulfs(body
-      + (grain + fine) * 0.40 * coastalBand(body, 0.46)
-      + coastN * 0.07
+      + (grain * 0.30 * coastalBand(body, 0.26) + coastN * 0.07) * (1 - shield)
       + authoredCapes(u, v, continent) * 0.6, u, v, continent, noise, shield);
   } else if (treatment === "broken-shield") {
     // One deliberate mass, deeply bitten: bold headlands and long gulfs that
@@ -502,7 +565,7 @@ export function silhouetteFieldAt(
     const [ru, rv] = warped(wu, wv, noise, 0.065, 1.15);
     const bu = ru + (u - ru) * shield, bv = rv + (v - rv) * shield;
     const body = applyRift(
-      redesignBody(bu, bv, continent, zones, 1.28) - canonicalCuts(u, v, continent, zones, false) * (1 - shield),
+      redesignBody(bu, bv, continent, zones, 1.98) - canonicalCuts(u, v, continent, zones, false) * (1 - shield),
       u, v, continent, noise, shield);
     field = applyGulfs(body
       + authoredCapes(u, v, continent)
@@ -514,7 +577,7 @@ export function silhouetteFieldAt(
     const [ru, rv] = warped(wu, wv, noise, 0.075, 1.5);
     const bu = ru + (u - ru) * shield, bv = rv + (v - rv) * shield;
     const body = applyRift(
-      redesignBody(bu, bv, continent, zones, 1.26) - canonicalCuts(u, v, continent, zones, false) * (1 - shield),
+      redesignBody(bu, bv, continent, zones, 1.94) - canonicalCuts(u, v, continent, zones, false) * (1 - shield),
       u, v, continent, noise, shield);
     const rim = coastalBand(body, 0.30);
     const shatter = fbm(noise.cape, u * 4.3, v * 4.3, 3) * 0.24 + fbm(noise.cape, u * 9, v * 9, 2) * 0.08;

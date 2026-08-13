@@ -102,7 +102,11 @@ export function planIslands(
   // that nearly bridge it.
   const bandWidth = usableEast - usableWest;
   const maxRadiusM = Math.min(config.maxRadiusM, bandWidth * 0.11);
-  const minRadiusM = Math.min(config.minRadiusM, maxRadiusM * 0.55);
+  // Hold the floor well below the cap. Tying the minimum to a fixed fraction
+  // of the maximum means a narrow sea, whose cap is already low, squeezes the
+  // two together and every island comes out the same size — which is the one
+  // thing an archipelago never looks like.
+  const minRadiusM = Math.min(config.minRadiusM, maxRadiusM * 0.28);
 
   const islands: Island[] = [];
   // Walk a jittered lattice over the whole sea, not a single file down the
@@ -141,9 +145,11 @@ export function planIslands(
       }
 
       // Skewed so the sea is mostly skerries with a few real islands, the
-      // way an archipelago actually reads.
-      const roll = fbm(noise.placement, worldX / 4_400, worldZ / 4_400, 2) * 0.5 + 0.5;
-      const size = Math.pow(roll, 2.1);
+      // way an archipelago actually reads. fbm concentrates around its
+      // midpoint, so it is stretched before the skew — raw, it delivered
+      // almost every island at the same middling size.
+      const roll = Math.max(0, Math.min(1, fbm(noise.placement, worldX / 4_400, worldZ / 4_400, 2) * 0.95 + 0.5));
+      const size = Math.pow(roll, 1.8);
       const radiusM = minRadiusM + size * (maxRadiusM - minRadiusM);
       // Small islands are low and rounded; the larger ones earn a real summit.
       const peakM = 60 + Math.pow(size, 1.4) * 420;
@@ -176,9 +182,25 @@ export function islandElevationAt(worldX: number, worldZ: number, islands: Islan
     // radius against the polar angle: an angular radius function turns noise
     // octaves into radial spikes, which renders as a starburst rather than
     // an island. Warping in x/z gives a lobed, organically bent outline.
-    const warpScale = Math.max(600, island.radiusM * 0.85);
-    const warpedX = worldX + fbm(noise.shape, worldX / warpScale + island.phase, worldZ / warpScale, 2) * island.radiusM * 0.42;
-    const warpedZ = worldZ + fbm(noise.shape, worldX / warpScale + 31.7, worldZ / warpScale + island.phase, 2) * island.radiusM * 0.42;
+    //
+    // Both numbers here are about keeping that warp gentle relative to the
+    // island. A wavelength shorter than the island turns the outline into a
+    // ragged fringe, and an amplitude near half the radius folds the shore
+    // back over itself into arms — together they were rendering the arc as a
+    // field of sea urchins. One long, shallow bend per island instead.
+    //
+    // Two scales, because one is either a bend or a fringe and never both: the
+    // long warp leans the whole island off-centre, the short one puts bays and
+    // points along its shore. A single long warp on its own is close to an
+    // affine transform of a circle, which is to say an ellipse — a field of
+    // identical stamped ovals.
+    const longScale = Math.max(1_400, island.radiusM * 2.1);
+    const shortScale = Math.max(520, island.radiusM * 0.75);
+    const warp = (x: number, z: number, salt: number): number =>
+      fbm(noise.shape, x / longScale + island.phase + salt, z / longScale, 2) * island.radiusM * 0.20
+      + fbm(noise.shape, x / shortScale + island.phase * 1.7 + salt, z / shortScale, 2) * island.radiusM * 0.17;
+    const warpedX = worldX + warp(worldX, worldZ, 0);
+    const warpedZ = worldZ + warp(worldX, worldZ, 31.7);
     const distance = Math.hypot(warpedX - island.x, warpedZ - island.z);
     const radius = island.radiusM;
 

@@ -1,18 +1,18 @@
 {
-  "_comment": "Source of truth for physical world scale. Version 0.4 uses 65.5km continent tiles so eight zone bands have regional space, plus a 65.5km central sea reserved for Bruma, island chains, routes, encounters, and naval exploration.",
+  "_comment": "Source of truth for physical world scale. Version 0.5 keeps the 65.5km continent tiles so eight zone bands have regional space, and narrows the Luna Sea to a 30km gap. The wider sea read as two worlds that happened to share a map; at 30km the crossing is a voyage the eye can hold, which is the proportion ArcheAge uses between Nuia and Haranya. Because both continents' coasts sit inboard of their tile edges, the narrowest open water is about 38km -- roughly 0.7x a continent's land width.",
   "unitsAreMeters": true,
   "continentTileSize": 65536,
-  "lunaSeaGapUnits": 65536,
+  "lunaSeaGapUnits": 30000,
   "continents": [
     { "id": "valora", "worldOffset": [0, 0] },
-    { "id": "seradia", "worldOffset": [131072, 0] }
+    { "id": "seradia", "worldOffset": [95536, 0] }
   ],
   "bruma": {
     "id": "bruma",
     "name": "The Bruma",
-    "center": [98304, 32768],
-    "radiusUnits": 14000,
+    "center": [80536, 32768],
+    "radiusUnits": 9000,
     "magicalIntensity": "high",
-    "notes": "Mysterious central waters of the Luna Sea -- storm-prone, magically anomalous, avoided by ordinary sailors. Midpoint of the sea gap between Valora's east coast and Seradia's west coast."
+    "notes": "Mysterious central waters of the Luna Sea -- storm-prone, magically anomalous, shunned by cautious sailors but not closed to them. Ships cross it, islands stand in it, and anything found there is fair game to settle. Midpoint of the sea gap between Valora's east coast and Seradia's west coast. The radius was 14000 when the sea was 65.5km wide; at 30km that circle spanned the entire crossing, leaving no ordinary water at all."
   }
 }
