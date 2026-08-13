@@ -9,24 +9,23 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const repoRoot = path.resolve(packageRoot, "..", "..");
 const sourceDir = path.join(packageRoot, "assets", "terrain", "source");
 const outputDir = path.join(packageRoot, "public", "terrain-ktx2");
 const basisDir = path.join(packageRoot, "public", "basis");
-const basisExecutable = path.join(repoRoot, "node_modules", "basis_universal", "bin", "basisu.exe");
+const basisExecutable = path.join(packageRoot, "node_modules", "basis_universal", "bin", "basisu.exe");
 if (!existsSync(basisExecutable)) throw new Error("Run npm install first; basis_universal is required.");
 
-const required = new Set([
-  "sand_albedo", "sand_normal", "sand_roughness",
-  "grass_albedo", "grass_normal", "grass_roughness",
-  "soil_albedo", "soil_normal", "forest_albedo",
-  "rock_albedo", "rock_normal", "rock_roughness",
-  "scree_albedo", "snow_albedo", "snow_normal",
-]);
+const layers = ["sand", "grass", "soil", "forest", "rock", "scree", "snow"];
+const channels = ["albedo", "normal", "roughness"];
+const required = new Set(layers.flatMap((layer) => channels.map((channel) => `${layer}_${channel}`)));
 const sources = existsSync(sourceDir)
   ? readdirSync(sourceDir).filter((file) => file.endsWith("_2k.jpg") && required.has(file.replace(/_2k\.jpg$/i, "")))
   : [];
-if (sources.length === 0) throw new Error(`No reviewed 2K JPEG sources found in ${sourceDir}. Run npm run textures:download first.`);
+if (sources.length !== required.size) {
+  const found = new Set(sources.map((file) => file.replace(/_2k\.jpg$/i, "")));
+  const missing = [...required].filter((id) => !found.has(id));
+  throw new Error(`Reviewed source library is incomplete; missing: ${missing.join(", ")}. Run npm run textures:download first.`);
+}
 mkdirSync(outputDir, { recursive: true });
 
 for (const source of sources) {
@@ -46,7 +45,7 @@ for (const source of sources) {
 }
 
 // Three's KTX2Loader runs the official Basis transcoder in a worker.
-const threeBasis = path.join(repoRoot, "node_modules", "three", "examples", "jsm", "libs", "basis");
+const threeBasis = path.join(packageRoot, "node_modules", "three", "examples", "jsm", "libs", "basis");
 mkdirSync(basisDir, { recursive: true });
 for (const filename of ["basis_transcoder.js", "basis_transcoder.wasm"]) {
   copyFileSync(path.join(threeBasis, filename), path.join(basisDir, filename));

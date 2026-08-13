@@ -114,6 +114,46 @@ export interface EnvironmentalRegionDesign {
   weatherRegion: string;
 }
 
+export type TerrainTextureChannel = "albedo" | "normal" | "roughness";
+export type TerrainResidencyQuality = "compatibility" | "balanced" | "high";
+
+export interface TerrainTextureSetDesign {
+  id: string;
+  displayName: string;
+  provider: string;
+  sourceAssetId: string;
+  sourceUrl: string;
+  license: "CC0";
+  sourceDimensionsM?: Vec2;
+  channels: Record<TerrainTextureChannel, { file: string; colorSpace: "srgb" | "linear" }>;
+}
+
+export interface TerrainMaterialFamilyDesign {
+  id: string;
+  displayName: string;
+  textureSet: string;
+  category: "grass" | "forest-floor" | "soil" | "shore" | "rock" | "snow" | "special";
+  tint: [number, number, number];
+  metersPerRepeat: number;
+  normalStrength: number;
+  roughnessBias: number;
+  heightBlendM: number;
+  controlDrivers: string[];
+  tags: string[];
+}
+
+export interface TerrainMaterialLibraryDesign {
+  version: number;
+  libraryId: string;
+  textureSets: TerrainTextureSetDesign[];
+  families: TerrainMaterialFamilyDesign[];
+  residencyProfiles: Record<TerrainResidencyQuality, {
+    anisotropy: number;
+    maxResolution: number;
+    channelsByTextureSet: Record<string, TerrainTextureChannel[]>;
+  }>;
+}
+
 export interface ResourceEligibilityFields {
   forest: ScalarField;
   forage: ScalarField;
@@ -267,6 +307,7 @@ export interface WorldOutput {
   heightFields: Record<ContinentId, HeightField>;
   biomeFields: Record<ContinentId, ScalarField>;
   environmentalFields: Record<ContinentId, EnvironmentalFields>;
+  terrainMaterialLibrary: TerrainMaterialLibraryDesign;
   water: Record<ContinentId, WaterData>;
   zones: ResolvedZone[];
   resources: PlacedResource[];

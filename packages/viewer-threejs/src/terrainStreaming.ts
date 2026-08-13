@@ -270,7 +270,7 @@ export class TerrainStreamer {
   private readonly expandedBounds: { minX: number; minZ: number; maxX: number; maxZ: number };
 
   static async create(world: WorldData, quality: TerrainQuality, renderer: THREE.WebGPURenderer): Promise<TerrainStreamer> {
-    return new TerrainStreamer(world, quality, await AlvoraTerrainMaterial.create(renderer, quality));
+    return new TerrainStreamer(world, quality, await AlvoraTerrainMaterial.create(renderer, quality, world.terrainMaterialLibrary));
   }
 
   private constructor(private readonly world: WorldData, quality: TerrainQuality, terrainMaterial: AlvoraTerrainMaterial) {

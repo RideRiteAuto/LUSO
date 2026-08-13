@@ -12,14 +12,14 @@ Everything below is designed so the **generator package never imports, knows abo
 Navora World Bible (lore, source of truth)
         │  (hand-authored, versioned)
         ▼
-World Rules (data/design/*.json — zone graph, biome rules, resource tables)
+World Rules (data/design/*.json — zone graph, environment, materials, resource tables)
         │
         ▼
 Nevora World Compiler  (packages/generator — pure TS, no engine deps)
         │
         ▼
-Generated World Data   (heightmap.png/.raw, biome_map.png, waterways.json,
-                        zones.json, resources.json, spawns.json, roads.json, poi.json)
+Generated World Data   (heightmaps, environmental controls, terrain materials,
+                        waterways, zones, resources, spawns, roads, and POI)
         │
    ┌────┴─────────────┐
    ▼                  ▼
@@ -31,7 +31,7 @@ Three.js Viewer   (future) Unreal Pipeline
 
 ```
 /data/lore/                 world bible source (docx + extracted text) — read-only reference
-/data/design/                hand-authored world rules the generator reads (zones, bands, resource tables)
+/data/design/                hand-authored world rules the generator reads (zones, environment, materials, resources)
 /packages/generator/          engine-independent TS compiler
   /src/seed/                  PRNG + named sub-streams
   /src/elevation/              continent/mountain/coastline generation
@@ -69,7 +69,7 @@ Each stage is a pure function: `(seed, upstreamData, rules) → stageOutput`. St
 11. **Roads & trade routes** — a minimum spanning tree over settlement anchors decides network *topology* (which settlements connect at all), then each edge is routed independently with A* over a coarsened cost field derived from the real heightfield: steep slope is expensive (routes bend around a cliff instead of running straight through it), and crossing water is expensive-but-possible (a route only crosses where it's clearly the best option, e.g. a narrow point, rather than wherever a straight line happened to fall). Every place a route's resolved path actually crosses water is recorded as an explicit bridge point (start/end coordinates) in the output — a renderer has a real anchor to place a bridge asset at instead of the road silently walking on water. Sea lanes between coastal ports are marked separately (not yet implemented — tracked as a gap, see doc 00).
 12. **POI / lore placement** — place the bible's named landmarks and Lusaran breadcrumbs (inland lighthouse, impossible well, waymarkers, engineered chamber, ...) at zone-appropriate, out-of-the-way locations.
 13. **Naming** — assign names to unnamed generated features (minor settlements, landmarks) using a rule-based Portuguese/Iberian-maritime name generator (see doc 03 §5); canonical zone/major-settlement names from the bible are never overwritten.
-14. **Export** — write the 8 output files described in doc 02.
+14. **Export** — write the versioned output contract described in doc 02, including environmental control packs and the renderer-neutral terrain material library.
 
 ## 4. Seed system
 

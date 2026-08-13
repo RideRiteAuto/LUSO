@@ -226,6 +226,7 @@ export function writeWorldOutput(output: WorldOutput, outputRootDir: string) {
     )
   );
   writeFileSync(path.join(outDir, "seaRegions.json"), JSON.stringify({ regions: output.seaRegions }, null, 2));
+  writeFileSync(path.join(outDir, "terrainMaterials.json"), JSON.stringify(output.terrainMaterialLibrary, null, 2));
   writeFileSync(path.join(outDir, "manifest.json"), JSON.stringify(output.manifest, null, 2));
 
   return outDir;

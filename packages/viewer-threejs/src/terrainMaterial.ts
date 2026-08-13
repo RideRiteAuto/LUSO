@@ -19,6 +19,7 @@ import {
   vec3,
   vertexColor,
 } from "three/tsl";
+import type { TerrainMaterialLibrary, TerrainTextureChannel } from "./worldData.js";
 
 export type TerrainMaterialDebugMode =
   | "final" | "biome" | "height" | "temperature" | "rainfall" | "moisture" | "wetness"
@@ -27,16 +28,13 @@ export type TerrainMaterialDebugMode =
 export type TerrainQuality = "high" | "balanced" | "compatibility";
 
 type TerrainLayer = "sand" | "grass" | "soil" | "forest" | "rock" | "scree" | "snow";
-type TerrainChannel = "albedo" | "normal" | "roughness";
-type TerrainTextureSet = Record<TerrainLayer, Partial<Record<TerrainChannel, THREE.Texture>>>;
+type TerrainTextureSet = Record<TerrainLayer, Partial<Record<TerrainTextureChannel, THREE.Texture>>>;
 
-type EmbeddedTerrainAssets = Partial<Record<TerrainLayer, Partial<Record<TerrainChannel, string>>>>;
+type EmbeddedTerrainAssets = Partial<Record<TerrainLayer, Partial<Record<TerrainTextureChannel, string>>>>;
 
 const LAYERS: TerrainLayer[] = ["sand", "grass", "soil", "forest", "rock", "scree", "snow"];
-const NORMAL_LAYERS = new Set<TerrainLayer>(["sand", "grass", "soil", "rock", "snow"]);
-const ROUGHNESS_LAYERS = new Set<TerrainLayer>(["sand", "grass", "rock"]);
 
-function configureTexture(map: THREE.Texture, channel: TerrainChannel, anisotropy: number): THREE.Texture {
+function configureTexture(map: THREE.Texture, channel: TerrainTextureChannel, anisotropy: number): THREE.Texture {
   map.wrapS = map.wrapT = THREE.RepeatWrapping;
   map.colorSpace = channel === "albedo" ? THREE.SRGBColorSpace : THREE.NoColorSpace;
   map.anisotropy = anisotropy;
@@ -44,16 +42,13 @@ function configureTexture(map: THREE.Texture, channel: TerrainChannel, anisotrop
   return map;
 }
 
-async function loadTerrainTextures(renderer: THREE.WebGPURenderer, quality: TerrainQuality): Promise<TerrainTextureSet> {
-  const anisotropy = quality === "high" ? 16 : quality === "balanced" ? 8 : 4;
+async function loadTerrainTextures(renderer: THREE.WebGPURenderer, quality: TerrainQuality, library: TerrainMaterialLibrary): Promise<TerrainTextureSet> {
+  const profile = library.residencyProfiles[quality];
+  const anisotropy = profile.anisotropy;
   const embedded = (globalThis as unknown as { __NEVORA_TERRAIN_ASSETS__?: EmbeddedTerrainAssets }).__NEVORA_TERRAIN_ASSETS__;
   const result = Object.fromEntries(LAYERS.map((layer) => [layer, {}])) as TerrainTextureSet;
-  const channelsFor = (layer: TerrainLayer): TerrainChannel[] => {
-    const channels: TerrainChannel[] = ["albedo"];
-    if (quality !== "compatibility" && NORMAL_LAYERS.has(layer)) channels.push("normal");
-    if (quality !== "compatibility" && ROUGHNESS_LAYERS.has(layer)) channels.push("roughness");
-    return channels;
-  };
+  const textureSets = new Map(library.textureSets.map((set) => [set.id, set]));
+  const channelsFor = (layer: TerrainLayer): TerrainTextureChannel[] => profile.channelsByTextureSet[layer] ?? [];
 
   if (embedded) {
     const loader = new THREE.TextureLoader();
@@ -68,7 +63,9 @@ async function loadTerrainTextures(renderer: THREE.WebGPURenderer, quality: Terr
   const loader = new KTX2Loader().setTranscoderPath(new URL("basis/", document.baseURI).href).detectSupport(renderer);
   try {
     await Promise.all(LAYERS.flatMap((layer) => channelsFor(layer).map(async (channel) => {
-      const uri = new URL(`terrain-ktx2/${layer}_${channel}.ktx2?v=terrain-green-2`, document.baseURI).href;
+      const record = textureSets.get(layer);
+      if (!record) throw new Error(`Terrain material library is missing texture set ${layer}`);
+      const uri = new URL(`${record.channels[channel].file}?v=${library.libraryId}`, document.baseURI).href;
       result[layer][channel] = configureTexture(await loader.loadAsync(uri), channel, anisotropy);
     })));
   } finally {
@@ -84,8 +81,8 @@ export class AlvoraTerrainMaterial {
   private readonly textures: THREE.Texture[];
   private debugMode: TerrainMaterialDebugMode = "final";
 
-  static async create(renderer: THREE.WebGPURenderer, quality: TerrainQuality): Promise<AlvoraTerrainMaterial> {
-    return new AlvoraTerrainMaterial(await loadTerrainTextures(renderer, quality), quality);
+  static async create(renderer: THREE.WebGPURenderer, quality: TerrainQuality, library: TerrainMaterialLibrary): Promise<AlvoraTerrainMaterial> {
+    return new AlvoraTerrainMaterial(await loadTerrainTextures(renderer, quality, library), quality);
   }
 
   private constructor(layers: TerrainTextureSet, quality: TerrainQuality) {

@@ -78,6 +78,61 @@ export interface ControlFieldManifest {
   continents: Record<string, { width: number; height: number; files: Record<string, string> }>;
 }
 
+export type TerrainTextureChannel = "albedo" | "normal" | "roughness";
+export type TerrainResidencyQuality = "compatibility" | "balanced" | "high";
+
+export interface TerrainTextureSetRecord {
+  id: string;
+  displayName: string;
+  provider: string;
+  sourceAssetId: string;
+  sourceUrl: string;
+  license: "CC0";
+  sourceDimensionsM?: [number, number];
+  channels: Record<TerrainTextureChannel, { file: string; colorSpace: "srgb" | "linear" }>;
+}
+
+export interface TerrainMaterialFamilyRecord {
+  id: string;
+  displayName: string;
+  textureSet: string;
+  category: string;
+  tint: [number, number, number];
+  metersPerRepeat: number;
+  normalStrength: number;
+  roughnessBias: number;
+  heightBlendM: number;
+  controlDrivers: string[];
+  tags: string[];
+}
+
+export interface TerrainMaterialLibrary {
+  version: number;
+  libraryId: string;
+  textureSets: TerrainTextureSetRecord[];
+  families: TerrainMaterialFamilyRecord[];
+  residencyProfiles: Record<TerrainResidencyQuality, {
+    anisotropy: number;
+    maxResolution: number;
+    channelsByTextureSet: Record<string, TerrainTextureChannel[]>;
+  }>;
+}
+
+export function validateTerrainMaterialLibrary(library: TerrainMaterialLibrary): TerrainMaterialLibrary {
+  if (library.version !== 1) throw new Error(`Unsupported terrain material library v${library.version}`);
+  if (library.families.length < 25 || library.families.length > 35) throw new Error(`Terrain material family count ${library.families.length} is outside 25-35`);
+  const setIds = new Set(library.textureSets.map((set) => set.id));
+  if (setIds.size !== library.textureSets.length) throw new Error("Terrain material library has duplicate texture sets");
+  if (new Set(library.families.map((family) => family.id)).size !== library.families.length) throw new Error("Terrain material library has duplicate families");
+  for (const family of library.families) if (!setIds.has(family.textureSet)) throw new Error(`Terrain material family ${family.id} references missing set ${family.textureSet}`);
+  for (const quality of ["compatibility", "balanced", "high"] as const) {
+    const profile = library.residencyProfiles[quality];
+    if (!profile) throw new Error(`Terrain material library is missing ${quality} residency`);
+    for (const setId of setIds) if (!profile.channelsByTextureSet[setId]?.includes("albedo")) throw new Error(`${quality} residency is missing ${setId}/albedo`);
+  }
+  return library;
+}
+
 /** A closed-basin pit lake (hydrology/index.ts) -- generated since Phase 2 but never wired into the viewer until now, which is why low inland basins rendered as flat "ocean" biome color with no actual water surface (Kevin: "not sure if it's water or a lake"). */
 export interface LakeRecord {
   id: string;
@@ -127,6 +182,7 @@ export interface WorldData {
   continents: Record<string, ContinentData>;
   worldHeight: WorldHeightData;
   controlFields: ControlFieldManifest;
+  terrainMaterialLibrary: TerrainMaterialLibrary;
 }
 
 function base(seed: number) {
@@ -171,6 +227,7 @@ export interface EmbeddedWorld {
     manifest: ControlFieldManifest;
     continents: Record<string, Record<string, string>>;
   };
+  terrainMaterialLibrary: TerrainMaterialLibrary;
 }
 
 function base64ToFloat32Array(b64: string): Float32Array {
@@ -193,6 +250,7 @@ export async function loadEmbeddedWorld(onProgress?: (msg: string) => void): Pro
 
   const continents: Record<string, ContinentData> = {};
   const controlFields = embedded.controlFields.manifest;
+  const terrainMaterialLibrary = validateTerrainMaterialLibrary(embedded.terrainMaterialLibrary);
   for (const id of embedded.manifest.continents) {
     onProgress?.(`decoding ${id}…`);
     const src = embedded.continents[id];
@@ -228,6 +286,7 @@ export async function loadEmbeddedWorld(onProgress?: (msg: string) => void): Pro
     continents,
     worldHeight,
     controlFields,
+    terrainMaterialLibrary,
   };
 }
 
@@ -267,6 +326,8 @@ export async function loadWorld(seed: number, onProgress?: (msg: string) => void
   if (controlFields.version !== 1 || controlFields.encoding !== "rgba8") {
     throw new Error(`Unsupported environmental control contract v${controlFields.version}/${controlFields.encoding}`);
   }
+  onProgress?.("terrain material library");
+  const terrainMaterialLibrary = validateTerrainMaterialLibrary(await fetchJson<TerrainMaterialLibrary>(`${b}/terrainMaterials.json`));
 
   const continents: Record<string, ContinentData> = {};
   for (const continent of manifest.continents) {
@@ -304,5 +365,5 @@ export async function loadWorld(seed: number, onProgress?: (msg: string) => void
     bounds: manifest.worldHeightmap.bounds,
   };
 
-  return { manifest, zones: zonesRaw.zones, settlements: poi.settlements, seaRegions: seaRegionsData.regions, continents, worldHeight, controlFields };
+  return { manifest, zones: zonesRaw.zones, settlements: poi.settlements, seaRegions: seaRegionsData.regions, continents, worldHeight, controlFields, terrainMaterialLibrary };
 }

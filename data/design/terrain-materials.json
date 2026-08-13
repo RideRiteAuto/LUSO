@@ -1,0 +1,117 @@
+{
+  "version": 1,
+  "libraryId": "navora-terrain-materials-v1",
+  "textureSets": [
+    {
+      "id": "sand", "displayName": "Aerial Beach Sand", "provider": "Poly Haven", "sourceAssetId": "aerial_beach_01", "sourceUrl": "https://polyhaven.com/a/aerial_beach_01", "license": "CC0",
+      "channels": {
+        "albedo": { "file": "terrain-ktx2/sand_albedo.ktx2", "colorSpace": "srgb" },
+        "normal": { "file": "terrain-ktx2/sand_normal.ktx2", "colorSpace": "linear" },
+        "roughness": { "file": "terrain-ktx2/sand_roughness.ktx2", "colorSpace": "linear" }
+      }
+    },
+    {
+      "id": "grass", "displayName": "Temperate Grass", "provider": "ambientCG", "sourceAssetId": "Grass001", "sourceUrl": "https://ambientcg.com/view?id=Grass001", "license": "CC0", "sourceDimensionsM": [1.4, 1.4],
+      "channels": {
+        "albedo": { "file": "terrain-ktx2/grass_albedo.ktx2", "colorSpace": "srgb" },
+        "normal": { "file": "terrain-ktx2/grass_normal.ktx2", "colorSpace": "linear" },
+        "roughness": { "file": "terrain-ktx2/grass_roughness.ktx2", "colorSpace": "linear" }
+      }
+    },
+    {
+      "id": "soil", "displayName": "Brown Mud", "provider": "Poly Haven", "sourceAssetId": "brown_mud", "sourceUrl": "https://polyhaven.com/a/brown_mud", "license": "CC0",
+      "channels": {
+        "albedo": { "file": "terrain-ktx2/soil_albedo.ktx2", "colorSpace": "srgb" },
+        "normal": { "file": "terrain-ktx2/soil_normal.ktx2", "colorSpace": "linear" },
+        "roughness": { "file": "terrain-ktx2/soil_roughness.ktx2", "colorSpace": "linear" }
+      }
+    },
+    {
+      "id": "forest", "displayName": "Forest Ground", "provider": "Poly Haven", "sourceAssetId": "forrest_ground_01", "sourceUrl": "https://polyhaven.com/a/forrest_ground_01", "license": "CC0",
+      "channels": {
+        "albedo": { "file": "terrain-ktx2/forest_albedo.ktx2", "colorSpace": "srgb" },
+        "normal": { "file": "terrain-ktx2/forest_normal.ktx2", "colorSpace": "linear" },
+        "roughness": { "file": "terrain-ktx2/forest_roughness.ktx2", "colorSpace": "linear" }
+      }
+    },
+    {
+      "id": "rock", "displayName": "Aerial Grey Rock", "provider": "Poly Haven", "sourceAssetId": "aerial_rocks_02", "sourceUrl": "https://polyhaven.com/a/aerial_rocks_02", "license": "CC0",
+      "channels": {
+        "albedo": { "file": "terrain-ktx2/rock_albedo.ktx2", "colorSpace": "srgb" },
+        "normal": { "file": "terrain-ktx2/rock_normal.ktx2", "colorSpace": "linear" },
+        "roughness": { "file": "terrain-ktx2/rock_roughness.ktx2", "colorSpace": "linear" }
+      }
+    },
+    {
+      "id": "scree", "displayName": "Rocky Terrain", "provider": "Poly Haven", "sourceAssetId": "rocky_terrain_02", "sourceUrl": "https://polyhaven.com/a/rocky_terrain_02", "license": "CC0",
+      "channels": {
+        "albedo": { "file": "terrain-ktx2/scree_albedo.ktx2", "colorSpace": "srgb" },
+        "normal": { "file": "terrain-ktx2/scree_normal.ktx2", "colorSpace": "linear" },
+        "roughness": { "file": "terrain-ktx2/scree_roughness.ktx2", "colorSpace": "linear" }
+      }
+    },
+    {
+      "id": "snow", "displayName": "Packed Snow", "provider": "Poly Haven", "sourceAssetId": "snow_02", "sourceUrl": "https://polyhaven.com/a/snow_02", "license": "CC0",
+      "channels": {
+        "albedo": { "file": "terrain-ktx2/snow_albedo.ktx2", "colorSpace": "srgb" },
+        "normal": { "file": "terrain-ktx2/snow_normal.ktx2", "colorSpace": "linear" },
+        "roughness": { "file": "terrain-ktx2/snow_roughness.ktx2", "colorSpace": "linear" }
+      }
+    }
+  ],
+  "families": [
+    { "id": "temperate-meadow-grass", "displayName": "Temperate Meadow Grass", "textureSet": "grass", "category": "grass", "tint": [0.93, 1.0, 0.88], "metersPerRepeat": 1.4, "normalStrength": 0.75, "roughnessBias": 0.02, "heightBlendM": 1.2, "controlDrivers": ["moisture", "vegetation-eligibility"], "tags": ["meadow", "temperate"] },
+    { "id": "lush-valley-grass", "displayName": "Lush Valley Grass", "textureSet": "grass", "category": "grass", "tint": [0.72, 0.96, 0.68], "metersPerRepeat": 1.2, "normalStrength": 0.82, "roughnessBias": 0.04, "heightBlendM": 1.0, "controlDrivers": ["wetness", "drainage"], "tags": ["valley", "lush"] },
+    { "id": "highland-grass", "displayName": "Highland Grass", "textureSet": "grass", "category": "grass", "tint": [0.78, 0.84, 0.65], "metersPerRepeat": 1.1, "normalStrength": 0.9, "roughnessBias": 0.06, "heightBlendM": 0.8, "controlDrivers": ["exposure", "slope-degrees"], "tags": ["highland", "wind"] },
+    { "id": "dry-steppe-grass", "displayName": "Dry Steppe Grass", "textureSet": "grass", "category": "grass", "tint": [0.9, 0.75, 0.48], "metersPerRepeat": 1.5, "normalStrength": 0.68, "roughnessBias": 0.1, "heightBlendM": 1.4, "controlDrivers": ["precipitation", "temperature-c"], "tags": ["steppe", "dry"] },
+    { "id": "marsh-grass", "displayName": "Marsh Grass", "textureSet": "grass", "category": "grass", "tint": [0.58, 0.78, 0.48], "metersPerRepeat": 1.0, "normalStrength": 0.62, "roughnessBias": -0.08, "heightBlendM": 0.7, "controlDrivers": ["wetness", "resource-reeds"], "tags": ["marsh", "wetland"] },
+    { "id": "sparse-coastal-grass", "displayName": "Sparse Coastal Grass", "textureSet": "grass", "category": "grass", "tint": [0.76, 0.83, 0.61], "metersPerRepeat": 1.7, "normalStrength": 0.7, "roughnessBias": 0.08, "heightBlendM": 1.6, "controlDrivers": ["shoreline-influence", "exposure"], "tags": ["coast", "sparse"] },
+
+    { "id": "deciduous-forest-loam", "displayName": "Deciduous Forest Loam", "textureSet": "forest", "category": "forest-floor", "tint": [0.92, 0.83, 0.68], "metersPerRepeat": 2.0, "normalStrength": 0.9, "roughnessBias": 0.04, "heightBlendM": 0.9, "controlDrivers": ["resource-forest", "moisture"], "tags": ["deciduous", "loam"] },
+    { "id": "pine-needle-floor", "displayName": "Pine Needle Floor", "textureSet": "forest", "category": "forest-floor", "tint": [0.72, 0.66, 0.53], "metersPerRepeat": 1.7, "normalStrength": 1.0, "roughnessBias": 0.09, "heightBlendM": 0.7, "controlDrivers": ["resource-forest", "temperature-c"], "tags": ["pine", "needles"] },
+    { "id": "mossy-soil", "displayName": "Mossy Soil", "textureSet": "forest", "category": "forest-floor", "tint": [0.62, 0.82, 0.57], "metersPerRepeat": 1.4, "normalStrength": 0.72, "roughnessBias": -0.02, "heightBlendM": 0.8, "controlDrivers": ["wetness", "vegetation-eligibility"], "tags": ["moss", "damp"] },
+    { "id": "leaf-litter", "displayName": "Leaf Litter", "textureSet": "forest", "category": "forest-floor", "tint": [0.91, 0.68, 0.42], "metersPerRepeat": 1.2, "normalStrength": 1.05, "roughnessBias": 0.08, "heightBlendM": 0.65, "controlDrivers": ["resource-forest", "weather-region"], "tags": ["leaves", "seasonal"] },
+    { "id": "rooty-woodland", "displayName": "Rooty Woodland Floor", "textureSet": "forest", "category": "forest-floor", "tint": [0.75, 0.67, 0.52], "metersPerRepeat": 1.5, "normalStrength": 1.18, "roughnessBias": 0.02, "heightBlendM": 0.6, "controlDrivers": ["resource-forest", "slope-degrees"], "tags": ["roots", "woodland"] },
+
+    { "id": "rich-agricultural-soil", "displayName": "Rich Agricultural Soil", "textureSet": "soil", "category": "soil", "tint": [0.8, 0.63, 0.48], "metersPerRepeat": 1.3, "normalStrength": 0.86, "roughnessBias": 0.02, "heightBlendM": 0.8, "controlDrivers": ["soil-class", "buildability"], "tags": ["agriculture", "fertile"] },
+    { "id": "damp-riverbank-mud", "displayName": "Damp Riverbank Mud", "textureSet": "soil", "category": "soil", "tint": [0.63, 0.56, 0.48], "metersPerRepeat": 1.1, "normalStrength": 0.7, "roughnessBias": -0.16, "heightBlendM": 0.55, "controlDrivers": ["distance-to-water-m", "wetness"], "tags": ["riverbank", "mud"] },
+    { "id": "dry-brown-soil", "displayName": "Dry Brown Soil", "textureSet": "soil", "category": "soil", "tint": [0.94, 0.78, 0.61], "metersPerRepeat": 1.6, "normalStrength": 0.82, "roughnessBias": 0.14, "heightBlendM": 1.2, "controlDrivers": ["precipitation", "soil-class"], "tags": ["dry", "brown"] },
+    { "id": "red-earth", "displayName": "Red Earth", "textureSet": "soil", "category": "soil", "tint": [1.0, 0.51, 0.34], "metersPerRepeat": 1.4, "normalStrength": 0.9, "roughnessBias": 0.08, "heightBlendM": 1.0, "controlDrivers": ["geology-class", "temperature-c"], "tags": ["vermara", "iron"] },
+    { "id": "peat-wetland", "displayName": "Peat Wetland", "textureSet": "soil", "category": "soil", "tint": [0.49, 0.43, 0.34], "metersPerRepeat": 1.0, "normalStrength": 0.6, "roughnessBias": -0.12, "heightBlendM": 0.5, "controlDrivers": ["wetness", "drainage"], "tags": ["peat", "wetland"] },
+    { "id": "worn-path-dirt", "displayName": "Worn Path Dirt", "textureSet": "soil", "category": "soil", "tint": [0.86, 0.72, 0.58], "metersPerRepeat": 1.2, "normalStrength": 0.66, "roughnessBias": 0.06, "heightBlendM": 0.45, "controlDrivers": ["buildability", "vegetation-eligibility"], "tags": ["path", "traffic"] },
+
+    { "id": "pale-beach-sand", "displayName": "Pale Beach Sand", "textureSet": "sand", "category": "shore", "tint": [1.0, 0.94, 0.76], "metersPerRepeat": 30.0, "normalStrength": 0.45, "roughnessBias": 0.02, "heightBlendM": 1.4, "controlDrivers": ["shoreline-influence", "distance-to-water-m"], "tags": ["beach", "pale"] },
+    { "id": "storm-coast-sand", "displayName": "Storm Coast Sand", "textureSet": "sand", "category": "shore", "tint": [0.66, 0.69, 0.66], "metersPerRepeat": 24.0, "normalStrength": 0.6, "roughnessBias": -0.04, "heightBlendM": 1.1, "controlDrivers": ["shoreline-influence", "exposure"], "tags": ["storm-coast", "dark"] },
+    { "id": "river-sediment-silt", "displayName": "River Sediment Silt", "textureSet": "sand", "category": "shore", "tint": [0.73, 0.65, 0.5], "metersPerRepeat": 15.0, "normalStrength": 0.38, "roughnessBias": -0.08, "heightBlendM": 0.7, "controlDrivers": ["drainage", "distance-to-water-m"], "tags": ["silt", "river"] },
+    { "id": "gravel-bar", "displayName": "Gravel Bar", "textureSet": "scree", "category": "shore", "tint": [0.82, 0.79, 0.7], "metersPerRepeat": 8.0, "normalStrength": 1.12, "roughnessBias": 0.08, "heightBlendM": 0.7, "controlDrivers": ["drainage", "erosion-scree"], "tags": ["gravel", "river"] },
+    { "id": "pebble-shore", "displayName": "Pebble Shore", "textureSet": "scree", "category": "shore", "tint": [0.69, 0.7, 0.67], "metersPerRepeat": 10.0, "normalStrength": 1.18, "roughnessBias": 0.04, "heightBlendM": 0.75, "controlDrivers": ["shoreline-influence", "geology-class"], "tags": ["pebble", "shore"] },
+
+    { "id": "grey-mountain-rock", "displayName": "Grey Mountain Rock", "textureSet": "rock", "category": "rock", "tint": [0.84, 0.86, 0.84], "metersPerRepeat": 12.0, "normalStrength": 1.0, "roughnessBias": 0.04, "heightBlendM": 1.0, "controlDrivers": ["slope-degrees", "geology-class"], "tags": ["mountain", "grey"] },
+    { "id": "dark-serravela-stone", "displayName": "Dark Serravela Stone", "textureSet": "rock", "category": "rock", "tint": [0.48, 0.52, 0.54], "metersPerRepeat": 11.0, "normalStrength": 1.08, "roughnessBias": 0.02, "heightBlendM": 0.9, "controlDrivers": ["geology-class", "exposure"], "tags": ["serravela", "dark"] },
+    { "id": "coastal-cliff-rock", "displayName": "Coastal Cliff Rock", "textureSet": "rock", "category": "rock", "tint": [0.73, 0.75, 0.7], "metersPerRepeat": 14.0, "normalStrength": 1.2, "roughnessBias": -0.02, "heightBlendM": 0.75, "controlDrivers": ["shoreline-influence", "slope-degrees"], "tags": ["cliff", "coast"] },
+    { "id": "red-vermara-escarpment", "displayName": "Red Vermara Escarpment", "textureSet": "rock", "category": "rock", "tint": [0.95, 0.48, 0.34], "metersPerRepeat": 13.0, "normalStrength": 1.14, "roughnessBias": 0.06, "heightBlendM": 1.0, "controlDrivers": ["geology-class", "erosion-scree"], "tags": ["vermara", "escarpment"] },
+    { "id": "riverbed-stone", "displayName": "Riverbed Stone", "textureSet": "rock", "category": "rock", "tint": [0.6, 0.66, 0.64], "metersPerRepeat": 9.0, "normalStrength": 0.9, "roughnessBias": -0.14, "heightBlendM": 0.6, "controlDrivers": ["distance-to-water-m", "wetness"], "tags": ["riverbed", "wet"] },
+    { "id": "alpine-scree", "displayName": "Alpine Scree", "textureSet": "scree", "category": "rock", "tint": [0.78, 0.79, 0.74], "metersPerRepeat": 18.0, "normalStrength": 1.25, "roughnessBias": 0.08, "heightBlendM": 0.7, "controlDrivers": ["erosion-scree", "exposure"], "tags": ["alpine", "talus"] },
+    { "id": "cave-ore-host-rock", "displayName": "Cave Ore Host Rock", "textureSet": "rock", "category": "rock", "tint": [0.45, 0.48, 0.47], "metersPerRepeat": 8.0, "normalStrength": 1.3, "roughnessBias": 0.12, "heightBlendM": 0.55, "controlDrivers": ["resource-ore", "geology-class"], "tags": ["cave", "ore"] },
+
+    { "id": "snow", "displayName": "Clean Snow", "textureSet": "snow", "category": "snow", "tint": [0.96, 0.98, 1.0], "metersPerRepeat": 2.0, "normalStrength": 0.52, "roughnessBias": 0.08, "heightBlendM": 1.4, "controlDrivers": ["temperature-c", "exposure"], "tags": ["snow", "clean"] },
+    { "id": "dirty-snow-slush", "displayName": "Dirty Snow Slush", "textureSet": "snow", "category": "snow", "tint": [0.69, 0.7, 0.65], "metersPerRepeat": 1.6, "normalStrength": 0.4, "roughnessBias": -0.16, "heightBlendM": 0.7, "controlDrivers": ["temperature-c", "wetness"], "tags": ["slush", "dirty"] },
+    { "id": "exposed-frost-rock", "displayName": "Exposed Frost Rock", "textureSet": "rock", "category": "snow", "tint": [0.75, 0.82, 0.84], "metersPerRepeat": 10.0, "normalStrength": 1.0, "roughnessBias": 0.04, "heightBlendM": 0.65, "controlDrivers": ["temperature-c", "slope-degrees"], "tags": ["frost", "exposed"] },
+
+    { "id": "ancient-luminous-ground", "displayName": "Ancient Luminous Ground", "textureSet": "rock", "category": "special", "tint": [0.56, 0.78, 0.82], "metersPerRepeat": 7.0, "normalStrength": 0.86, "roughnessBias": -0.04, "heightBlendM": 0.5, "controlDrivers": ["weather-region", "geology-class"], "tags": ["ancient", "luminous", "ruin"] }
+  ],
+  "residencyProfiles": {
+    "compatibility": {
+      "anisotropy": 4, "maxResolution": 2048,
+      "channelsByTextureSet": { "sand": ["albedo"], "grass": ["albedo"], "soil": ["albedo"], "forest": ["albedo"], "rock": ["albedo"], "scree": ["albedo"], "snow": ["albedo"] }
+    },
+    "balanced": {
+      "anisotropy": 8, "maxResolution": 2048,
+      "channelsByTextureSet": { "sand": ["albedo"], "grass": ["albedo"], "soil": ["albedo"], "forest": ["albedo"], "rock": ["albedo"], "scree": ["albedo"], "snow": ["albedo"] }
+    },
+    "high": {
+      "anisotropy": 16, "maxResolution": 2048,
+      "channelsByTextureSet": { "sand": ["albedo", "normal", "roughness"], "grass": ["albedo", "normal", "roughness"], "soil": ["albedo", "normal", "roughness"], "forest": ["albedo", "normal", "roughness"], "rock": ["albedo", "normal", "roughness"], "scree": ["albedo", "normal", "roughness"], "snow": ["albedo", "normal", "roughness"] }
+    }
+  }
+}

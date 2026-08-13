@@ -12,7 +12,7 @@ import { placeEcology } from "./ecology/index.js";
 import { placeSettlements } from "./settlements/index.js";
 import { generateRoads } from "./roads/index.js";
 import { generateSettlementName } from "./naming/index.js";
-import { loadZoneDesigns, loadResourceDesigns, loadCreatureDesigns, loadContinentLayout, loadEnvironmentalRegionDesigns } from "./designData.js";
+import { loadZoneDesigns, loadResourceDesigns, loadCreatureDesigns, loadContinentLayout, loadEnvironmentalRegionDesigns, loadTerrainMaterialLibrary } from "./designData.js";
 import type { ContinentId, Landmark, ResolvedZone, WorldOutput } from "./types/index.js";
 
 const GENERATOR_VERSION = "0.4.0";
@@ -41,6 +41,7 @@ export function generateWorld(opts: GenerateOptions): WorldOutput {
   const resourceDesigns = loadResourceDesigns();
   const creatureDesigns = loadCreatureDesigns();
   const environmentalRegionDesigns = loadEnvironmentalRegionDesigns();
+  const terrainMaterialLibrary = loadTerrainMaterialLibrary();
 
   const worldHeight = generateWorldHeightField(seeds, continentLayout, zoneDesigns, metersPerCell);
 
@@ -160,6 +161,7 @@ export function generateWorld(opts: GenerateOptions): WorldOutput {
     heightFields,
     biomeFields,
     environmentalFields,
+    terrainMaterialLibrary,
     water,
     zones: allZones,
     resources: allResources,

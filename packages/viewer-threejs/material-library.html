@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Navora Terrain Material Library</title>
+  <style>
+    :root { color-scheme: dark; font-family: Inter, ui-sans-serif, system-ui, sans-serif; background: #0d1213; color: #edf2eb; }
+    * { box-sizing: border-box; }
+    body { margin: 0; padding: 28px 32px 38px; background: radial-gradient(circle at 15% -10%, #294039 0, #101717 36%, #090d0e 100%); min-height: 100vh; }
+    header { display: flex; align-items: end; justify-content: space-between; gap: 28px; margin: 0 auto 24px; max-width: 1760px; }
+    h1 { margin: 0; font: 700 31px/1.05 Georgia, serif; letter-spacing: .02em; }
+    .eyebrow { color: #b9d8b0; text-transform: uppercase; letter-spacing: .18em; font-size: 11px; margin-bottom: 8px; }
+    .subtitle { margin: 8px 0 0; color: #aeb9b5; font-size: 13px; }
+    .stats { display: flex; gap: 9px; flex-wrap: wrap; justify-content: end; }
+    .stat { border: 1px solid #385047; background: #121d1bda; border-radius: 8px; padding: 8px 12px; color: #b7c7c1; font-size: 11px; }
+    .stat b { color: #f3f1de; font-size: 15px; margin-right: 4px; }
+    main { display: grid; grid-template-columns: repeat(6, minmax(190px, 1fr)); gap: 12px; max-width: 1760px; margin: 0 auto; }
+    .card { min-height: 169px; position: relative; overflow: hidden; border-radius: 9px; border: 1px solid #3a4843; background-position: center; background-size: cover; box-shadow: inset 0 0 0 1px #ffffff0a, 0 7px 20px #0007; }
+    .card::before { content: ""; position: absolute; inset: 0; background: var(--tint); mix-blend-mode: multiply; opacity: .48; }
+    .card::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, transparent 25%, #07100ce8 76%, #050a08 100%); }
+    .content { position: absolute; z-index: 1; inset: auto 11px 9px; text-shadow: 0 1px 3px #000; }
+    .category { display: inline-block; padding: 3px 6px; margin-bottom: 5px; border-radius: 4px; background: #0d1715c9; color: #b9d8b0; text-transform: uppercase; letter-spacing: .1em; font-size: 8px; }
+    h2 { margin: 0 0 5px; font-size: 13px; line-height: 1.1; }
+    .meta { color: #bdc7c2; font-size: 9px; display: flex; justify-content: space-between; gap: 6px; }
+    .controls { color: #92a59d; font-size: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 4px; }
+    .error { color: #ffb4a5; max-width: 1760px; margin: 30px auto; }
+    html.capture { zoom: .4; }
+    @media (max-width: 1300px) { main { grid-template-columns: repeat(4, 1fr); } }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <div class="eyebrow">Phase 2 visual review artifact</div>
+      <h1>Navora Terrain Material Library</h1>
+      <p class="subtitle">33 authored semantic families · seven shared CC0 scan sets · recipe-resident PBR channels</p>
+    </div>
+    <div class="stats" id="stats"></div>
+  </header>
+  <main id="grid"></main>
+  <script type="module">
+    const params = new URLSearchParams(location.search);
+    if (params.get("capture") === "1") document.documentElement.classList.add("capture");
+    const seed = params.get("seed") ?? "48291";
+    const grid = document.querySelector("#grid");
+    try {
+      const library = await fetch(`/world-data/${seed}/terrainMaterials.json`).then((response) => {
+        if (!response.ok) throw new Error(`material manifest HTTP ${response.status}`);
+        return response.json();
+      });
+      const sets = new Map(library.textureSets.map((set) => [set.id, set]));
+      const highChannels = Object.values(library.residencyProfiles.high.channelsByTextureSet).flat().length;
+      document.querySelector("#stats").innerHTML = `
+        <span class="stat"><b>${library.families.length}</b> families</span>
+        <span class="stat"><b>${library.textureSets.length}</b> scan sets</span>
+        <span class="stat"><b>${highChannels}</b> KTX2 maps</span>
+        <span class="stat"><b>CC0</b> provenance</span>`;
+      for (const family of library.families) {
+        const set = sets.get(family.textureSet);
+        const card = document.createElement("article");
+        const tint = family.tint.map((value) => Math.round(value * 255));
+        card.className = "card";
+        card.style.backgroundImage = `url("./assets/terrain/source/${family.textureSet}_albedo_2k.jpg")`;
+        card.style.setProperty("--tint", `rgb(${tint.join(",")})`);
+        card.innerHTML = `<div class="content">
+          <span class="category">${family.category}</span>
+          <h2>${family.displayName}</h2>
+          <div class="meta"><span>${set.sourceAssetId}</span><span>${family.metersPerRepeat} m repeat</span></div>
+          <div class="controls">${family.controlDrivers.join(" · ")}</div>
+        </div>`;
+        grid.append(card);
+      }
+    } catch (error) {
+      grid.outerHTML = `<p class="error">${error.message}. Generate seed ${seed} and download the reviewed texture sources first.</p>`;
+    }
+  </script>
+</body>
+</html>

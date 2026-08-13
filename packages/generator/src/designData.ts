@@ -5,7 +5,10 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
-import type { ZoneDesign, ResourceDesign, CreatureDesign, ContinentLayoutDesign, EnvironmentalRegionDesign } from "./types/index.js";
+import type {
+  ZoneDesign, ResourceDesign, CreatureDesign, ContinentLayoutDesign, EnvironmentalRegionDesign,
+  TerrainMaterialLibraryDesign, TerrainResidencyQuality, TerrainTextureChannel,
+} from "./types/index.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // packages/generator/src -> repo root is four levels up (src -> generator -> packages -> root)
@@ -87,4 +90,45 @@ export function loadEnvironmentalRegionDesigns(): EnvironmentalRegionDesign[] {
   for (const id of zoneIds) if (!seen.has(id)) throw new Error(`environment-regions.json is missing zone ${id}`);
   for (const id of seen) if (!zoneIds.has(id)) throw new Error(`environment-regions.json references unknown zone ${id}`);
   return regions;
+}
+
+export function loadTerrainMaterialLibrary(): TerrainMaterialLibraryDesign {
+  const library = loadJson<TerrainMaterialLibraryDesign>("terrain-materials.json");
+  if (library.version !== 1 || !library.libraryId) throw new Error("terrain-materials.json has an unsupported or missing version");
+  if (library.families.length < 25 || library.families.length > 35) {
+    throw new Error(`terrain-materials.json must define 25-35 families; found ${library.families.length}`);
+  }
+  assertUniqueIds(library.textureSets, "terrain-materials.json textureSets");
+  assertUniqueIds(library.families, "terrain-materials.json families");
+  const textureSetIds = new Set(library.textureSets.map((set) => set.id));
+  const channels: TerrainTextureChannel[] = ["albedo", "normal", "roughness"];
+  for (const set of library.textureSets) {
+    if (set.license !== "CC0" || !set.provider || !set.sourceAssetId || !set.sourceUrl) throw new Error(`Texture set ${set.id} has incomplete provenance`);
+    if (set.sourceDimensionsM?.some((value) => !(value > 0))) throw new Error(`Texture set ${set.id} has invalid source dimensions`);
+    for (const channel of channels) {
+      const record = set.channels[channel];
+      if (!record?.file.endsWith(`_${channel}.ktx2`)) throw new Error(`Texture set ${set.id} has invalid ${channel} file`);
+      const expectedColorSpace = channel === "albedo" ? "srgb" : "linear";
+      if (record.colorSpace !== expectedColorSpace) throw new Error(`Texture set ${set.id}/${channel} must be ${expectedColorSpace}`);
+    }
+  }
+  for (const family of library.families) {
+    if (!textureSetIds.has(family.textureSet)) throw new Error(`Material family ${family.id} references unknown texture set ${family.textureSet}`);
+    if (family.tint.some((value) => !Number.isFinite(value) || value < 0 || value > 1)) throw new Error(`Material family ${family.id} has invalid tint`);
+    if (!(family.metersPerRepeat > 0) || family.normalStrength < 0 || family.normalStrength > 2 || Math.abs(family.roughnessBias) > 0.5 || !(family.heightBlendM > 0)) {
+      throw new Error(`Material family ${family.id} has invalid material parameters`);
+    }
+    if (family.controlDrivers.length === 0 || family.tags.length === 0) throw new Error(`Material family ${family.id} is missing semantic controls`);
+  }
+  for (const quality of ["compatibility", "balanced", "high"] satisfies TerrainResidencyQuality[]) {
+    const profile = library.residencyProfiles[quality];
+    if (!profile || !(profile.anisotropy > 0) || !(profile.maxResolution > 0)) throw new Error(`Material residency profile ${quality} is invalid`);
+    for (const [setId, residentChannels] of Object.entries(profile.channelsByTextureSet)) {
+      if (!textureSetIds.has(setId) || residentChannels.length === 0 || residentChannels.some((channel) => !channels.includes(channel))) {
+        throw new Error(`Material residency profile ${quality}/${setId} is invalid`);
+      }
+    }
+    for (const setId of textureSetIds) if (!profile.channelsByTextureSet[setId]?.includes("albedo")) throw new Error(`Material residency profile ${quality} is missing ${setId}/albedo`);
+  }
+  return library;
 }
