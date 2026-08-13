@@ -14,6 +14,7 @@ import { EnvironmentDressing } from "./environmentDressing.js";
 import { NavoraAtmosphere } from "./atmosphere.js";
 import { ResourceReviewYard } from "./resourceReviewYard.js";
 import { NavoraWaterSystem } from "./waterSystem.js";
+import { buildRiverChannelField, sampleRiverCarvedHeight } from "./riverChannelField.js";
 
 const params = new URLSearchParams(location.search);
 const seed = Number(params.get("seed") ?? 48291);
@@ -149,8 +150,10 @@ async function boot() {
   loadedWorld = world;
 
   statusEl.textContent = "loading scanned terrain materials…";
-  collisionHeights = new CollisionHeightCache(world.worldHeight, manifest.seed, sampleHeightWithSkirt);
-  terrainStreamer = await TerrainStreamer.create(world, qualityName, renderer);
+  const riverChannels = buildRiverChannelField(world);
+  const carveRiverHeight = (x: number, z: number, height: number) => sampleRiverCarvedHeight(riverChannels, x, z, height);
+  collisionHeights = new CollisionHeightCache(world.worldHeight, manifest.seed, sampleHeightWithSkirt, 128, 4, 64, carveRiverHeight);
+  terrainStreamer = await TerrainStreamer.create(world, qualityName, renderer, riverChannels);
   worldRoot.add(terrainStreamer.group);
   statusEl.textContent = "initializing navigable water…";
   waterSystem = new NavoraWaterSystem(world, qualityName, sun.position.clone().normalize());
@@ -163,7 +166,7 @@ async function boot() {
   // placement while keeping each admitted dressing cell cheap.
   const sampleDressingGround = (x: number, z: number) => {
     const macro = sampleHeightWithSkirt(world.worldHeight, x, z);
-    return macro + sampleLocalTerrainDetail(x, z, manifest.seed, macro);
+    return carveRiverHeight(x, z, macro + sampleLocalTerrainDetail(x, z, manifest.seed, macro));
   };
   environmentDressing = await EnvironmentDressing.create(world, sampleDressingGround, qualityName);
   worldRoot.add(environmentDressing.group);

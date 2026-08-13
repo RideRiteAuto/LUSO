@@ -217,6 +217,7 @@ export class CollisionHeightCache {
     private readonly patchSize = 128,
     private readonly spacing = 4,
     private readonly maxPatches = 64,
+    private readonly modifyHeight: (worldX: number, worldZ: number, baseHeight: number) => number = (_x, _z, height) => height,
   ) {}
 
   sample(worldX: number, worldZ: number): number {
@@ -259,7 +260,8 @@ export class CollisionHeightCache {
         const worldX = originX + x * this.spacing;
         const worldZ = originZ + z * this.spacing;
         const macro = this.sampleMacro(this.worldHeight, worldX, worldZ);
-        values[z * stride + x] = macro + sampleLocalTerrainDetail(worldX, worldZ, this.seed, macro);
+        const baseHeight = macro + sampleLocalTerrainDetail(worldX, worldZ, this.seed, macro);
+        values[z * stride + x] = this.modifyHeight(worldX, worldZ, baseHeight);
       }
     }
     return values;

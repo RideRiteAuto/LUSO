@@ -3,6 +3,7 @@ import type { WorldData } from "./worldData.js";
 import { buildTerrainControlMap, SKIRT_REACH, type TerrainControlMap } from "./terrain.js";
 import { selectTerrainTiles, type TerrainLodSettings, type TerrainTileSpec } from "./terrainLod.js";
 import { AlvoraTerrainMaterial, type TerrainMaterialDebugMode, type TerrainQuality } from "./terrainMaterial.js";
+import type { RiverChannelField } from "./riverChannelField.js";
 
 export interface TerrainStreamingStats {
   active: number;
@@ -51,6 +52,14 @@ function terrainWorkerMain() {
     controlPackCount: number;
     seed: number;
     skirtReach: number;
+    riverSegments: Float32Array;
+    riverOffsets: Uint32Array;
+    riverIndices: Uint32Array;
+    riverMinX: number;
+    riverMinZ: number;
+    riverGridWidth: number;
+    riverGridHeight: number;
+    riverCellSize: number;
   };
   type WorkerTile = { id: string; minX: number; minZ: number; size: number; level: number; segments: number; stitchMask: number; stitchRatios: [number, number, number, number] };
   const scope = self as unknown as {
@@ -111,7 +120,40 @@ function terrainWorkerMain() {
   }
   function terrainHeight(x: number, z: number): number {
     const macro = macroHeight(x, z);
-    return macro + detail(x, z, macro);
+    let height = macro + detail(x, z, macro);
+    const s = state!;
+    const cellX = Math.floor((x - s.riverMinX) / s.riverCellSize);
+    const cellZ = Math.floor((z - s.riverMinZ) / s.riverCellSize);
+    if (cellX < 0 || cellZ < 0 || cellX >= s.riverGridWidth || cellZ >= s.riverGridHeight) return height;
+    const cell = cellZ * s.riverGridWidth + cellX;
+    const smooth = (value: number) => {
+      const t = Math.max(0, Math.min(1, value));
+      return t * t * (3 - 2 * t);
+    };
+    for (let entry = s.riverOffsets[cell]; entry < s.riverOffsets[cell + 1]; entry++) {
+      const offset = s.riverIndices[entry] * 10;
+      const ax = s.riverSegments[offset], az = s.riverSegments[offset + 1];
+      const dx = s.riverSegments[offset + 2] - ax, dz = s.riverSegments[offset + 3] - az;
+      const lengthSq = dx * dx + dz * dz;
+      const t = lengthSq > 0 ? Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / lengthSq)) : 0;
+      const distance = Math.hypot(x - (ax + dx * t), z - (az + dz * t));
+      const surface = s.riverSegments[offset + 4] + (s.riverSegments[offset + 5] - s.riverSegments[offset + 4]) * t;
+      const width = s.riverSegments[offset + 6] + (s.riverSegments[offset + 7] - s.riverSegments[offset + 6]) * t;
+      const depth = s.riverSegments[offset + 8] + (s.riverSegments[offset + 9] - s.riverSegments[offset + 8]) * t;
+      const halfWidth = width * 0.5;
+      const bankWidth = Math.max(110, width * 0.7);
+      if (distance > halfWidth + bankWidth) continue;
+      let target: number;
+      if (distance <= halfWidth) {
+        const edge = smooth((distance / Math.max(1, halfWidth) - 0.58) / 0.42);
+        target = surface - depth * (1 - edge * 0.82);
+      } else {
+        const bank = smooth((distance - halfWidth) / bankWidth);
+        target = surface - depth * 0.18 + bank * (depth * 0.18 + Math.min(14, 3.5 + width * 0.025));
+      }
+      height = Math.min(height, target);
+    }
+    return height;
   }
   function sampleControls(x: number, z: number, outputs: Float32Array[], vertexIndex: number): void {
     const s = state!;
@@ -238,12 +280,17 @@ function terrainWorkerMain() {
   }
 
   scope.onmessage = (event: MessageEvent) => {
-    const message = event.data as { type: string; token?: number; spec?: WorkerTile; state?: Omit<WorkerState, "heights" | "controlData"> & { heights: ArrayBuffer; controlData: ArrayBuffer } };
+    const message = event.data as { type: string; token?: number; spec?: WorkerTile; state?: Omit<WorkerState, "heights" | "controlData" | "riverSegments" | "riverOffsets" | "riverIndices"> & {
+      heights: ArrayBuffer; controlData: ArrayBuffer; riverSegments: ArrayBuffer; riverOffsets: ArrayBuffer; riverIndices: ArrayBuffer;
+    } };
     if (message.type === "init" && message.state) {
       state = {
         ...message.state,
         heights: new Float32Array(message.state.heights),
         controlData: new Uint8Array(message.state.controlData),
+        riverSegments: new Float32Array(message.state.riverSegments),
+        riverOffsets: new Uint32Array(message.state.riverOffsets),
+        riverIndices: new Uint32Array(message.state.riverIndices),
       };
       scope.postMessage({ type: "ready" });
       return;
@@ -287,7 +334,7 @@ export class TerrainStreamer {
   );
   private readonly expandedBounds: { minX: number; minZ: number; maxX: number; maxZ: number };
 
-  static async create(world: WorldData, quality: TerrainQuality, renderer: THREE.WebGPURenderer): Promise<TerrainStreamer> {
+  static async create(world: WorldData, quality: TerrainQuality, renderer: THREE.WebGPURenderer, riverChannels: RiverChannelField): Promise<TerrainStreamer> {
     // Fragment-space material sampling needs enough regional resolution to
     // preserve riverbanks and slope transitions in the compatibility tier.
     const controlMap = buildTerrainControlMap(world, quality === "high" ? 1536 : 1024);
@@ -298,7 +345,7 @@ export class TerrainStreamer {
       world.terrainMaterialRecipes,
       controlMap,
       world.worldHeight.bounds,
-    ), controlMap);
+    ), controlMap, riverChannels);
   }
 
   private constructor(
@@ -306,6 +353,7 @@ export class TerrainStreamer {
     quality: TerrainQuality,
     terrainMaterial: AlvoraTerrainMaterial,
     controlMap: TerrainControlMap,
+    riverChannels: RiverChannelField,
   ) {
     this.terrainMaterial = terrainMaterial;
     this.settings = quality === "high"
@@ -332,6 +380,9 @@ export class TerrainStreamer {
       };
       const heights = world.worldHeight.data.slice().buffer;
       const controls = controlMap.data.slice().buffer;
+      const riverSegments = riverChannels.segments.slice().buffer;
+      const riverOffsets = riverChannels.offsets.slice().buffer;
+      const riverIndices = riverChannels.indices.slice().buffer;
       worker.postMessage({
         type: "init",
         state: {
@@ -340,8 +391,12 @@ export class TerrainStreamer {
           controlData: controls, controlWidth: controlMap.width, controlHeight: controlMap.height,
           controlPackCount: controlMap.packCount,
           seed: world.manifest.seed, skirtReach: SKIRT_REACH,
+          riverSegments, riverOffsets, riverIndices,
+          riverMinX: riverChannels.minX, riverMinZ: riverChannels.minZ,
+          riverGridWidth: riverChannels.gridWidth, riverGridHeight: riverChannels.gridHeight,
+          riverCellSize: riverChannels.cellSize,
         },
-      }, [heights, controls]);
+      }, [heights, controls, riverSegments, riverOffsets, riverIndices]);
       this.workers.push(slot);
     }
     URL.revokeObjectURL(workerUrl);

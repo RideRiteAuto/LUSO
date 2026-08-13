@@ -93,6 +93,14 @@ test("lakes are filled basins with spill outlets and all rivers terminate in can
       assert.equal(river.path.length, river.surfaceElevationM.length);
       assert.ok(river.profile.widthM[1] >= 100, `${river.id} cannot grow into a credible channel`);
       assert.ok(river.profile.depthM[1] >= 6, `${river.id} lacks a fish/boat-scale lower channel`);
+      if (river.mouthKind === "estuary") {
+        assert.ok(river.profile.widthM[1] >= 400, `${river.id} estuary is not ship-scale`);
+        assert.ok(river.profile.depthM[1] >= 14, `${river.id} estuary lacks a navigable bed`);
+      }
+      if (river.mouthKind === "delta") {
+        assert.ok(river.profile.widthM[1] >= 500, `${river.id} delta is not ship-scale`);
+        assert.ok(river.profile.depthM[1] >= 16, `${river.id} delta lacks a navigable bed`);
+      }
       for (let i = 1; i < river.surfaceElevationM.length; i++) {
         assert.ok(river.surfaceElevationM[i] <= river.surfaceElevationM[i - 1] + 0.001, `${river.id} flows uphill`);
       }

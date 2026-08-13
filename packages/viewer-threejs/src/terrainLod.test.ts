@@ -82,3 +82,15 @@ test("collision heights remain stable and the patch cache stays bounded", () => 
   for (let i = 0; i < 12; i++) cache.sample(i * 160, i * 160);
   assert.ok(cache.patchCount <= 4);
 });
+
+test("collision cache applies the same terrain modifier used by rendered channels", () => {
+  const worldHeight = {
+    data: new Float32Array([0, 0, 0, 0]),
+    width: 2,
+    height: 2,
+    bounds: { minX: 0, minZ: 0, maxX: 1000, maxZ: 1000 },
+  };
+  const base = new CollisionHeightCache(worldHeight, 48291, () => 40, 128, 4, 4);
+  const carved = new CollisionHeightCache(worldHeight, 48291, () => 40, 128, 4, 4, (_x, _z, height) => height - 15);
+  assert.ok(Math.abs(carved.sample(20, 24) - (base.sample(20, 24) - 15)) < 1e-5);
+});

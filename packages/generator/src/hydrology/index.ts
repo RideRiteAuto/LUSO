@@ -295,17 +295,17 @@ function smoothRiverPath(path: Vec2[], surfaces: number[], iterations = 2): { pa
 function profileForMouth(mouthKind: River["mouthKind"]): River["profile"] {
   switch (mouthKind) {
     case "delta":
-      return { widthM: [42, 260], depthM: [2.4, 12], currentMps: [1.65, 0.28], navigableFromT: 0.22 };
+      return { widthM: [120, 600], depthM: [5, 18], currentMps: [1.65, 0.28], navigableFromT: 0 };
     case "estuary":
-      return { widthM: [32, 210], depthM: [2.1, 10], currentMps: [1.8, 0.32], navigableFromT: 0.28 };
+      return { widthM: [100, 480], depthM: [4.5, 16], currentMps: [1.8, 0.32], navigableFromT: 0 };
     case "lake-outlet":
-      return { widthM: [72, 190], depthM: [4.5, 9], currentMps: [0.85, 0.34], navigableFromT: 0 };
+      return { widthM: [110, 360], depthM: [5, 14], currentMps: [0.85, 0.34], navigableFromT: 0 };
     case "lake-inlet":
-      return { widthM: [24, 125], depthM: [1.8, 7], currentMps: [1.9, 0.42], navigableFromT: 0.34 };
+      return { widthM: [70, 280], depthM: [3.5, 12], currentMps: [1.9, 0.42], navigableFromT: 0.08 };
     case "confluence":
-      return { widthM: [18, 105], depthM: [1.4, 6.5], currentMps: [2.1, 0.62], navigableFromT: 0.48 };
+      return { widthM: [55, 220], depthM: [3, 10], currentMps: [2.1, 0.62], navigableFromT: 0.12 };
     default:
-      return { widthM: [24, 150], depthM: [1.8, 8], currentMps: [2, 0.42], navigableFromT: 0.34 };
+      return { widthM: [70, 320], depthM: [3.5, 13], currentMps: [2, 0.42], navigableFromT: 0.08 };
   }
 }
 
@@ -345,7 +345,7 @@ export function carveRiverChannels(
       const segmentStart = progressStart + (segment / Math.max(1, path.length - 1)) * (1 - progressStart);
       const segmentEnd = progressStart + ((segment + 1) / Math.max(1, path.length - 1)) * (1 - progressStart);
       const maxWidth = (profile.widthM[0] + Math.pow(segmentEnd, 1.35) * (profile.widthM[1] - profile.widthM[0])) * widthScale;
-      const outerRadius = maxWidth * 0.5 + Math.max(72, maxWidth * 0.55);
+      const outerRadius = maxWidth * 0.5 + Math.max(110, maxWidth * 0.7);
       const minX = Math.max(0, Math.floor((Math.min(ax, bx) - outerRadius) / metersPerCellX));
       const maxX = Math.min(width - 1, Math.ceil((Math.max(ax, bx) + outerRadius) / metersPerCellX));
       const minY = Math.max(0, Math.floor((Math.min(ay, by) - outerRadius) / metersPerCellY));
@@ -356,19 +356,21 @@ export function carveRiverChannels(
         const widthM = (profile.widthM[0] + Math.pow(progress, 1.35) * (profile.widthM[1] - profile.widthM[0])) * widthScale;
         const depthM = profile.depthM[0] + Math.pow(progress, 1.15) * (profile.depthM[1] - profile.depthM[0]);
         const halfWidth = Math.max(widthM * 0.5, Math.min(metersPerCellX, metersPerCellY) * 0.52);
-        const bankWidth = Math.max(72, widthM * 0.55);
+        const bankWidth = Math.max(110, widthM * 0.7);
         if (hit.distance > halfWidth + bankWidth) continue;
         const surfaceM = surfaces[segment] + (surfaces[segment + 1] - surfaces[segment]) * hit.t;
         const index = y * width + x;
         let target: number;
         if (hit.distance <= halfWidth) {
           const across = hit.distance / Math.max(1, halfWidth);
-          target = surfaceM - depthM * (1 - across * across * 0.68);
+          const edgeT = Math.max(0, Math.min(1, (across - 0.58) / 0.42));
+          const smoothEdge = edgeT * edgeT * (3 - 2 * edgeT);
+          target = surfaceM - depthM * (1 - smoothEdge * 0.82);
           if (riverCellMask) riverCellMask[index] = 1;
         } else {
           const bankT = (hit.distance - halfWidth) / bankWidth;
           const eased = bankT * bankT * (3 - 2 * bankT);
-          target = surfaceM - depthM * 0.32 + eased * (depthM * 0.32 + Math.min(9, 2.5 + widthM * 0.025));
+          target = surfaceM - depthM * 0.18 + eased * (depthM * 0.18 + Math.min(14, 3.5 + widthM * 0.025));
         }
         data[index] = Math.min(data[index], target);
       }
