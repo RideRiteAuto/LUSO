@@ -11,6 +11,13 @@
 // offshore rocks. The Bruma is deliberately NOT excluded: it is strange
 // water rather than forbidden water, and islands standing in the anomaly are
 // the most interesting ground the sea has to offer.
+//
+// Each island is built the way the continents are — a small metaball mass
+// over several offset lobes, in its own rotated and stretched frame. An
+// island defined as "within radius R of a point" is a disc, and no amount of
+// edge noise rescues it: the earlier arc read as a field of fried eggs,
+// eighteen circles each ringed by a perfectly concentric shelf. Lobes are
+// what make an island long, or bent, or forked, or trailing a skerry.
 
 import { createNoise2D } from "simplex-noise";
 import { mulberry32 } from "../seed/index.js";
@@ -22,6 +29,8 @@ export interface IslandNoise {
   placement: Noise2D;
   shape: Noise2D;
   relief: Noise2D;
+  /** Kept so island geometry can draw stable per-island random variation. */
+  seed: number;
 }
 
 export function buildIslandNoise(seed: number): IslandNoise {
@@ -29,6 +38,7 @@ export function buildIslandNoise(seed: number): IslandNoise {
     placement: createNoise2D(mulberry32(seed + 3001)),
     shape: createNoise2D(mulberry32(seed + 3002)),
     relief: createNoise2D(mulberry32(seed + 3003)),
+    seed,
   };
 }
 
@@ -49,7 +59,7 @@ export interface IslandFieldConfig {
 
 export const DEFAULT_ISLAND_CONFIG: IslandFieldConfig = {
   count: 16,
-  minRadiusM: 1_100,
+  minRadiusM: 700,
   maxRadiusM: 3_400,
   // No exclusion: the anomaly is a place to sail into and build on, and
   // islands standing in it are the most interesting ground in the sea.
@@ -57,13 +67,34 @@ export const DEFAULT_ISLAND_CONFIG: IslandFieldConfig = {
   coastKeepOutM: 4_500,
 };
 
+/** One rounded swelling of an island's mass, in the island's local frame. */
+interface IslandLobe { dx: number; dz: number; radius: number }
+
 export interface Island {
   x: number;
   z: number;
+  /** Nominal size — the scale the lobes and relief are derived from. */
   radiusM: number;
+  /** Cull radius: no sample beyond this can be affected by this island. */
+  reachM: number;
   peakM: number;
   phase: number;
+  lobes: IslandLobe[];
+  /** Long axis direction and how pronounced it is. */
+  rotation: number;
+  stretch: number;
+  warpAmplitudeM: number;
+  warpScaleM: number;
 }
+
+/**
+ * Where the island mass ends and where its underwater platform does, as
+ * contours of the summed lobe field. A lone lobe contributes 1.0 at its own
+ * centre, so the land contour has to sit below that or a single-lobe island
+ * would be a point.
+ */
+const ISLAND_LAND_ISOLINE = 0.62;
+const ISLAND_SHELF_ISOLINE = 0.22;
 
 function fbm(noise: Noise2D, x: number, y: number, octaves: number): number {
   let amplitude = 1, frequency = 1, sum = 0, maxAmplitude = 0;
@@ -74,6 +105,58 @@ function fbm(noise: Noise2D, x: number, y: number, octaves: number): number {
     frequency *= 2.05;
   }
   return sum / maxAmplitude;
+}
+
+/**
+ * Builds one island's lobes, proportions and orientation from a stream of
+ * random numbers. Everything that could make two islands look alike is varied
+ * here: how many swellings the mass has, how far off centre they sit, how
+ * elongated the whole thing is, and which way it lies.
+ */
+function shapeIsland(
+  x: number, z: number, radiusM: number, peakM: number, phase: number, size: number, rng: () => number,
+): Island {
+  const lobes: IslandLobe[] = [
+    { dx: 0, dz: 0, radius: radiusM * (0.60 + rng() * 0.24) },
+  ];
+  // Two to five swellings. Fewer reads as a lump, more as a splatter.
+  const lobeCount = 2 + Math.floor(rng() * 3.6);
+  for (let index = 1; index < lobeCount; index++) {
+    const angle = rng() * Math.PI * 2;
+    const reach = radiusM * (0.34 + rng() * 0.66);
+    lobes.push({
+      dx: Math.cos(angle) * reach,
+      dz: Math.sin(angle) * reach,
+      radius: radiusM * (0.26 + rng() * 0.44),
+    });
+  }
+
+  const rotation = rng() * Math.PI;
+  // Elongation is earned by size. A big island can afford to be a long ridge;
+  // the same stretch applied to a skerry a few cells across draws a hairline
+  // that reads as a scratch on the map rather than as land.
+  const spread = 0.15 + size * 0.42;
+  const stretch = 1 - spread + rng() * spread * 2;
+  // The warp bends the outline; the lobes are what make it irregular. So the
+  // warp wants a wavelength LONGER than the island — at a shorter one it
+  // chews the shore into a fringe, and on a skerry only a dozen cells across
+  // that renders as a starburst. Amplitude eases off on the small ones too:
+  // a rock does not have a coastline's worth of detail to show.
+  const warpAmplitudeM = radiusM * (0.14 + rng() * 0.20) * (0.55 + size * 0.45);
+  const warpScaleM = Math.max(900, radiusM * (1.1 + rng() * 1.3));
+
+  // Cull radius. A lobe's field reaches the shelf contour at
+  // radius * sqrt(ln(1 / ISLAND_SHELF_ISOLINE)); the anisotropic frame can
+  // stretch that either way, and the warp can push a sample further still.
+  const shelfSpan = Math.sqrt(Math.log(1 / ISLAND_SHELF_ISOLINE));
+  const anisotropy = Math.max(stretch, 1 / stretch);
+  let localReach = 0;
+  for (const lobe of lobes) {
+    localReach = Math.max(localReach, Math.hypot(lobe.dx, lobe.dz) + lobe.radius * shelfSpan);
+  }
+  const reachM = localReach * anisotropy + warpAmplitudeM;
+
+  return { x, z, radiusM, reachM, peakM, phase, lobes, rotation, stretch, warpAmplitudeM, warpScaleM };
 }
 
 /**
@@ -101,12 +184,8 @@ export function planIslands(
   // available, so a channel gets a scatter of skerries rather than two plugs
   // that nearly bridge it.
   const bandWidth = usableEast - usableWest;
-  const maxRadiusM = Math.min(config.maxRadiusM, bandWidth * 0.11);
-  // Hold the floor well below the cap. Tying the minimum to a fixed fraction
-  // of the maximum means a narrow sea, whose cap is already low, squeezes the
-  // two together and every island comes out the same size — which is the one
-  // thing an archipelago never looks like.
-  const minRadiusM = Math.min(config.minRadiusM, maxRadiusM * 0.28);
+  const maxRadiusM = Math.min(config.maxRadiusM, bandWidth * 0.15);
+  const minRadiusM = Math.min(config.minRadiusM, maxRadiusM * 0.22);
 
   const islands: Island[] = [];
   // Walk a jittered lattice over the whole sea, not a single file down the
@@ -144,20 +223,25 @@ export function planIslands(
         if (brumaDistance < config.brumaKeepOutM + layout.bruma.radiusUnits) continue;
       }
 
-      // Skewed so the sea is mostly skerries with a few real islands, the
-      // way an archipelago actually reads. fbm concentrates around its
-      // midpoint, so it is stretched before the skew — raw, it delivered
-      // almost every island at the same middling size.
-      const roll = Math.max(0, Math.min(1, fbm(noise.placement, worldX / 4_400, worldZ / 4_400, 2) * 0.95 + 0.5));
-      const size = Math.pow(roll, 1.8);
+      // One RNG stream per lattice cell, so an island's shape is stable
+      // against the seed and independent of how many were placed before it.
+      const rng = mulberry32(noise.seed + row * 8_191 + column * 131 + 17);
+
+      // Skewed hard, and taken from the RNG rather than from a smooth noise
+      // field: sampling fbm for size gave neighbouring islands near-identical
+      // sizes, because that is exactly what a smooth field is for.
+      const size = Math.pow(rng(), 2.3);
       const radiusM = minRadiusM + size * (maxRadiusM - minRadiusM);
       // Small islands are low and rounded; the larger ones earn a real summit.
-      const peakM = 60 + Math.pow(size, 1.4) * 420;
-      const candidate: Island = { x: worldX, z: worldZ, radiusM, peakM, phase: (row * 7.3 + column * 3.1) % 41 };
+      const peakM = 40 + Math.pow(size, 1.25) * 460;
+      const candidate = shapeIsland(worldX, worldZ, radiusM, peakM, (row * 7.3 + column * 3.1) % 41, size, rng);
 
-      // Keep them distinct: never close enough to merge into one mass.
+      // Keep them from fusing into one mass, but allow real clusters: an
+      // archipelago has islands lying close enough to shelter a channel
+      // between them, which a wide exclusion radius forbids outright.
       const tooClose = islands.some((existing) =>
-        Math.hypot(existing.x - candidate.x, existing.z - candidate.z) < (existing.radiusM + candidate.radiusM) * 1.5);
+        Math.hypot(existing.x - candidate.x, existing.z - candidate.z)
+        < (existing.radiusM + candidate.radiusM) * 0.95);
       if (tooClose) continue;
       islands.push(candidate);
     }
@@ -166,57 +250,59 @@ export function planIslands(
 }
 
 /**
+ * The summed lobe field at a world point, in the island's own frame.
+ *
+ * The sample is warped in world space first (which bends the whole outline),
+ * then rotated and stretched into the island's local axes, then measured
+ * against each lobe. Warping the sample rather than modulating a radius
+ * against the polar angle matters: an angular radius function turns noise
+ * octaves into radial spikes and renders as a starburst.
+ */
+function islandFieldAt(worldX: number, worldZ: number, island: Island, noise: IslandNoise): number {
+  const scale = island.warpScaleM;
+  const warpX = fbm(noise.shape, worldX / scale + island.phase, worldZ / scale, 2) * island.warpAmplitudeM;
+  const warpZ = fbm(noise.shape, worldX / scale + 31.7, worldZ / scale + island.phase, 2) * island.warpAmplitudeM;
+
+  const px = worldX + warpX - island.x;
+  const pz = worldZ + warpZ - island.z;
+  const cos = Math.cos(island.rotation), sin = Math.sin(island.rotation);
+  const localX = (px * cos - pz * sin) / island.stretch;
+  const localZ = (px * sin + pz * cos) * island.stretch;
+
+  let field = 0;
+  for (const lobe of island.lobes) {
+    const dx = localX - lobe.dx, dz = localZ - lobe.dz;
+    const normalized = Math.hypot(dx, dz) / Math.max(1e-6, lobe.radius);
+    field += Math.exp(-normalized * normalized);
+  }
+  return field;
+}
+
+/**
  * Island elevation at a world point, or `-Infinity` where the arc has no
  * opinion. Returns a positive height inside an island, and a raised (but
  * still submerged) shelf value around it — an island rising sheer from the
- * abyss reads as a spike, where a real one sits on its own platform.
+ * abyss reads as a spike, where a real one sits on its own platform. The
+ * shelf is a contour of the same field as the shore, so it is a lobed apron
+ * following the island's true outline rather than a ring drawn around a disc.
  */
 export function islandElevationAt(worldX: number, worldZ: number, islands: Island[], noise: IslandNoise): number {
   let best = -Infinity;
   for (const island of islands) {
-    const rawDistance = Math.hypot(worldX - island.x, worldZ - island.z);
-    const shelfReach = island.radiusM * 2.0;
-    if (rawDistance > shelfReach) continue;
+    if (Math.abs(worldX - island.x) > island.reachM || Math.abs(worldZ - island.z) > island.reachM) continue;
+    const field = islandFieldAt(worldX, worldZ, island, noise);
+    if (field < ISLAND_SHELF_ISOLINE) continue;
 
-    // Deform the island by warping the sample point, not by modulating a
-    // radius against the polar angle: an angular radius function turns noise
-    // octaves into radial spikes, which renders as a starburst rather than
-    // an island. Warping in x/z gives a lobed, organically bent outline.
-    //
-    // Both numbers here are about keeping that warp gentle relative to the
-    // island. A wavelength shorter than the island turns the outline into a
-    // ragged fringe, and an amplitude near half the radius folds the shore
-    // back over itself into arms — together they were rendering the arc as a
-    // field of sea urchins. One long, shallow bend per island instead.
-    //
-    // Two scales, because one is either a bend or a fringe and never both: the
-    // long warp leans the whole island off-centre, the short one puts bays and
-    // points along its shore. A single long warp on its own is close to an
-    // affine transform of a circle, which is to say an ellipse — a field of
-    // identical stamped ovals.
-    const longScale = Math.max(1_400, island.radiusM * 2.1);
-    const shortScale = Math.max(520, island.radiusM * 0.75);
-    const warp = (x: number, z: number, salt: number): number =>
-      fbm(noise.shape, x / longScale + island.phase + salt, z / longScale, 2) * island.radiusM * 0.20
-      + fbm(noise.shape, x / shortScale + island.phase * 1.7 + salt, z / shortScale, 2) * island.radiusM * 0.17;
-    const warpedX = worldX + warp(worldX, worldZ, 0);
-    const warpedZ = worldZ + warp(worldX, worldZ, 31.7);
-    const distance = Math.hypot(warpedX - island.x, warpedZ - island.z);
-    const radius = island.radiusM;
-
-    if (distance < radius) {
-      const inland = 1 - distance / radius;
-      // Relief scaled to the island: a fixed noise wavelength gives a 2 km
-      // skerry the same detail as a 6 km island, which reads as spikes.
+    if (field >= ISLAND_LAND_ISOLINE) {
+      const inland = Math.min(1, (field - ISLAND_LAND_ISOLINE) / 0.55);
+      // Relief scaled to the island: a fixed noise wavelength gives a small
+      // skerry the same detail as a large island, which reads as spikes.
       const reliefScale = Math.max(700, island.radiusM * 1.15);
       const relief = fbm(noise.relief, worldX / reliefScale, worldZ / reliefScale, 2) * 0.18;
       const height = Math.pow(inland, 0.72) * island.peakM * (1 + relief);
       best = Math.max(best, Math.max(2, height));
     } else {
-      // Surrounding platform, measured on the SAME warped distance as the
-      // shore so it is a lobed apron rather than a ring drawn around a disc.
-      const out = (distance - radius) / Math.max(1, shelfReach - radius);
-      if (out > 1) continue;
+      const out = 1 - (field - ISLAND_SHELF_ISOLINE) / (ISLAND_LAND_ISOLINE - ISLAND_SHELF_ISOLINE);
       const eased = out * out * (3 - 2 * out);
       best = Math.max(best, -14 - eased * 620);
     }
