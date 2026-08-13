@@ -412,8 +412,8 @@
           0.8504398826979472
         ],
         [
-          0.7409579667644184,
-          0.8484848484848485
+          0.7331378299120235,
+          0.8367546432062561
         ],
         [
           0.5513196480938416,
@@ -433,7 +433,7 @@
         "wooded-highland"
       ],
       "climate": {
-        "avgTemperatureC": 19.1,
+        "avgTemperatureC": 19.2,
         "avgMoisture": 0.71
       },
       "housingDistricts": [
@@ -515,12 +515,16 @@
           0.8123167155425219
         ],
         [
-          0.7419354838709677,
-          0.8504398826979472
+          0.7321603128054741,
+          0.8357771260997068
         ],
         [
-          0.7350928641251222,
-          0.8504398826979472
+          0.7106549364613881,
+          0.8465298142717498
+        ],
+        [
+          0.7096774193548387,
+          0.8465298142717498
         ],
         [
           0.3343108504398827,
@@ -767,8 +771,8 @@
         "mountain-forest"
       ],
       "climate": {
-        "avgTemperatureC": 19.2,
-        "avgMoisture": 0.67
+        "avgTemperatureC": 19.3,
+        "avgMoisture": 0.68
       },
       "housingDistricts": [
         {
@@ -1993,10 +1997,6 @@
           0.4095796676441838
         ],
         [
-          0.21896383186705767,
-          0.4056695992179863
-        ],
-        [
           0.21407624633431085,
           0.38514173998044965
         ],
@@ -2145,7 +2145,7 @@
       ],
       "climate": {
         "avgTemperatureC": 21.1,
-        "avgMoisture": 0.08
+        "avgMoisture": 0.09
       },
       "housingDistricts": [
         {
@@ -2391,7 +2391,7 @@
         "wetland-marsh"
       ],
       "climate": {
-        "avgTemperatureC": 23.2,
+        "avgTemperatureC": 23.1,
         "avgMoisture": 0.88
       },
       "housingDistricts": [
@@ -2717,8 +2717,8 @@
         "great-lakes-country"
       ],
       "climate": {
-        "avgTemperatureC": 18,
-        "avgMoisture": 0.75
+        "avgTemperatureC": 17.8,
+        "avgMoisture": 0.74
       }
     },
     {
