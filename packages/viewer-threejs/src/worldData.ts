@@ -49,8 +49,8 @@ export interface RiverRecord {
   id: string;
   path: [number, number][];
   sourceElevationM?: number;
-  terminatesIn?: { type: "ocean" | "lake"; featureId: string };
-  mouthKind?: "open-coast" | "estuary" | "delta" | "lake-inlet" | "lake-outlet";
+  terminatesIn?: { type: "ocean" | "lake" | "river"; featureId: string };
+  mouthKind?: "open-coast" | "estuary" | "delta" | "lake-inlet" | "lake-outlet" | "confluence";
   surfaceElevationM?: number[];
   distributaries?: [number, number][][];
   profile?: {

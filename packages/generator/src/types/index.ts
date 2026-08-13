@@ -225,8 +225,8 @@ export interface River {
   id: string;
   path: Vec2[];
   sourceElevationM: number;
-  terminatesIn: { type: "ocean" | "lake"; featureId: string };
-  mouthKind: "open-coast" | "estuary" | "delta" | "lake-inlet" | "lake-outlet";
+  terminatesIn: { type: "ocean" | "lake" | "river"; featureId: string };
+  mouthKind: "open-coast" | "estuary" | "delta" | "lake-inlet" | "lake-outlet" | "confluence";
   /** Compiler-resolved, monotonically descending surface used by rendering and navigation. */
   surfaceElevationM: number[];
   /** Canonical deltas may split near the mouth while retaining one watershed ID. */

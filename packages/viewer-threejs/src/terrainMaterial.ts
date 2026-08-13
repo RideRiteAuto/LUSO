@@ -102,23 +102,95 @@ export class AlvoraTerrainMaterial {
     worldBounds: { minX: number; minZ: number; maxX: number; maxZ: number },
   ) {
     this.textures = LAYERS.flatMap((layer) => Object.values(layers[layer])).filter((map): map is THREE.Texture => Boolean(map));
-    const habitatPackIndex = 5;
+    const fragmentControlSampling = quality !== "high";
+    const packTextures = fragmentControlSampling ? Array.from({ length: controlMap.packCount }, (_, pack) => {
+      const bytes = new Uint8Array(controlMap.width * controlMap.height * 4);
+      for (let pixel = 0; pixel < controlMap.width * controlMap.height; pixel++) {
+        const source = (pixel * controlMap.packCount + pack) * 4;
+        bytes.set(controlMap.data.subarray(source, source + 4), pixel * 4);
+      }
+      const map = new THREE.DataTexture(bytes, controlMap.width, controlMap.height, THREE.RGBAFormat, THREE.UnsignedByteType);
+      map.minFilter = map.magFilter = THREE.LinearFilter;
+      map.wrapS = map.wrapT = THREE.ClampToEdgeWrapping;
+      map.colorSpace = THREE.NoColorSpace;
+      map.needsUpdate = true;
+      return map;
+    }) : [];
+    const categoricalTexture = (pack: number, channel: number) => {
+      const bytes = new Uint8Array(controlMap.width * controlMap.height);
+      for (let pixel = 0; pixel < bytes.length; pixel++) bytes[pixel] = controlMap.data[(pixel * controlMap.packCount + pack) * 4 + channel];
+      const map = new THREE.DataTexture(bytes, controlMap.width, controlMap.height, THREE.RedFormat, THREE.UnsignedByteType);
+      map.minFilter = map.magFilter = THREE.NearestFilter;
+      map.wrapS = map.wrapT = THREE.ClampToEdgeWrapping;
+      map.colorSpace = THREE.NoColorSpace;
+      map.needsUpdate = true;
+      return map;
+    };
+    const geologyTexture = fragmentControlSampling ? categoricalTexture(2, 1) : null;
+    // Zone identity remains categorical compiler truth, but presentation must
+    // not jump from one complete material recipe to another on a single
+    // texel. Encode the nearest non-ocean neighbour and a short feather in a
+    // single lookup, preserving the binding count while removing kilometre-
+    // scale hard colour polygons at zone borders.
     const zoneBytes = new Uint8Array(controlMap.width * controlMap.height);
-    for (let pixel = 0; pixel < zoneBytes.length; pixel++) zoneBytes[pixel] = controlMap.data[(pixel * controlMap.packCount + habitatPackIndex) * 4 + 3];
-    const zoneTexture = new THREE.DataTexture(zoneBytes, controlMap.width, controlMap.height, THREE.RedFormat, THREE.UnsignedByteType);
-    zoneTexture.minFilter = zoneTexture.magFilter = THREE.NearestFilter;
-    zoneTexture.wrapS = zoneTexture.wrapT = THREE.ClampToEdgeWrapping;
-    zoneTexture.colorSpace = THREE.NoColorSpace;
-    zoneTexture.needsUpdate = true;
-    this.textures.push(zoneTexture);
+    for (let pixel = 0; pixel < zoneBytes.length; pixel++) zoneBytes[pixel] = controlMap.data[(pixel * controlMap.packCount + 5) * 4 + 3];
+    const zoneBlendBytes = new Uint8Array(zoneBytes.length * 4);
+    const featherRadius = 4;
+    for (let y = 0; y < controlMap.height; y++) {
+      for (let x = 0; x < controlMap.width; x++) {
+        const pixel = y * controlMap.width + x;
+        const primary = zoneBytes[pixel];
+        let secondary = primary;
+        let nearestDistanceSq = Number.POSITIVE_INFINITY;
+        if (primary !== 0) {
+          for (let dy = -featherRadius; dy <= featherRadius; dy++) {
+            const sy = y + dy;
+            if (sy < 0 || sy >= controlMap.height) continue;
+            for (let dx = -featherRadius; dx <= featherRadius; dx++) {
+              const sx = x + dx;
+              if (sx < 0 || sx >= controlMap.width || (dx === 0 && dy === 0)) continue;
+              const distanceSq = dx * dx + dy * dy;
+              if (distanceSq > featherRadius * featherRadius || distanceSq >= nearestDistanceSq) continue;
+              const candidate = zoneBytes[sy * controlMap.width + sx];
+              if (candidate === 0 || candidate === primary) continue;
+              secondary = candidate;
+              nearestDistanceSq = distanceSq;
+            }
+          }
+        }
+        const blend = Number.isFinite(nearestDistanceSq)
+          ? 0.5 * (1 - Math.max(0, Math.sqrt(nearestDistanceSq) - 1) / featherRadius)
+          : 0;
+        const output = pixel * 4;
+        zoneBlendBytes[output] = primary;
+        zoneBlendBytes[output + 1] = secondary;
+        zoneBlendBytes[output + 2] = Math.round(blend * 255);
+        zoneBlendBytes[output + 3] = 255;
+      }
+    }
+    const zoneBlendTexture = new THREE.DataTexture(zoneBlendBytes, controlMap.width, controlMap.height, THREE.RGBAFormat, THREE.UnsignedByteType);
+    // R/G are categorical recipe IDs and must never interpolate into a third
+    // recipe. The precomputed B channel already supplies the visual feather.
+    zoneBlendTexture.minFilter = zoneBlendTexture.magFilter = THREE.NearestFilter;
+    zoneBlendTexture.wrapS = zoneBlendTexture.wrapT = THREE.ClampToEdgeWrapping;
+    zoneBlendTexture.colorSpace = THREE.NoColorSpace;
+    zoneBlendTexture.needsUpdate = true;
+    this.textures.push(...packTextures, ...(geologyTexture ? [geologyTexture] : []), zoneBlendTexture);
     const worldPosition = positionWorld.add(this.originNode);
     const height = worldPosition.y;
-    const controlClimate: any = attribute("controlClimate", "vec4");
-    const controlHydrology: any = attribute("controlHydrology", "vec4");
-    const controlTerrain: any = attribute("controlTerrain", "vec4");
-    const controlEcology: any = attribute("controlEcology", "vec4");
-    const controlResources: any = attribute("controlResources", "vec4");
-    const controlHabitat: any = attribute("controlHabitat", "vec4");
+    const zoneUv = vec2(
+      worldPosition.x.sub(worldBounds.minX).div(worldBounds.maxX - worldBounds.minX),
+      worldPosition.z.sub(worldBounds.minZ).div(worldBounds.maxZ - worldBounds.minZ),
+    );
+    // Sample compiler truth per fragment in stable world space. The former
+    // vertex attributes were interpolated across coarse flight/overview LOD
+    // triangles, turning recipe thresholds into kilometre-scale polygons.
+    const controlClimate: any = fragmentControlSampling ? texture(packTextures[0], zoneUv) : attribute("controlClimate", "vec4");
+    const controlHydrology: any = fragmentControlSampling ? texture(packTextures[1], zoneUv) : attribute("controlHydrology", "vec4");
+    const controlTerrain: any = fragmentControlSampling ? texture(packTextures[2], zoneUv) : attribute("controlTerrain", "vec4");
+    const controlEcology: any = fragmentControlSampling ? texture(packTextures[3], zoneUv) : attribute("controlEcology", "vec4");
+    const controlResources: any = fragmentControlSampling ? texture(packTextures[4], zoneUv) : attribute("controlResources", "vec4");
+    const controlHabitat: any = fragmentControlSampling ? texture(packTextures[5], zoneUv) : attribute("controlHabitat", "vec4");
     const temperature = controlClimate.r;
     const rainfall = controlClimate.g;
     const moisture = controlClimate.b;
@@ -132,20 +204,20 @@ export class AlvoraTerrainMaterial {
     // readable while their source becomes compiler-authoritative.
     const slope = controlHydrology.a.mul(Math.PI / 3).cos().oneMinus();
     const soilClass = controlTerrain.r;
-    const geologyClass = controlTerrain.g;
+    const geologyClass = geologyTexture ? texture(geologyTexture, zoneUv).r : controlTerrain.g;
     const exposure = controlTerrain.b;
     const screeTendency = controlTerrain.a;
     const buildability = controlEcology.r;
     const vegetationEligibility = controlEcology.g;
     const biomeClass = controlEcology.b;
     const resourceEligibility = controlHabitat.b.max(controlResources.r.max(controlResources.g).max(controlResources.b).max(controlResources.a));
-    const zoneUv = vec2(
-      worldPosition.x.sub(worldBounds.minX).div(worldBounds.maxX - worldBounds.minX),
-      worldPosition.z.sub(worldBounds.minZ).div(worldBounds.maxZ - worldBounds.minZ),
-    );
-    const zoneIndex = texture(zoneTexture, zoneUv).r.mul(recipeLibrary.zoneOrder.length).add(0.5).floor();
+    const zoneBlend = texture(zoneBlendTexture, zoneUv);
+    const zoneIndex = zoneBlend.r.mul(recipeLibrary.zoneOrder.length).add(0.5).floor();
+    const secondaryZoneIndex = zoneBlend.g.mul(recipeLibrary.zoneOrder.length).add(0.5).floor();
+    const zoneFeather = zoneBlend.b;
     const viewDistance = cameraPosition.sub(positionWorld).length();
     const microVisibility = smoothstep(180, 900, viewDistance).oneMinus();
+    const scannedAlbedoVisibility = smoothstep(35, 260, viewDistance).oneMinus();
     const landTransition = smoothstep(-3, 5, height);
     const macro = mx_noise_float(worldPosition.xz.mul(0.00042)).mul(0.5).add(0.5);
     const fineMacro = mx_noise_float(worldPosition.xz.mul(0.0021).add(vec2(31.7, -14.2))).mul(0.5).add(0.5);
@@ -170,13 +242,11 @@ export class AlvoraTerrainMaterial {
         : warpedPosition.xz;
       return texture(map, coordinates.mul(repeatsPerMeter));
     };
-    const planarAlbedo = (layer: TerrainLayer, scale: number, blendNode: any) => quality === "high"
-      ? mix(
-        planarSample(layers[layer].albedo!, scale).rgb,
-        planarSample(layers[layer].albedo!, scale * 0.73, true).rgb,
-        blendNode,
-      )
-      : planarSample(layers[layer].albedo!, scale).rgb;
+    const planarAlbedo = (layer: TerrainLayer, scale: number, blendNode: any) => mix(
+      planarSample(layers[layer].albedo!, scale).rgb,
+      planarSample(layers[layer].albedo!, scale * 0.73, true).rgb,
+      blendNode.mul(0.64).add(0.18),
+    );
     const triplanarSample = (map: THREE.Texture, repeatsPerMeter: number) => triplanarTexture(
       texture(map), null, null, float(repeatsPerMeter), warpedPosition, normalWorld,
     );
@@ -185,13 +255,17 @@ export class AlvoraTerrainMaterial {
     // tables choose semantic tint and response over these common samples,
     // avoiding a texture-fetch explosion while giving all 16 zones distinct
     // compiler-driven terrain identities.
-    const sand = planarAlbedo("sand", 1 / 30, macro);
-    const grass = planarAlbedo("grass", 1 / 1.4, localPatch);
-    const soil = planarAlbedo("soil", 1 / 1.3, fineMacro);
-    const forest = planarAlbedo("forest", 1 / 2, localPatch);
-    const rock = triplanarSample(layers.rock.albedo!, 1 / 12).rgb;
-    const scree = triplanarSample(layers.scree.albedo!, 1 / 18).rgb;
-    const snow = planarAlbedo("snow", 1 / 2, fineMacro);
+    // Physical scans are walking-height detail. Fade them into stable layer
+    // averages before their texels become sub-pixel; leaving 1–2m scans fully
+    // visible from hundreds of metres produced the repeated dot/grid pattern
+    // in compatibility flight views.
+    const sand = mix(color(0xc6b488), planarAlbedo("sand", 1 / 30, macro), scannedAlbedoVisibility);
+    const grass = mix(color(0x506a3e), planarAlbedo("grass", 1 / 1.4, localPatch), scannedAlbedoVisibility);
+    const soil = mix(color(0x655044), planarAlbedo("soil", 1 / 1.3, fineMacro), scannedAlbedoVisibility);
+    const forest = mix(color(0x4b4436), planarAlbedo("forest", 1 / 2, localPatch), scannedAlbedoVisibility);
+    const rock = mix(color(0x77746c), triplanarSample(layers.rock.albedo!, 1 / 12).rgb, scannedAlbedoVisibility);
+    const scree = mix(color(0x817c70), triplanarSample(layers.scree.albedo!, 1 / 18).rgb, scannedAlbedoVisibility);
+    const snow = mix(color(0xd7dce0), planarAlbedo("snow", 1 / 2, fineMacro), scannedAlbedoVisibility);
     const baseAlbedo: Record<TerrainLayer, any> = { sand, grass, soil, forest, rock, scree, snow };
     const familyById = new Map(library.families.map((family) => [family.id, family]));
     const familyIndex = new Map(library.families.map((family, index) => [family.id, index]));
@@ -288,12 +362,19 @@ export class AlvoraTerrainMaterial {
         materialId: compose(recipe, familyIdNode, masks),
       };
     });
-    const zoneMask = (recipeIndex: number) => smoothstep(0.1, 0.49, zoneIndex.sub(recipeIndex + 1).abs()).oneMinus();
-    const selectRecipe = (key: keyof typeof compiledRecipes[number]) => {
+    const selectRecipeForZone = (key: keyof typeof compiledRecipes[number], indexNode: any) => {
       let selected = compiledRecipes[0][key];
-      for (let i = 1; i < compiledRecipes.length; i++) selected = mix(selected, compiledRecipes[i][key], zoneMask(i));
+      for (let i = 1; i < compiledRecipes.length; i++) {
+        const zoneMask = smoothstep(0.1, 0.49, indexNode.sub(i + 1).abs()).oneMinus();
+        selected = mix(selected, compiledRecipes[i][key], zoneMask);
+      }
       return selected;
     };
+    const selectRecipe = (key: keyof typeof compiledRecipes[number]) => mix(
+      selectRecipeForZone(key, zoneIndex),
+      selectRecipeForZone(key, secondaryZoneIndex),
+      zoneFeather,
+    );
     const seabed = mix(sand, color(0xcab88e), macro.mul(0.25)).mul(color(0x31525a));
     const recipeColor = selectRecipe("color");
     let finalColor = mix(seabed, recipeColor, landTransition);

@@ -1,6 +1,6 @@
 # Phase 4 geography, hydrology, and Review A
 
-Status: implementation complete; awaiting Kevin's mandatory Review A approval.
+Status: first review rejected; corrective implementation complete; awaiting revised Review A approval.
 Branch: `codex/world-production-completion`
 Canonical review seed: `48291`
 
@@ -11,7 +11,30 @@ the landform, material language, and environmental truth shown here before
 Phase 5 adds vegetation and resources that could hide terrain defects. No Phase
 5 work has started.
 
-The review evidence is in [`artifacts/phase4-review-a/`](artifacts/phase4-review-a/README.md).
+The original evidence is in [`artifacts/phase4-review-a/`](artifacts/phase4-review-a/README.md).
+The five-location corrective evidence is in
+[`artifacts/phase4-review-a-revision/`](artifacts/phase4-review-a-revision/README.md).
+
+## Rejection corrections
+
+- River paths now carve resolved beds and sloped banks into both the local and
+  unified authoritative heightfields before export. They are not merely blue
+  meshes laid over unmodified terrain.
+- Physical river profiles are 24–150 m for ordinary trunks, 32–210 m at
+  estuaries, and up to 260 m at deltas, with 1.8–12 m authored depths. A 30 m
+  surface width is the runtime craft-navigation threshold.
+- Tributaries terminate at an existing downstream river identity instead of
+  re-exporting and rendering the shared trunk once per source. Delta branches
+  receive a narrower physical profile than the main channel.
+- Compatibility and balanced materials sample compiler control fields per
+  fragment in world space. Near physical scans fade into stable material
+  averages before becoming sub-pixel, and adjacent zone recipes receive a
+  short categorical-safe feather.
+- Streamed terrain tiles carry shallow edge skirts to conceal precision cracks
+  at distant LOD boundaries. Strategic-altitude views do not render the
+  near-water river strip through terrain too coarse to resolve its channel.
+- The viewer accepts exact reproducibility cameras through `reviewX`,
+  `reviewY`, `reviewZ`, `reviewYaw`, and `reviewPitch` URL parameters.
 
 ## What Phase 4 now guarantees
 
@@ -28,6 +51,9 @@ The review evidence is in [`artifacts/phase4-review-a/`](artifacts/phase4-review
 - River surfaces descend monotonically. Mouths are classified as open coast,
   estuary, delta, lake inlet, or lake outlet. Solmara exposes one canonical
   delta with two distributaries under one watershed identity.
+- River beds and banks are physically carved beneath those surfaces; profiles
+  carry width, depth, and current values for visible water, swimming, fish,
+  craft navigation, and future buoyancy to share.
 - Beach, rocky coast, cliff, and estuary material selection uses slope,
   geology, exposure, wetness, and drainage compiler fields. The `Coast type`
   viewer mode makes the selection inspectable.
@@ -50,7 +76,7 @@ zones, 549 resources, 16 spawn regions, 38 settlements, and 36 roads.
 | Peak elevation | 3,940.6 m | 3,366.0 m |
 | Mean housing suitability | 0.287 | 0.356 |
 | High-suitability cells | 50,846 | 69,976 |
-| Rivers | 8 | 13 |
+| Rivers | 8 | 12 |
 | Lakes | 0 | 2 |
 
 Seradia's two retained basins are physically resolved:

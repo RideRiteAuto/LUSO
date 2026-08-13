@@ -85,11 +85,23 @@ test("lakes are filled basins with spill outlets and all rivers terminate in can
       assert.ok(world.water[continent].rivers.some((river) => river.mouthKind === "lake-outlet" && Math.abs(river.sourceElevationM - lake.surfaceElevationM) < 0.1), `${lake.id} has no compiled outlet river`);
     }
     for (const river of world.water[continent].rivers) {
-      assert.ok(river.terminatesIn.type === "ocean" || world.water[continent].lakes.some((lake) => lake.id === river.terminatesIn.featureId));
+      assert.ok(
+        river.terminatesIn.type === "ocean"
+        || world.water[continent].lakes.some((lake) => lake.id === river.terminatesIn.featureId)
+        || world.water[continent].rivers.some((candidate) => candidate.id === river.terminatesIn.featureId),
+      );
       assert.equal(river.path.length, river.surfaceElevationM.length);
+      assert.ok(river.profile.widthM[1] >= 100, `${river.id} cannot grow into a credible channel`);
+      assert.ok(river.profile.depthM[1] >= 6, `${river.id} lacks a fish/boat-scale lower channel`);
       for (let i = 1; i < river.surfaceElevationM.length; i++) {
         assert.ok(river.surfaceElevationM[i] <= river.surfaceElevationM[i - 1] + 0.001, `${river.id} flows uphill`);
       }
+      const sampleIndex = Math.max(1, Math.min(river.path.length - 2, Math.floor(river.path.length * 0.65)));
+      const [u, v] = river.path[sampleIndex];
+      const field = world.heightFields[continent];
+      const x = Math.round(u * (field.width - 1)), y = Math.round(v * (field.height - 1));
+      const bed = field.data[y * field.width + x];
+      assert.ok(bed < river.surfaceElevationM[sampleIndex] - 0.5, `${river.id} surface is not backed by a carved riverbed`);
     }
   }
 });

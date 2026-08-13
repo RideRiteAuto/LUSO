@@ -44,7 +44,7 @@ interface LakeSurface {
   depthM: number;
 }
 
-export const NAVIGABLE_RIVER_WIDTH_M = 18;
+export const NAVIGABLE_RIVER_WIDTH_M = 30;
 
 // A compact, deterministic deep-water spectrum. Rendering and gameplay use
 // the same coefficients so a hull pontoon, swimmer, fish, and visible crest
@@ -84,9 +84,7 @@ function closestPointOnSegment(x: number, z: number, segment: RiverSegment): { t
 }
 
 function riverWidth(progress: number, river: RiverRecord): number {
-  // Headwaters remain fish/swimmer water; the lower half grows into the
-  // navigable 18-52 m channel required by early rafts and cutters.
-  const [source, mouth] = river.profile?.widthM ?? [7, 52];
+  const [source, mouth] = river.profile?.widthM ?? [24, 150];
   return source + Math.pow(progress, 1.35) * (mouth - source);
 }
 
@@ -102,6 +100,7 @@ function buildRiverGeometry(
   segments: RiverSegment[],
   path: [number, number][] = river.path,
   progressStart = 0,
+  widthScale = 1,
 ): THREE.BufferGeometry | null {
   if (path.length < 2) return null;
   const rawPoints = path.map(([u, v], index) => {
@@ -111,7 +110,7 @@ function buildRiverGeometry(
     const authoredSurface = path === river.path ? river.surfaceElevationM?.[index] : undefined;
     const terrainSurface = sampleHeight(continent, u, v);
     const surface = authoredSurface ?? Math.max(0, terrainSurface);
-    return { x, z, y: surface + 0.42 + Math.pow(progress, 4) * 0.55, width: riverWidth(progress, river), current: riverCurrent(progress, river), progress };
+    return { x, z, y: surface + 0.10 + Math.pow(progress, 5) * 0.12, width: riverWidth(progress, river) * widthScale, current: riverCurrent(progress, river), progress };
   });
   const points = rawPoints.length >= 4
     ? (() => {
@@ -121,7 +120,7 @@ function buildRiverGeometry(
         const t = index / sampleCount;
         const point = curve.getPoint(t);
         const progress = progressStart + t * (1 - progressStart);
-        return { x: point.x, z: point.z, y: point.y, width: riverWidth(progress, river), current: riverCurrent(progress, river), progress };
+        return { x: point.x, z: point.z, y: point.y, width: riverWidth(progress, river) * widthScale, current: riverCurrent(progress, river), progress };
       });
     })()
     : rawPoints;
@@ -133,10 +132,16 @@ function buildRiverGeometry(
     const sideX = -tz, sideZ = tx;
     if (i > 0) distanceAlong += Math.hypot(point.x - points[i - 1].x, point.z - points[i - 1].z);
     positions.push(point.x + sideX * point.width * 0.5, point.y, point.z + sideZ * point.width * 0.5);
+    positions.push(point.x, point.y, point.z);
     positions.push(point.x - sideX * point.width * 0.5, point.y, point.z - sideZ * point.width * 0.5);
-    uvs.push(0, distanceAlong / 18, 1, distanceAlong / 18);
-    const shallow = 0.72 + point.progress * 0.18;
-    colors.push(0.58 * shallow, 0.88 * shallow, 1 * shallow, 0.58 * shallow, 0.88 * shallow, 1 * shallow);
+    uvs.push(0, distanceAlong / 22, 0.5, distanceAlong / 22, 1, distanceAlong / 22);
+    const shallow = 0.78 + point.progress * 0.12;
+    const deep = 0.54 + point.progress * 0.10;
+    colors.push(
+      0.72 * shallow, 0.94 * shallow, 1 * shallow,
+      0.60 * deep, 0.84 * deep, 0.94 * deep,
+      0.72 * shallow, 0.94 * shallow, 1 * shallow,
+    );
     if (i < points.length - 1) segments.push({
       riverId: river.id, ax: point.x, az: point.z, ay: point.y,
       bx: next.x, bz: next.z, by: next.y,
@@ -145,8 +150,9 @@ function buildRiverGeometry(
     });
   }
   for (let i = 0; i < points.length - 1; i++) {
-    const a = i * 2, b = a + 1, c = a + 2, d = a + 3;
-    indices.push(a, c, b, b, c, d);
+    const a = i * 3, b = a + 1, c = a + 2;
+    const d = a + 3, e = a + 4, f = a + 5;
+    indices.push(a, d, b, b, d, e, b, e, c, c, e, f);
   }
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
@@ -222,7 +228,7 @@ export class NavoraWaterSystem {
         const geometry = buildRiverGeometry(continent, river, world.manifest, this.riverSegments);
         if (geometry) riverGeometries.push(geometry);
         for (const distributary of river.distributaries ?? []) {
-          const branch = buildRiverGeometry(continent, river, world.manifest, this.riverSegments, distributary, 0.68);
+          const branch = buildRiverGeometry(continent, river, world.manifest, this.riverSegments, distributary, 0.68, 0.68);
           if (branch) riverGeometries.push(branch);
         }
       }
@@ -230,9 +236,10 @@ export class NavoraWaterSystem {
     const merged = riverGeometries.length ? mergeGeometries(riverGeometries, false) : null;
     for (const geometry of riverGeometries) geometry.dispose();
     if (merged) {
-      const material = new THREE.MeshStandardMaterial({
-        color: 0x63b9cf, vertexColors: true, transparent: true, opacity: 0.86,
-        roughness: 0.26, metalness: 0.02, side: THREE.DoubleSide, depthWrite: false,
+      const material = new THREE.MeshPhysicalMaterial({
+        color: 0x276f83, vertexColors: true, transparent: true, opacity: 0.79,
+        roughness: 0.19, metalness: 0.02, clearcoat: 0.38, clearcoatRoughness: 0.16,
+        side: THREE.DoubleSide, depthWrite: false,
       });
       this.riverMesh = new THREE.Mesh(merged, material);
       this.riverMesh.name = "spline-rivers-shared-flow-material";
@@ -242,11 +249,21 @@ export class NavoraWaterSystem {
     this.group.add(this.riverGroup);
   }
 
-  update(elapsedSeconds: number, cameraWorldX: number, cameraWorldZ: number): void {
+  update(elapsedSeconds: number, cameraWorldX: number, cameraWorldZ: number, cameraWorldY = 0): void {
     this.elapsed = elapsedSeconds;
     const snap = 256;
     this.ocean.position.x = Math.round(cameraWorldX / snap) * snap;
     this.ocean.position.z = Math.round(cameraWorldZ / snap) * snap;
+    if (this.riverMesh) {
+      // A flight LOD hundreds of metres across cannot resolve a 30-200 m
+      // carved channel. Drawing the near-water strip through that coarse mesh
+      // made distant rivers appear as disconnected blue slashes. Fade only
+      // the presentation surface at strategic-view altitude; the authored
+      // channel, hydrology, navigation, fish, and boat query data remain.
+      const altitudeFade = THREE.MathUtils.clamp((cameraWorldY - 2200) / 1400, 0, 1);
+      this.riverMesh.visible = altitudeFade < 0.995;
+      (this.riverMesh.material as THREE.MeshPhysicalMaterial).opacity = 0.79 * (1 - altitudeFade);
+    }
   }
 
   sample(worldX: number, worldZ: number, elapsedSeconds = this.elapsed): WaterSurfaceSample | null {

@@ -3,7 +3,7 @@
 
 import { SeedRegistry } from "./seed/index.js";
 import { generateWorldHeightField, sliceContinentField } from "./elevation/index.js";
-import { generateWaterData } from "./hydrology/index.js";
+import { carveRiverChannels, generateWaterData } from "./hydrology/index.js";
 import { assignZones, resolveZones } from "./zones/index.js";
 import { classifyBiomes } from "./biomes/index.js";
 import { generateEnvironmentalFields } from "./environment/index.js";
@@ -63,10 +63,32 @@ export function generateWorld(opts: GenerateOptions): WorldOutput {
     // unified field -- every downstream stage still works exactly as it did
     // before the unified-heightfield change (docs/01 §3 stage 3 note).
     const height = sliceContinentField(worldHeight, continentLayout, continent, resolution);
+    const uncarvedHeight = height.data.slice();
     heightFields[continent] = height;
 
     const { water: waterData, riverCellMask, lakeCellMask, drainage } = generateWaterData(height, continent);
+    carveRiverChannels(height, waterData, continentTileSize, riverCellMask);
     water[continent] = waterData;
+
+    // The streamed viewer and future engine importers consume the unified
+    // heightfield, while continent systems consume the local slice. Stamp
+    // only cells changed by channel carving back into unified world truth so
+    // both representations expose the identical riverbed.
+    const layoutRecord = continentLayout.continents.find((entry) => entry.id === continent)!;
+    for (let y = 0; y < height.height; y++) for (let x = 0; x < height.width; x++) {
+      const localIndex = y * height.width + x;
+      if (height.data[localIndex] >= uncarvedHeight[localIndex] - 0.0001) continue;
+      const worldX = layoutRecord.worldOffset[0] + x / Math.max(1, height.width - 1) * continentTileSize;
+      const worldZ = layoutRecord.worldOffset[1] + y / Math.max(1, height.height - 1) * continentTileSize;
+      const worldGridX = Math.max(0, Math.min(worldHeight.field.width - 1, Math.round(
+        (worldX - worldHeight.bounds.minX) / (worldHeight.bounds.maxX - worldHeight.bounds.minX) * (worldHeight.field.width - 1),
+      )));
+      const worldGridY = Math.max(0, Math.min(worldHeight.field.height - 1, Math.round(
+        (worldZ - worldHeight.bounds.minZ) / (worldHeight.bounds.maxZ - worldHeight.bounds.minZ) * (worldHeight.field.height - 1),
+      )));
+      const worldIndex = worldGridY * worldHeight.field.width + worldGridX;
+      worldHeight.field.data[worldIndex] = Math.min(worldHeight.field.data[worldIndex], height.data[localIndex]);
+    }
 
     const zoneAssignment = assignZones(zoneDesigns, continent, resolution, height);
     const climateRng = seeds.rngFor("climate", continent);

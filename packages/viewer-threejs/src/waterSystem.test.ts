@@ -17,5 +17,5 @@ test("ocean phase changes continuously and navigable river threshold supports re
   const after = sampleOceanWaves(800, 1200, 8.016);
   assert.ok(Math.abs(after.surfaceY - before.surfaceY) < 0.05);
   assert.notEqual(after.surfaceY, before.surfaceY);
-  assert.ok(NAVIGABLE_RIVER_WIDTH_M >= 15);
+  assert.ok(NAVIGABLE_RIVER_WIDTH_M >= 30);
 });

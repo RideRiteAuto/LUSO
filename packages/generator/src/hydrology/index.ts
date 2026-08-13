@@ -263,6 +263,128 @@ function surfaceProfile(pathIndices: number[], height: HeightField, filled: Floa
   return result;
 }
 
+function smoothRiverPath(path: Vec2[], surfaces: number[], iterations = 2): { path: Vec2[]; surfaces: number[] } {
+  let points = path;
+  let elevations = surfaces;
+  for (let iteration = 0; iteration < iterations && points.length > 2; iteration++) {
+    const nextPoints: Vec2[] = [points[0]];
+    const nextElevations: number[] = [elevations[0]];
+    for (let i = 0; i < points.length - 1; i++) {
+      const a = points[i], b = points[i + 1];
+      const surfaceA = elevations[i], surfaceB = elevations[i + 1];
+      nextPoints.push(
+        [a[0] * 0.75 + b[0] * 0.25, a[1] * 0.75 + b[1] * 0.25],
+        [a[0] * 0.25 + b[0] * 0.75, a[1] * 0.25 + b[1] * 0.75],
+      );
+      nextElevations.push(
+        surfaceA * 0.75 + surfaceB * 0.25,
+        surfaceA * 0.25 + surfaceB * 0.75,
+      );
+    }
+    nextPoints.push(points[points.length - 1]);
+    nextElevations.push(elevations[elevations.length - 1]);
+    points = nextPoints;
+    elevations = nextElevations;
+  }
+  // Floating-point interpolation can introduce sub-millimetre rises. Clamp
+  // them so the exported navigation/rendering surface remains monotonic.
+  for (let i = 1; i < elevations.length; i++) elevations[i] = Math.min(elevations[i - 1], elevations[i]);
+  return { path: points, surfaces: elevations };
+}
+
+function profileForMouth(mouthKind: River["mouthKind"]): River["profile"] {
+  switch (mouthKind) {
+    case "delta":
+      return { widthM: [42, 260], depthM: [2.4, 12], currentMps: [1.65, 0.28], navigableFromT: 0.22 };
+    case "estuary":
+      return { widthM: [32, 210], depthM: [2.1, 10], currentMps: [1.8, 0.32], navigableFromT: 0.28 };
+    case "lake-outlet":
+      return { widthM: [72, 190], depthM: [4.5, 9], currentMps: [0.85, 0.34], navigableFromT: 0 };
+    case "lake-inlet":
+      return { widthM: [24, 125], depthM: [1.8, 7], currentMps: [1.9, 0.42], navigableFromT: 0.34 };
+    case "confluence":
+      return { widthM: [18, 105], depthM: [1.4, 6.5], currentMps: [2.1, 0.62], navigableFromT: 0.48 };
+    default:
+      return { widthM: [24, 150], depthM: [1.8, 8], currentMps: [2, 0.42], navigableFromT: 0.34 };
+  }
+}
+
+function closestPointOnSegment(px: number, py: number, ax: number, ay: number, bx: number, by: number): { t: number; distance: number } {
+  const dx = bx - ax, dy = by - ay;
+  const lengthSq = dx * dx + dy * dy;
+  const t = lengthSq > 0 ? Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / lengthSq)) : 0;
+  return { t, distance: Math.hypot(px - (ax + dx * t), py - (ay + dy * t)) };
+}
+
+/**
+ * Cuts resolved watercourses into the authoritative terrain. The exported
+ * water surface, navigation depth, fish volume, and visible river now share
+ * one cross-section instead of a decorative strip floating over dry land.
+ */
+export function carveRiverChannels(
+  height: HeightField,
+  water: WaterData,
+  continentTileSize: number,
+  riverCellMask?: Uint8Array,
+): void {
+  const { width, height: fieldHeight, data } = height;
+  const metersPerCellX = continentTileSize / Math.max(1, width - 1);
+  const metersPerCellY = continentTileSize / Math.max(1, fieldHeight - 1);
+  const carvePath = (
+    path: Vec2[],
+    surfaces: number[],
+    profile: River["profile"],
+    progressStart = 0,
+    widthScale = 1,
+  ) => {
+    if (path.length < 2) return;
+    for (let segment = 0; segment < path.length - 1; segment++) {
+      const a = path[segment], b = path[segment + 1];
+      const ax = a[0] * continentTileSize, ay = a[1] * continentTileSize;
+      const bx = b[0] * continentTileSize, by = b[1] * continentTileSize;
+      const segmentStart = progressStart + (segment / Math.max(1, path.length - 1)) * (1 - progressStart);
+      const segmentEnd = progressStart + ((segment + 1) / Math.max(1, path.length - 1)) * (1 - progressStart);
+      const maxWidth = (profile.widthM[0] + Math.pow(segmentEnd, 1.35) * (profile.widthM[1] - profile.widthM[0])) * widthScale;
+      const outerRadius = maxWidth * 0.5 + Math.max(72, maxWidth * 0.55);
+      const minX = Math.max(0, Math.floor((Math.min(ax, bx) - outerRadius) / metersPerCellX));
+      const maxX = Math.min(width - 1, Math.ceil((Math.max(ax, bx) + outerRadius) / metersPerCellX));
+      const minY = Math.max(0, Math.floor((Math.min(ay, by) - outerRadius) / metersPerCellY));
+      const maxY = Math.min(fieldHeight - 1, Math.ceil((Math.max(ay, by) + outerRadius) / metersPerCellY));
+      for (let y = minY; y <= maxY; y++) for (let x = minX; x <= maxX; x++) {
+        const hit = closestPointOnSegment(x * metersPerCellX, y * metersPerCellY, ax, ay, bx, by);
+        const progress = segmentStart + (segmentEnd - segmentStart) * hit.t;
+        const widthM = (profile.widthM[0] + Math.pow(progress, 1.35) * (profile.widthM[1] - profile.widthM[0])) * widthScale;
+        const depthM = profile.depthM[0] + Math.pow(progress, 1.15) * (profile.depthM[1] - profile.depthM[0]);
+        const halfWidth = Math.max(widthM * 0.5, Math.min(metersPerCellX, metersPerCellY) * 0.52);
+        const bankWidth = Math.max(72, widthM * 0.55);
+        if (hit.distance > halfWidth + bankWidth) continue;
+        const surfaceM = surfaces[segment] + (surfaces[segment + 1] - surfaces[segment]) * hit.t;
+        const index = y * width + x;
+        let target: number;
+        if (hit.distance <= halfWidth) {
+          const across = hit.distance / Math.max(1, halfWidth);
+          target = surfaceM - depthM * (1 - across * across * 0.68);
+          if (riverCellMask) riverCellMask[index] = 1;
+        } else {
+          const bankT = (hit.distance - halfWidth) / bankWidth;
+          const eased = bankT * bankT * (3 - 2 * bankT);
+          target = surfaceM - depthM * 0.32 + eased * (depthM * 0.32 + Math.min(9, 2.5 + widthM * 0.025));
+        }
+        data[index] = Math.min(data[index], target);
+      }
+    }
+  };
+
+  for (const river of water.rivers) {
+    carvePath(river.path, river.surfaceElevationM, river.profile);
+    for (const branch of river.distributaries ?? []) {
+      const startSurface = river.surfaceElevationM[Math.max(0, river.surfaceElevationM.length - 9)] ?? 0;
+      const branchSurfaces = branch.map((_, index) => startSurface * (1 - index / Math.max(1, branch.length - 1)));
+      carvePath(branch, branchSurfaces, river.profile, 0.68, 0.72);
+    }
+  }
+}
+
 function findDistributary(
   path: Vec2[],
   side: -1 | 1,
@@ -327,6 +449,10 @@ export function generateWaterData(height: HeightField, riverIdPrefix: string): H
     .sort((a, b) => data[b] - data[a]);
 
   const riverCellMask = new Uint8Array(count);
+  // Each resolved terrain cell belongs to one visible downstream channel.
+  // Tributaries terminate into that owner instead of exporting a second full
+  // ribbon over the same trunk.
+  const riverOwner = new Int32Array(count).fill(-1);
   const rivers: River[] = [];
   let riverCount = 0;
   const toUv = (cell: number): Vec2 => [(cell % width) / (width - 1), Math.floor(cell / width) / (fieldHeight - 1)];
@@ -336,21 +462,21 @@ export function generateWaterData(height: HeightField, riverIdPrefix: string): H
     mouthKind: River["mouthKind"],
     lakeSurface?: number,
   ): River => {
-    for (const cell of pathIndices) riverCellMask[cell] = 1;
+    const ownerIndex = riverCount;
+    for (const cell of pathIndices) {
+      riverCellMask[cell] = 1;
+      if (riverOwner[cell] < 0) riverOwner[cell] = ownerIndex;
+    }
     const elevations = surfaceProfile(pathIndices, height, filled, lakeSurface);
+    const smoothed = smoothRiverPath(pathIndices.map(toUv), elevations);
     return {
       id: `${riverIdPrefix}-river-${riverCount++}`,
-      path: pathIndices.map(toUv),
-      sourceElevationM: elevations[0],
-      surfaceElevationM: elevations,
+      path: smoothed.path,
+      sourceElevationM: smoothed.surfaces[0],
+      surfaceElevationM: smoothed.surfaces,
       terminatesIn,
       mouthKind,
-      profile: {
-        widthM: mouthKind === "lake-outlet" ? [18, 58] : [7, 52],
-        depthM: mouthKind === "lake-outlet" ? [2.2, 6] : [0.8, 5.5],
-        currentMps: mouthKind === "lake-outlet" ? [0.8, 0.35] : [2, 0.45],
-        navigableFromT: mouthKind === "lake-outlet" ? 0 : 0.48,
-      },
+      profile: profileForMouth(mouthKind),
     };
   };
 
@@ -374,6 +500,12 @@ export function generateWaterData(height: HeightField, riverIdPrefix: string): H
     let current = source, steps = 0;
     let terminal: River["terminatesIn"] | null = null;
     while (current >= 0 && steps++ < count) {
+      const joinedRiver = riverOwner[current];
+      if (joinedRiver >= 0) {
+        path.push(current);
+        terminal = { type: "river", featureId: rivers[joinedRiver].id };
+        break;
+      }
       path.push(current);
       const lakeIndex = membership[current];
       if (lakeIndex >= 0) {
@@ -387,7 +519,10 @@ export function generateWaterData(height: HeightField, riverIdPrefix: string): H
       current = flowTo[current];
     }
     if (path.length > 10 && terminal) {
-      rivers.push(makeRiver(path, terminal, terminal.type === "lake" ? "lake-inlet" : "open-coast"));
+      const mouthKind: River["mouthKind"] = terminal.type === "lake" ? "lake-inlet"
+        : terminal.type === "river" ? "confluence"
+          : "open-coast";
+      rivers.push(makeRiver(path, terminal, mouthKind));
     }
     if (rivers.length >= 24) break;
   }
@@ -408,6 +543,10 @@ export function generateWaterData(height: HeightField, riverIdPrefix: string): H
     const lastLand = river.surfaceElevationM[Math.max(0, river.surfaceElevationM.length - 2)];
     if (lastLand < 65) river.mouthKind = "estuary";
   }
+  // Mouth classification determines the physical channel contract. Apply it
+  // after delta/estuary selection so rendering, carving, navigation, boats,
+  // and fish volumes all receive the same credible width and depth.
+  for (const river of rivers) river.profile = profileForMouth(river.mouthKind);
 
   let maxLogAccumulation = 1;
   for (let i = 0; i < count; i++) if (data[i] > 0) maxLogAccumulation = Math.max(maxLogAccumulation, Math.log1p(accumulation[i]));

@@ -134,10 +134,12 @@ function terrainWorkerMain() {
     const started = performance.now();
     const n = spec.segments + 1;
     const coreCount = n * n;
-    const positions = new Float32Array(coreCount * 3);
-    const normals = new Float32Array(coreCount * 3);
-    const uvs = new Float32Array(coreCount * 2);
-    const controls = Array.from({ length: state!.controlPackCount }, () => new Float32Array(coreCount * 4));
+    const skirtCount = n * 4;
+    const vertexCount = coreCount + skirtCount;
+    const positions = new Float32Array(vertexCount * 3);
+    const normals = new Float32Array(vertexCount * 3);
+    const uvs = new Float32Array(vertexCount * 2);
+    const controls = Array.from({ length: state!.controlPackCount }, () => new Float32Array(vertexCount * 4));
     const step = spec.size / spec.segments;
     const centerX = spec.minX + spec.size * 0.5;
     const centerZ = spec.minZ + spec.size * 0.5;
@@ -184,7 +186,8 @@ function terrainWorkerMain() {
     }
 
     const coreIndexCount = spec.segments * spec.segments * 6;
-    const indices = new Uint32Array(coreIndexCount);
+    const skirtIndexCount = spec.segments * 4 * 6;
+    const indices = new Uint32Array(coreIndexCount + skirtIndexCount);
     let ii = 0;
     for (let z = 0; z < spec.segments; z++) {
       for (let x = 0; x < spec.segments; x++) {
@@ -193,6 +196,44 @@ function terrainWorkerMain() {
         indices[ii++] = b; indices[ii++] = c; indices[ii++] = d;
       }
     }
+
+    // Conceal sub-pixel precision gaps between independently streamed LOD
+    // patches. Edge stitching aligns the top surface; these shallow skirts
+    // cover the remaining raster crack that otherwise reveals the ocean as
+    // blue diagonal slashes in strategic-altitude views.
+    const skirtDepth = Math.max(8, step * 0.1);
+    let skirtVertex = coreCount;
+    const addSkirt = (topIndices: number[], outward: "minZ" | "maxZ" | "minX" | "maxX") => {
+      const firstSkirt = skirtVertex;
+      for (const top of topIndices) {
+        const source3 = top * 3, target3 = skirtVertex * 3;
+        positions[target3] = positions[source3];
+        positions[target3 + 1] = positions[source3 + 1] - skirtDepth;
+        positions[target3 + 2] = positions[source3 + 2];
+        normals[target3] = normals[source3];
+        normals[target3 + 1] = normals[source3 + 1];
+        normals[target3 + 2] = normals[source3 + 2];
+        uvs[skirtVertex * 2] = uvs[top * 2];
+        uvs[skirtVertex * 2 + 1] = uvs[top * 2 + 1];
+        for (const pack of controls) pack.set(pack.subarray(top * 4, top * 4 + 4), skirtVertex * 4);
+        skirtVertex++;
+      }
+      for (let edge = 0; edge < spec.segments; edge++) {
+        const a = topIndices[edge], b = topIndices[edge + 1];
+        const lowerA = firstSkirt + edge, lowerB = lowerA + 1;
+        if (outward === "minZ" || outward === "maxX") {
+          indices[ii++] = a; indices[ii++] = b; indices[ii++] = lowerA;
+          indices[ii++] = b; indices[ii++] = lowerB; indices[ii++] = lowerA;
+        } else {
+          indices[ii++] = a; indices[ii++] = lowerA; indices[ii++] = b;
+          indices[ii++] = b; indices[ii++] = lowerA; indices[ii++] = lowerB;
+        }
+      }
+    };
+    addSkirt(Array.from({ length: n }, (_, x) => x), "minZ");
+    addSkirt(Array.from({ length: n }, (_, x) => spec.segments * n + x), "maxZ");
+    addSkirt(Array.from({ length: n }, (_, z) => z * n), "minX");
+    addSkirt(Array.from({ length: n }, (_, z) => z * n + spec.segments), "maxX");
     return { positions, normals, uvs, indices, controls, workerMs: performance.now() - started };
   }
 
@@ -247,7 +288,9 @@ export class TerrainStreamer {
   private readonly expandedBounds: { minX: number; minZ: number; maxX: number; maxZ: number };
 
   static async create(world: WorldData, quality: TerrainQuality, renderer: THREE.WebGPURenderer): Promise<TerrainStreamer> {
-    const controlMap = buildTerrainControlMap(world, quality === "compatibility" ? 512 : 1024);
+    // Fragment-space material sampling needs enough regional resolution to
+    // preserve riverbanks and slope transitions in the compatibility tier.
+    const controlMap = buildTerrainControlMap(world, quality === "high" ? 1536 : 1024);
     return new TerrainStreamer(world, quality, await AlvoraTerrainMaterial.create(
       renderer,
       quality,

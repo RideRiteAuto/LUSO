@@ -20,6 +20,17 @@ const seed = Number(params.get("seed") ?? 48291);
 const streamTourRequested = params.get("streamTour") === "1";
 const requestedRenderer = params.get("renderer") === "webgl" ? "webgl" : "auto";
 const requestedQuality = params.get("quality");
+const suppliedReviewCamera = {
+  x: Number(params.get("reviewX")),
+  y: Number(params.get("reviewY")),
+  z: Number(params.get("reviewZ")),
+  yaw: Number(params.get("reviewYaw")),
+  pitch: Number(params.get("reviewPitch")),
+};
+const reviewCameraKeys = ["reviewX", "reviewY", "reviewZ", "reviewYaw", "reviewPitch"] as const;
+const hasSuppliedReviewCamera = reviewCameraKeys.every((key) => params.has(key))
+  && [suppliedReviewCamera.x, suppliedReviewCamera.y, suppliedReviewCamera.z,
+    suppliedReviewCamera.yaw, suppliedReviewCamera.pitch].every(Number.isFinite);
 const qualityExplicit = requestedQuality === "high" || requestedQuality === "balanced" || requestedQuality === "compatibility";
 // The portable artifact opens at the frame-paced tier. Balanced and High stay
 // available as explicit review tiers via ?quality=balanced and ?quality=high.
@@ -261,6 +272,29 @@ async function boot() {
     controls.update();
   }
 
+  // Reproducible visual-defect camera. This keeps user-supplied screenshot
+  // coordinates and viewing angles stable across hot reloads/regeneration so
+  // fixes are judged from the failing view rather than a flattering preset.
+  if (hasSuppliedReviewCamera && flight) {
+    controls.enabled = false;
+    flying = true;
+    camera.near = 1;
+    camera.fov = 58;
+    atmosphere.setMode("flight");
+    terrainStreamer.setViewMode("flight");
+    camera.updateProjectionMatrix();
+    flight.enable(() => undefined, "fly");
+    const ground = collisionHeights.sample(suppliedReviewCamera.x, suppliedReviewCamera.z);
+    const altitudeAboveCapsule = Math.max(0, suppliedReviewCamera.y - ground - 1.72);
+    flight.teleport(
+      suppliedReviewCamera.x,
+      suppliedReviewCamera.z,
+      suppliedReviewCamera.yaw,
+      altitudeAboveCapsule,
+      suppliedReviewCamera.pitch,
+    );
+  }
+
   const cameraWorld = worldOrigin.worldPoint(camera.position);
   terrainStreamer.update(cameraWorld.x, cameraWorld.z);
 }
@@ -299,7 +333,7 @@ function animate(timestamp: number) {
   );
   resourceReviewYard?.updateWind(timer.getElapsed());
   if (waterSystem) waterSystem.update(
-    timer.getElapsed(), worldOrigin.worldX(camera.position.x), worldOrigin.worldZ(camera.position.z),
+    timer.getElapsed(), worldOrigin.worldX(camera.position.x), worldOrigin.worldZ(camera.position.z), camera.position.y,
   );
   renderer.render(scene, camera);
   frameSamples.push(rawDelta * 1000);
