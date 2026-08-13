@@ -6,7 +6,7 @@ import { CollisionHeightCache, sampleLocalTerrainDetail } from "./terrainLod.js"
 import { TerrainStreamer } from "./terrainStreaming.js";
 import { buildZoneBoundaries, buildLakes, buildRoads, buildSettlements, buildSeaRegions } from "./overlays.js";
 import { uvToWorld } from "./layout.js";
-import { FlightController } from "./flightControls.js";
+import { FlightController, resolveWalkTransitionAnchor } from "./flightControls.js";
 import { CameraRelativeOrigin } from "./worldOrigin.js";
 import { buildTraversalBookmarks, findSafeTraversalPoint, type TraversalBookmark } from "./traversalSpawns.js";
 import type { TerrainMaterialDebugMode } from "./terrainMaterial.js";
@@ -534,10 +534,14 @@ viewWalkBtn.addEventListener("click", () => {
   // stand at whatever point the camera was last looking AT (controls.target)
   // instead of the camera's own eye position, which after e.g. the World
   // overview is tens of km out in open ocean.
-  let anchor = wasFlying
-    ? { x: worldOrigin.worldX(camera.position.x), z: worldOrigin.worldZ(camera.position.z) }
-    : { x: worldOrigin.worldX(controls.target.x), z: worldOrigin.worldZ(controls.target.z) };
-  if (collisionHeights) anchor = findSafeTraversalPoint((x, z) => collisionHeights!.sample(x, z), anchor.x, anchor.z);
+  const anchor = resolveWalkTransitionAnchor(
+    wasFlying,
+    { x: worldOrigin.worldX(camera.position.x), z: worldOrigin.worldZ(camera.position.z) },
+    { x: worldOrigin.worldX(controls.target.x), z: worldOrigin.worldZ(controls.target.z) },
+    (target) => collisionHeights
+      ? findSafeTraversalPoint((x, z) => collisionHeights!.sample(x, z), target.x, target.z)
+      : target,
+  );
   flight.enable(exitFlight, "walk", anchor);
 });
 

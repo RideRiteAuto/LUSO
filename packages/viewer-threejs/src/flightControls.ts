@@ -15,6 +15,22 @@ export const WALK_ENTRY_PITCH_RAD = -0.035;
 const CAPSULE_RADIUS_M = 0.35;
 const FLY_SPEED = { base: 4000, min: 200, max: 20000, boost: 4 };
 
+export interface HorizontalPosition { x: number; z: number }
+
+/**
+ * Direct Fly -> Walk transitions preserve the exact horizontal coordinate.
+ * Orbit/overview entry still needs a safe-ground search because its camera is
+ * not a player position and may be framing cliffs or open ocean.
+ */
+export function resolveWalkTransitionAnchor(
+  wasFlying: boolean,
+  currentCamera: HorizontalPosition,
+  orbitTarget: HorizontalPosition,
+  findSafe: (target: HorizontalPosition) => HorizontalPosition,
+): HorizontalPosition {
+  return wasFlying ? { ...currentCamera } : findSafe(orbitTarget);
+}
+
 export interface StaticCollisionProxy {
   x: number;
   z: number;
