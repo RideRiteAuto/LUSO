@@ -109,6 +109,30 @@ export function buildWaterRefinementRegions(world: WorldData, maxTileSize = 512)
       addRiverCorridor(river, river.path);
       for (const distributary of river.distributaries ?? []) addRiverCorridor(river, distributary, 0.68, 0.68);
     }
+    // Navigable waterway corridors refine like river corridors: a boat at
+    // deck height needs the carved channel and its banks resolved, and ports
+    // are gameplay destinations.
+    for (const waterway of continent.waterways ?? []) {
+      const points = waterway.path.map(([u, v]) => uvToWorld(u, v, continent.id, world.manifest));
+      const margin = Math.max(bankMarginM, waterway.surfaceWidthM * 0.95 + 160);
+      let chunkStart = 0;
+      let distance = 0;
+      for (let i = 1; i < points.length; i++) {
+        distance += Math.hypot(points[i][0] - points[i - 1][0], points[i][1] - points[i - 1][1]);
+        if (distance < 4_000 && i < points.length - 1) continue;
+        const chunk = points.slice(chunkStart, i + 1);
+        if (chunk.length >= 2) regions.push({
+          minX: Math.min(...chunk.map(([x]) => x)) - margin,
+          minZ: Math.min(...chunk.map(([, z]) => z)) - margin,
+          maxX: Math.max(...chunk.map(([x]) => x)) + margin,
+          maxZ: Math.max(...chunk.map(([, z]) => z)) + margin,
+          maxTileSize,
+          activationDistance: 24_000,
+        });
+        chunkStart = i;
+        distance = 0;
+      }
+    }
   }
   return regions;
 }
@@ -199,19 +223,24 @@ function terrainWorkerMain() {
     return h;
   }
   function terrainHeight(x: number, z: number): number {
+    // Mirror of riverChannelField.sampleRiverCarvedHeight: scenic rivers
+    // carve a bed and raise freeboard banks; waterways carve their sea-level
+    // channel; raises are collected first and carves win.
     const macro = macroHeight(x, z);
-    let height = macro + detail(x, z, macro);
+    const base = macro + detail(x, z, macro);
     const s = state!;
     const cellX = Math.floor((x - s.riverMinX) / s.riverCellSize);
     const cellZ = Math.floor((z - s.riverMinZ) / s.riverCellSize);
-    if (cellX < 0 || cellZ < 0 || cellX >= s.riverGridWidth || cellZ >= s.riverGridHeight) return height;
+    if (cellX < 0 || cellZ < 0 || cellX >= s.riverGridWidth || cellZ >= s.riverGridHeight) return base;
     const cell = cellZ * s.riverGridWidth + cellX;
     const smooth = (value: number) => {
       const t = Math.max(0, Math.min(1, value));
       return t * t * (3 - 2 * t);
     };
+    let raised = base;
+    let carved = Number.POSITIVE_INFINITY;
     for (let entry = s.riverOffsets[cell]; entry < s.riverOffsets[cell + 1]; entry++) {
-      const offset = s.riverIndices[entry] * 10;
+      const offset = s.riverIndices[entry] * 12;
       const ax = s.riverSegments[offset], az = s.riverSegments[offset + 1];
       const dx = s.riverSegments[offset + 2] - ax, dz = s.riverSegments[offset + 3] - az;
       const lengthSq = dx * dx + dz * dz;
@@ -220,20 +249,33 @@ function terrainWorkerMain() {
       const surface = s.riverSegments[offset + 4] + (s.riverSegments[offset + 5] - s.riverSegments[offset + 4]) * t;
       const width = s.riverSegments[offset + 6] + (s.riverSegments[offset + 7] - s.riverSegments[offset + 6]) * t;
       const depth = s.riverSegments[offset + 8] + (s.riverSegments[offset + 9] - s.riverSegments[offset + 8]) * t;
+      const kind = s.riverSegments[offset + 10];
+      const bankWidth = s.riverSegments[offset + 11];
       const halfWidth = width * 0.5;
-      const bankWidth = Math.max(110, width * 0.7);
-      if (distance > halfWidth + bankWidth) continue;
-      let target: number;
-      if (distance <= halfWidth) {
-        const edge = smooth((distance / Math.max(1, halfWidth) - 0.58) / 0.42);
-        target = surface - depth * (1 - edge * 0.82);
-      } else {
-        const bank = smooth((distance - halfWidth) / bankWidth);
-        target = surface - depth * 0.18 + bank * (depth * 0.18 + Math.min(14, 3.5 + width * 0.025));
+      if (kind === 1) {
+        const effectiveBank = Math.max(bankWidth, Math.max(0, base) * 1.6);
+        if (distance > halfWidth + effectiveBank) continue;
+        const bedHalf = halfWidth * 0.55;
+        let target: number;
+        if (distance <= bedHalf) target = -depth;
+        else if (distance <= halfWidth) target = -depth + (depth - 2.2) * smooth((distance - bedHalf) / Math.max(1, halfWidth - bedHalf));
+        else target = -2.2 + (base + 2.2) * smooth((distance - halfWidth) / effectiveBank);
+        carved = Math.min(carved, target);
+      } else if (distance <= halfWidth) {
+        const across = distance / Math.max(1, halfWidth);
+        const eased = smooth((across - 0.5) / 0.5);
+        carved = Math.min(carved, surface - depth + (depth - 0.5) * eased);
+      } else if (distance <= halfWidth + bankWidth && base > 0.3) {
+        const freeboard = 1.2 + width * 0.015;
+        const bankT = (distance - halfWidth) / bankWidth;
+        const crest = bankT <= 0.4
+          ? surface - 0.5 + (freeboard + 0.5) * smooth(bankT / 0.4)
+          : surface + freeboard;
+        const settle = bankT <= 0.4 ? crest : crest + (base - crest) * smooth((bankT - 0.4) / 0.6);
+        raised = Math.max(raised, Math.min(settle, base + 8));
       }
-      height = Math.min(height, target);
     }
-    return height;
+    return Math.min(raised, carved);
   }
   function sampleControls(x: number, z: number, outputs: Float32Array[], vertexIndex: number): void {
     const s = state!;

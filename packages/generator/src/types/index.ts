@@ -286,6 +286,7 @@ export interface NavigableWaterway {
   class: string;
   surfaceWidthM: number;
   bedDepthM: number;
+  bankWidthM: number;
   /** Continent-local uv polyline routed along low ground, sea end first. */
   path: Vec2[];
   ports: { id: string; name: string; uv: Vec2; headOfNavigation: boolean }[];

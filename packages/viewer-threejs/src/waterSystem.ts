@@ -51,7 +51,8 @@ interface LakeSurface {
   depthM: number;
 }
 
-export const NAVIGABLE_RIVER_WIDTH_M = 240;
+/** Ship navigability lives on the waterway network and the open sea — both
+ * are the global sea-level surface. Scenic rivers are never navigable. */
 export const NAVIGABLE_WATER_DEPTH_M = 9;
 // Overview fog is fully opaque at 280 km. Keeping every edge of this
 // camera-relative plane beyond that distance makes the ocean meet the visual
@@ -331,9 +332,24 @@ export class NavoraWaterSystem {
       this.lakeGroup.add(this.lakeMesh);
     } else this.lakeMesh = null;
     this.group.add(this.lakeGroup);
-    const craftSegment = [...this.riverSegments].reverse().find((segment) =>
-      segment.riverId === "valora-river-0" && segment.ay > 2.5 && segment.widthA >= 180,
-    ) ?? null;
+    // The review barge floats on the navigable waterway network — flat
+    // sea-level ship water — rather than on a scenic river.
+    let craftSegment: RiverSegment | null = null;
+    for (const continent of Object.values(world.continents)) {
+      const waterway = (continent.waterways ?? [])[0];
+      if (!waterway || waterway.path.length < 2) continue;
+      const mid = Math.floor(waterway.path.length / 2);
+      const [ax, az] = uvToWorld(waterway.path[mid - 1][0], waterway.path[mid - 1][1], continent.id, world.manifest);
+      const [bx, bz] = uvToWorld(waterway.path[mid][0], waterway.path[mid][1], continent.id, world.manifest);
+      craftSegment = {
+        riverId: waterway.id, oceanReceiver: true,
+        ax, az, ay: 0, bx, bz, by: 0,
+        widthA: waterway.surfaceWidthM, widthB: waterway.surfaceWidthM,
+        depthA: waterway.bedDepthM, depthB: waterway.bedDepthM,
+        currentA: 0.5, currentB: 0.5,
+      };
+      break;
+    }
     this.reviewCraftSegment = craftSegment;
     this.reviewCraft = craftSegment ? this.buildReviewBarge(craftSegment) : null;
     if (this.reviewCraft) this.riverGroup.add(this.reviewCraft);
@@ -410,7 +426,9 @@ export class NavoraWaterSystem {
         body: "river", bodyId: segment.riverId, surfaceY, depth,
         normalX: wave?.normalX ?? 0, normalY: wave?.normalY ?? 1, normalZ: wave?.normalZ ?? 0,
         velocityX: dx * current + (oceanHandoff ? 0.18 : 0), velocityZ: dz * current + (oceanHandoff ? 0.08 : 0),
-        navigable: width >= NAVIGABLE_RIVER_WIDTH_M && depth >= NAVIGABLE_WATER_DEPTH_M,
+        // Scenic rivers never carry ships; a reach that has handed off to
+        // the ocean is ocean water and follows the ocean rule instead.
+        navigable: oceanHandoff && depth >= NAVIGABLE_WATER_DEPTH_M,
         maxDraftM: Math.max(0, depth - 2), supportsAquaticLife: depth >= 2.5,
       };
     }

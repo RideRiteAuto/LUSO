@@ -266,6 +266,7 @@ export function carveNavigableWaterways(
       class: network.class,
       surfaceWidthM: channelClass.surfaceWidthM,
       bedDepthM: channelClass.bedDepthM,
+      bankWidthM: channelClass.bankWidthM,
       path: smoothed,
       ports: network.nodes
         .filter((node) => node.kind === "port")

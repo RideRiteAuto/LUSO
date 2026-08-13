@@ -52,6 +52,10 @@ export interface RiverRecord {
   terminatesIn?: { type: "ocean" | "lake" | "river"; featureId: string };
   mouthKind?: "open-coast" | "estuary" | "delta" | "lake-inlet" | "lake-outlet" | "confluence";
   surfaceElevationM?: number[];
+  /** Per-path-point bank-to-bank width from upstream flow accumulation. */
+  widthProfileM?: number[];
+  /** Explicit waterfall/rapids nodes emitted where the surface drops steeply. */
+  falls?: { t: number; position: [number, number]; dropM: number }[];
   distributaries?: [number, number][][];
   profile?: {
     widthM: [number, number];
@@ -59,6 +63,19 @@ export interface RiverRecord {
     currentMps: [number, number];
     navigableFromT: number;
   };
+}
+
+/** Authored, routed trade waterway: its bed sits below sea level, so the
+ * global ocean is its flat navigable surface from the sea to every port. */
+export interface NavigableWaterwayRecord {
+  id: string;
+  name: string;
+  class: string;
+  surfaceWidthM: number;
+  bedDepthM: number;
+  bankWidthM: number;
+  path: [number, number][];
+  ports: { id: string; name: string; uv: [number, number]; headOfNavigation: boolean }[];
 }
 
 export interface ControlFieldChannel {
@@ -222,6 +239,7 @@ export interface ContinentData {
   biomeImage: HTMLImageElement;
   rivers: RiverRecord[];
   lakes: LakeRecord[];
+  waterways: NavigableWaterwayRecord[];
   roads: RoadRecord[];
   controlWidth: number;
   controlHeight: number;
@@ -283,7 +301,7 @@ export interface EmbeddedWorld {
   settlements: SettlementRecord[];
   seaRegions: SeaRegionRecord[];
   roads: RoadRecord[];
-  waterways: { continents: Record<string, { rivers: RiverRecord[]; lakes: LakeRecord[] }> };
+  waterways: { continents: Record<string, { rivers: RiverRecord[]; lakes: LakeRecord[]; waterways?: NavigableWaterwayRecord[] }> };
   continents: Record<string, { heightDataBase64: string; biomeImageDataUri: string }>;
   worldHeightBase64: string;
   controlFields: {
@@ -328,6 +346,7 @@ export async function loadEmbeddedWorld(onProgress?: (msg: string) => void): Pro
       biomeImage,
       rivers: embedded.waterways.continents[id]?.rivers ?? [],
       lakes: embedded.waterways.continents[id]?.lakes ?? [],
+      waterways: embedded.waterways.continents[id]?.waterways ?? [],
       roads: embedded.roads.filter((r) => r.id.startsWith(id)),
       controlWidth: controlFields.continents[id].width,
       controlHeight: controlFields.continents[id].height,
@@ -377,7 +396,7 @@ export async function loadWorld(seed: number, onProgress?: (msg: string) => void
   const poi = await fetchJson<{ settlements: SettlementRecord[] }>(`${b}/poi.json`);
 
   onProgress?.("waterways…");
-  const waterways = await fetchJson<{ continents: Record<string, { rivers: RiverRecord[]; lakes: LakeRecord[] }> }>(
+  const waterways = await fetchJson<{ continents: Record<string, { rivers: RiverRecord[]; lakes: LakeRecord[]; waterways?: NavigableWaterwayRecord[] }> }>(
     `${b}/waterways.json`
   );
 
@@ -420,6 +439,7 @@ export async function loadWorld(seed: number, onProgress?: (msg: string) => void
       biomeImage,
       rivers: waterways.continents[continent]?.rivers ?? [],
       lakes: waterways.continents[continent]?.lakes ?? [],
+      waterways: waterways.continents[continent]?.waterways ?? [],
       roads: roadsData.roads.filter((r) => r.id.startsWith(continent)),
       controlWidth: controlRecord.width,
       controlHeight: controlRecord.height,
