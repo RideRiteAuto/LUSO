@@ -1,0 +1,15 @@
+{
+  "regions": [
+    {
+      "id": "bruma",
+      "name": "The Bruma",
+      "center": [
+        98304,
+        32768
+      ],
+      "radiusUnits": 14000,
+      "magicalIntensity": "high",
+      "notes": "Mysterious central waters of the Luna Sea -- storm-prone, magically anomalous, avoided by ordinary sailors. Midpoint of the sea gap between Valora's east coast and Seradia's west coast."
+    }
+  ]
+}

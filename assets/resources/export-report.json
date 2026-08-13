@@ -1,0 +1,378 @@
+{
+  "generatedAt": "2026-08-12T23:28:36.391Z",
+  "generator": "packages/viewer-threejs/scripts/export-resource-models.ts",
+  "families": {
+    "pine": [
+      {
+        "variant": "small",
+        "lods": [
+          {
+            "file": "small-lod0.glb",
+            "triangles": 11352,
+            "bytes": 1501692
+          },
+          {
+            "file": "small-lod1.glb",
+            "triangles": 3336,
+            "bytes": 443572
+          },
+          {
+            "file": "small-lod2.glb",
+            "triangles": 548,
+            "bytes": 75536
+          }
+        ]
+      },
+      {
+        "variant": "standard",
+        "lods": [
+          {
+            "file": "standard-lod0.glb",
+            "triangles": 13604,
+            "bytes": 1798960
+          },
+          {
+            "file": "standard-lod1.glb",
+            "triangles": 3520,
+            "bytes": 467864
+          },
+          {
+            "file": "standard-lod2.glb",
+            "triangles": 632,
+            "bytes": 86620
+          }
+        ]
+      },
+      {
+        "variant": "mature",
+        "lods": [
+          {
+            "file": "mature-lod0.glb",
+            "triangles": 12574,
+            "bytes": 1663004
+          },
+          {
+            "file": "mature-lod1.glb",
+            "triangles": 3784,
+            "bytes": 502716
+          },
+          {
+            "file": "mature-lod2.glb",
+            "triangles": 828,
+            "bytes": 112508
+          }
+        ]
+      }
+    ],
+    "birch": [
+      {
+        "variant": "small",
+        "lods": [
+          {
+            "file": "small-lod0.glb",
+            "triangles": 13080,
+            "bytes": 1729572
+          },
+          {
+            "file": "small-lod1.glb",
+            "triangles": 2340,
+            "bytes": 311876
+          },
+          {
+            "file": "small-lod2.glb",
+            "triangles": 532,
+            "bytes": 73256
+          }
+        ]
+      },
+      {
+        "variant": "standard",
+        "lods": [
+          {
+            "file": "standard-lod0.glb",
+            "triangles": 13400,
+            "bytes": 1771808
+          },
+          {
+            "file": "standard-lod1.glb",
+            "triangles": 2548,
+            "bytes": 339328
+          },
+          {
+            "file": "standard-lod2.glb",
+            "triangles": 590,
+            "bytes": 80912
+          }
+        ]
+      },
+      {
+        "variant": "mature",
+        "lods": [
+          {
+            "file": "mature-lod0.glb",
+            "triangles": 13624,
+            "bytes": 1801392
+          },
+          {
+            "file": "mature-lod1.glb",
+            "triangles": 2792,
+            "bytes": 371552
+          },
+          {
+            "file": "mature-lod2.glb",
+            "triangles": 648,
+            "bytes": 88580
+          }
+        ]
+      }
+    ],
+    "copper": [
+      {
+        "variant": "small",
+        "lods": [
+          {
+            "file": "small-lod0.glb",
+            "triangles": 4220,
+            "bytes": 560072
+          },
+          {
+            "file": "small-lod1.glb",
+            "triangles": 980,
+            "bytes": 132360
+          },
+          {
+            "file": "small-lod2.glb",
+            "triangles": 140,
+            "bytes": 21456
+          }
+        ]
+      },
+      {
+        "variant": "standard",
+        "lods": [
+          {
+            "file": "standard-lod0.glb",
+            "triangles": 4220,
+            "bytes": 560084
+          },
+          {
+            "file": "standard-lod1.glb",
+            "triangles": 980,
+            "bytes": 132368
+          },
+          {
+            "file": "standard-lod2.glb",
+            "triangles": 140,
+            "bytes": 21464
+          }
+        ]
+      },
+      {
+        "variant": "mature",
+        "lods": [
+          {
+            "file": "mature-lod0.glb",
+            "triangles": 4220,
+            "bytes": 560084
+          },
+          {
+            "file": "mature-lod1.glb",
+            "triangles": 980,
+            "bytes": 132364
+          },
+          {
+            "file": "mature-lod2.glb",
+            "triangles": 140,
+            "bytes": 21464
+          }
+        ]
+      }
+    ],
+    "tin": [
+      {
+        "variant": "small",
+        "lods": [
+          {
+            "file": "small-lod0.glb",
+            "triangles": 4220,
+            "bytes": 560076
+          },
+          {
+            "file": "small-lod1.glb",
+            "triangles": 980,
+            "bytes": 132356
+          },
+          {
+            "file": "small-lod2.glb",
+            "triangles": 140,
+            "bytes": 21448
+          }
+        ]
+      },
+      {
+        "variant": "standard",
+        "lods": [
+          {
+            "file": "standard-lod0.glb",
+            "triangles": 4220,
+            "bytes": 560072
+          },
+          {
+            "file": "standard-lod1.glb",
+            "triangles": 980,
+            "bytes": 132348
+          },
+          {
+            "file": "standard-lod2.glb",
+            "triangles": 140,
+            "bytes": 21448
+          }
+        ]
+      },
+      {
+        "variant": "mature",
+        "lods": [
+          {
+            "file": "mature-lod0.glb",
+            "triangles": 4220,
+            "bytes": 560056
+          },
+          {
+            "file": "mature-lod1.glb",
+            "triangles": 980,
+            "bytes": 132332
+          },
+          {
+            "file": "mature-lod2.glb",
+            "triangles": 140,
+            "bytes": 21440
+          }
+        ]
+      }
+    ],
+    "stone": [
+      {
+        "variant": "small",
+        "lods": [
+          {
+            "file": "small-lod0.glb",
+            "triangles": 2880,
+            "bytes": 381888
+          },
+          {
+            "file": "small-lod1.glb",
+            "triangles": 720,
+            "bytes": 96752
+          },
+          {
+            "file": "small-lod2.glb",
+            "triangles": 180,
+            "bytes": 25500
+          }
+        ]
+      },
+      {
+        "variant": "standard",
+        "lods": [
+          {
+            "file": "standard-lod0.glb",
+            "triangles": 2880,
+            "bytes": 381896
+          },
+          {
+            "file": "standard-lod1.glb",
+            "triangles": 720,
+            "bytes": 96768
+          },
+          {
+            "file": "standard-lod2.glb",
+            "triangles": 180,
+            "bytes": 25512
+          }
+        ]
+      },
+      {
+        "variant": "mature",
+        "lods": [
+          {
+            "file": "mature-lod0.glb",
+            "triangles": 2880,
+            "bytes": 381896
+          },
+          {
+            "file": "mature-lod1.glb",
+            "triangles": 720,
+            "bytes": 96764
+          },
+          {
+            "file": "mature-lod2.glb",
+            "triangles": 180,
+            "bytes": 25516
+          }
+        ]
+      }
+    ],
+    "redberry": [
+      {
+        "variant": "small",
+        "lods": [
+          {
+            "file": "small-lod0.glb",
+            "triangles": 1872,
+            "bytes": 250104
+          },
+          {
+            "file": "small-lod1.glb",
+            "triangles": 556,
+            "bytes": 76372
+          },
+          {
+            "file": "small-lod2.glb",
+            "triangles": 240,
+            "bytes": 34664
+          }
+        ]
+      },
+      {
+        "variant": "standard",
+        "lods": [
+          {
+            "file": "standard-lod0.glb",
+            "triangles": 2528,
+            "bytes": 336700
+          },
+          {
+            "file": "standard-lod1.glb",
+            "triangles": 704,
+            "bytes": 95932
+          },
+          {
+            "file": "standard-lod2.glb",
+            "triangles": 288,
+            "bytes": 41004
+          }
+        ]
+      },
+      {
+        "variant": "mature",
+        "lods": [
+          {
+            "file": "mature-lod0.glb",
+            "triangles": 2876,
+            "bytes": 382640
+          },
+          {
+            "file": "mature-lod1.glb",
+            "triangles": 812,
+            "bytes": 110184
+          },
+          {
+            "file": "mature-lod2.glb",
+            "triangles": 336,
+            "bytes": 47340
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "familyId": "REDBERRY_BUSH",
+  "displayName": "Redberry Bush",
+  "status": "provisional",
+  "deliveryStage": "review",
+  "profession": "foraging",
+  "sourceAuthority": "Bible v11 common berry category; provisional working family in data/design/starter-resource-art.json",
+  "realWorldReference": "Low irregular woody berry shrub with layered leaf masses and readable red fruit clusters",
+  "scaleMeters": { "minHeight": 0.85, "maxHeight": 1.65 },
+  "interactionDistanceMeters": 4,
+  "materials": 2,
+  "textureSet": { "maxResolution": 0, "runtimeFormat": "VERTEX_COLOR_PBR", "channels": ["color", "roughness"], "promotionTarget": "shared 1K KTX2 color + normal + ORM" },
+  "variants": [
+    { "id": "small", "lodTriangles": [1576, 468, 216], "runtimeFiles": ["small-lod0.glb", "small-lod1.glb", "small-lod2.glb"] },
+    { "id": "standard", "lodTriangles": [2232, 616, 264], "runtimeFiles": ["standard-lod0.glb", "standard-lod1.glb", "standard-lod2.glb"] },
+    { "id": "mature", "lodTriangles": [2556, 712, 312], "runtimeFiles": ["mature-lod0.glb", "mature-lod1.glb", "mature-lod2.glb"] }
+  ],
+  "collision": { "type": "convex-hull", "embeddedMetadata": true },
+  "lodDistancesMeters": [28, 65],
+  "provenance": [],
+  "review": { "yardApproved": false, "crowdedSceneMeasured": false, "note": "Family name remains provisional until the Foraging progression is locked." }
+}

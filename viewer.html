@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Nevora World Compiler — Inspector</title>
+    <style>
+      :root {
+        /* A night-chart/star-atlas palette, deliberately single-theme: this
+           renders a 3D scene of an ocean and continents at night, so a
+           light-mode HUD would fight the content rather than frame it. */
+        --void: #070b14;
+        --panel: rgba(13, 19, 33, 0.86);
+        --panel-border: rgba(184, 208, 255, 0.14);
+        --ink: #eef1f8;
+        --ink-dim: #8b9ab3;
+        --gold: #d9a75c;
+        --teal: #4fd1c0;
+        --violet: #9a6bff;
+        --font-display: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+        --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        --font-mono: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, monospace;
+      }
+      html, body { margin: 0; height: 100%; background: var(--void); overflow: hidden; font-family: var(--font-ui); }
+      #app { position: relative; width: 100%; height: 100%; }
+      canvas { display: block; }
+
+      #hud {
+        position: absolute; top: 14px; left: 14px; z-index: 10;
+        color: var(--ink); background: var(--panel); border: 1px solid var(--panel-border);
+        border-top: 2px solid var(--gold);
+        border-radius: 12px; padding: 14px; font-size: 13px; line-height: 1.5; width: min(360px, calc(100vw - 28px));
+        max-height: calc(100vh - 56px); overflow: hidden;
+        backdrop-filter: blur(8px);
+        box-shadow: 0 12px 32px rgba(0,0,0,0.35); transition: width 160ms ease, opacity 160ms ease;
+      }
+      #hud.navigation-active { width: auto; opacity: 0.88; }
+      #hud.navigation-active .hud-content { display: none; }
+      #hud.navigation-active .panel-header { margin-bottom: 8px; }
+      #hud.navigation-active .interaction-note, #hud.navigation-active #toggleInteraction { display: none; }
+      .panel-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 12px; }
+      .eyebrow { display: block; color: var(--gold); font-size: 9px; text-transform: uppercase; letter-spacing: .14em; margin-bottom: 2px; }
+      #hud h1 {
+        font-family: var(--font-display); font-weight: 600; font-style: italic;
+        font-size: 17px; margin: 0; letter-spacing: 0.01em; color: #fff; text-wrap: balance;
+      }
+      kbd { font: 600 10px var(--font-mono); color: var(--ink); border: 1px solid rgba(255,255,255,.22); border-bottom-width: 2px; border-radius: 5px; padding: 3px 6px; background: rgba(255,255,255,.07); }
+      .hud-content { overflow-y: auto; max-height: calc(100vh - 168px); padding-right: 4px; scrollbar-width: thin; }
+      .interaction-bar { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 8px; padding: 9px 10px; background: rgba(79,209,192,.07); border: 1px solid rgba(79,209,192,.19); border-radius: 8px; }
+      .interaction-bar .mode-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--teal); box-shadow: 0 0 8px rgba(79,209,192,.55); }
+      .interaction-copy { min-width: 0; }
+      .interaction-copy strong { display: block; font-size: 11px; color: var(--ink); }
+      .interaction-note { display: block; color: var(--ink-dim); font-size: 10px; line-height: 1.3; }
+      #hud.navigation-active .interaction-bar { background: rgba(217,167,92,.08); border-color: rgba(217,167,92,.22); }
+      #hud.navigation-active .mode-dot { background: var(--gold); box-shadow: 0 0 8px rgba(217,167,92,.55); }
+      #hud .row { display: flex; justify-content: space-between; gap: 12px; padding: 1px 0; }
+      #hud .row .val { font-family: var(--font-mono); font-variant-numeric: tabular-nums; color: var(--teal); }
+      #hud .row.telemetry { display: block; }
+      #hud .row.telemetry .val { display: block; text-align: right; font-size: 11px; }
+      #hud .muted { color: var(--ink-dim); }
+      #hud .group { margin-top: 10px; padding: 10px; border: 1px solid rgba(184,208,255,.09); border-radius: 8px; background: rgba(255,255,255,.018); }
+      #hud .group-label {
+        display: block; font-size: 10px; text-transform: uppercase; letter-spacing: 0.09em;
+        color: var(--ink-dim); margin-bottom: 5px;
+      }
+      #hud button, #hud select {
+        background: rgba(255,255,255,0.04); color: var(--ink); border: 1px solid var(--panel-border);
+        border-radius: 6px; padding: 5px 10px; cursor: pointer; font-size: 12px; font-family: var(--font-ui);
+        margin-right: 6px; margin-bottom: 6px; transition: background 120ms, border-color 120ms;
+      }
+      #hud #toggleInteraction { margin: 0; white-space: nowrap; color: #dffcf8; border-color: rgba(79,209,192,.32); }
+      #hud select { max-width: 220px; }
+      #hud select option { background: #111827; color: var(--ink); }
+      #hud button:hover { background: rgba(255,255,255,0.09); }
+      #hud button:focus-visible { outline: 2px solid var(--teal); outline-offset: 1px; }
+      #hud button.active { background: rgba(217, 167, 92, 0.16); border-color: var(--gold); color: #ffe3b0; }
+      #legend { margin-top: 10px; font-size: 11px; color: var(--ink-dim); line-height: 1.5; }
+      #reviewLegend {
+        display: none; margin-top: 8px; padding: 9px 10px; border-left: 2px solid var(--teal);
+        background: rgba(79, 209, 192, 0.07); color: var(--ink-dim); font-size: 11px; line-height: 1.45;
+      }
+      #reviewLegend.visible { display: block; }
+      #reviewLegend strong { color: var(--ink); font-weight: 600; }
+      .group-note { margin: 2px 0 8px; color: var(--ink-dim); font-size: 10px; line-height: 1.4; }
+      .telemetry-panel { margin: 10px 0 0; padding: 0 10px 8px; border: 1px solid rgba(184,208,255,.09); border-radius: 8px; }
+      .telemetry-panel summary { cursor: pointer; color: var(--ink-dim); font-size: 10px; text-transform: uppercase; letter-spacing: .09em; padding: 8px 0 4px; }
+      .telemetry-panel[open] summary { color: var(--ink); margin-bottom: 4px; }
+      .tuning-panel { margin-top: 10px; padding: 0 10px 10px; border: 1px solid rgba(217,167,92,.2); border-radius: 8px; background: rgba(217,167,92,.035); }
+      .tuning-panel summary { cursor: pointer; color: #ffe3b0; font-size: 10px; text-transform: uppercase; letter-spacing: .09em; padding: 9px 0 5px; }
+      .tuning-row { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; align-items: center; margin-top: 8px; }
+      .tuning-row label { color: var(--ink); font-size: 11px; }
+      .tuning-row output { color: var(--teal); font: 11px var(--font-mono); }
+      .tuning-row input[type="range"] { grid-column: 1 / -1; width: 100%; accent-color: var(--gold); cursor: pointer; }
+      .tuning-actions { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 10px; }
+      .quality-note { color: var(--ink-dim); font-size: 9px; line-height: 1.35; }
+
+      #status {
+        position: absolute; bottom: 14px; left: 14px; z-index: 10; color: var(--ink-dim);
+        font-size: 11px; font-family: var(--font-mono);
+      }
+      #flyHint {
+        position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%); z-index: 10;
+        color: var(--ink); background: var(--panel); border: 1px solid var(--panel-border);
+        border-radius: 10px; padding: 9px 18px; font-size: 12px; display: none; text-align: center;
+        backdrop-filter: blur(8px);
+      }
+      #flyHint.visible { display: block; }
+      #crosshair {
+        position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 9;
+        width: 5px; height: 5px; border-radius: 50%; background: rgba(255,255,255,0.65); display: none;
+        box-shadow: 0 0 6px rgba(255,255,255,0.5);
+        /* Sits pixel-perfect at screen center -- exactly where a look-drag
+           naturally starts. Without this, a pointerdown there lands on the
+           crosshair div instead of the canvas underneath, and the drag
+           listener (bound to the canvas element specifically) never fires,
+           so look-drag silently does nothing. */
+        pointer-events: none;
+      }
+      #crosshair.visible { display: block; }
+      @media (max-height: 720px) {
+        #hud { top: 8px; left: 8px; max-height: calc(100vh - 32px); }
+        .hud-content { max-height: calc(100vh - 146px); }
+      }
+    </style>
+    <script type="module" crossorigin src="./assets/index-DkzImkRJ.js"></script>
+  </head>
+  <body>
+    <div id="app">
+      <div id="hud">
+        <div class="panel-header">
+          <div><span class="eyebrow">World tools</span><h1>Navora Compiler Inspector</h1></div>
+          <kbd>Tab</kbd>
+        </div>
+        <div id="interactionBar" class="interaction-bar" aria-live="polite">
+          <span class="mode-dot" aria-hidden="true"></span>
+          <span class="interaction-copy"><strong id="interactionStatus">Controls active</strong><span id="interactionNote" class="interaction-note">Choose a view or adjust the world.</span></span>
+          <button id="toggleInteraction" type="button">Enter world</button>
+        </div>
+        <div class="hud-content">
+        <details class="telemetry-panel">
+          <summary>World telemetry</summary>
+          <div class="row"><span class="muted">Seed</span><span id="seedVal" class="val">—</span></div>
+          <div class="row"><span class="muted">Zones</span><span id="zoneCount" class="val">—</span></div>
+          <div class="row"><span class="muted">Settlements</span><span id="settleCount" class="val">—</span></div>
+          <div class="row"><span class="muted">Position</span><span id="cameraPos" class="val">—</span></div>
+          <div class="row"><span class="muted">Altitude / ground</span><span id="altitude" class="val">—</span></div>
+          <div class="row"><span class="muted">Mode / speed</span><span id="movement" class="val">Orbit</span></div>
+          <div class="row"><span class="muted">Locomotion</span><span id="locomotion" class="val">—</span></div>
+          <div class="row"><span class="muted">Renderer</span><span id="rendererBackend" class="val">initializing…</span></div>
+          <div class="row"><span class="muted">Performance</span><span id="performance" class="val">sampling…</span></div>
+          <div class="row telemetry"><span class="muted">Frame pacing</span><span id="framePacing" class="val">sampling hitches…</span></div>
+          <div class="row"><span class="muted">Scene</span><span id="sceneStats" class="val">—</span></div>
+          <div class="row"><span class="muted">Streaming</span><span id="streamingStats" class="val">waiting…</span></div>
+          <div class="row"><span class="muted">Dressing</span><span id="dressingStats" class="val">waiting…</span></div>
+        </details>
+        <div class="group">
+          <span class="group-label">Camera</span>
+          <p class="group-note">Fly and Walk open with the mouse free. Click the world—or press Tab—to navigate.</p>
+          <button id="viewOrbit" class="active">Orbit</button>
+          <button id="viewTop">Top-down</button>
+          <button id="viewWorld">World</button>
+          <button id="viewFly">Fly ✈</button>
+          <button id="viewWalk">Walk 🚶</button>
+        </div>
+        <details class="tuning-panel" open>
+          <summary>Terrain quality tuning</summary>
+          <p class="group-note">Live controls for Fly and Walk. World overview remains uncropped.</p>
+          <div class="tuning-row">
+            <label for="highDetailDistance">Scanned texture reach</label><output id="highDetailDistanceValue">5.0 km</output>
+            <input id="highDetailDistance" type="range" min="1" max="12" step="0.5" value="5" />
+          </div>
+          <div class="tuning-row">
+            <label for="midDetailDistance">Mid-detail reach</label><output id="midDetailDistanceValue">9.0 km</output>
+            <input id="midDetailDistance" type="range" min="2" max="24" step="0.5" value="9" />
+          </div>
+          <div class="tuning-row">
+            <label for="terrainDrawDistance">Terrain draw distance</label><output id="terrainDrawDistanceValue">12 km</output>
+            <input id="terrainDrawDistance" type="range" min="6" max="40" step="1" value="12" />
+          </div>
+          <div class="tuning-row">
+            <label for="meshDetailReach">Mesh detail reach</label><output id="meshDetailReachValue">125%</output>
+            <input id="meshDetailReach" type="range" min="75" max="200" step="5" value="125" />
+          </div>
+          <div class="tuning-actions">
+            <span id="terrainQualityNote" class="quality-note">Compatibility: scanned albedo only.</span>
+            <button id="resetTerrainTuning" type="button">Reset</button>
+          </div>
+        </details>
+        <div class="group">
+          <span class="group-label">Ground review</span>
+          <p class="group-note">Jump to a known inspection point, then use Tab whenever you need this panel.</p>
+          <select id="bookmarkSelect" aria-label="Traversal bookmark"></select>
+          <button id="teleportBookmark">Teleport</button>
+          <button id="resourceReview">Resource review yard</button>
+          <aside id="reviewLegend" aria-live="polite">
+            <strong>Starter resource candidates</strong><br />
+            Forward rows: redberry &rarr; copper &rarr; tin &rarr; stone &rarr; birch/pine. Each row presents small, standard, and mature variants left-to-right. Redberry is provisional pending the final Foraging ladder.
+          </aside>
+          <select id="materialDebug" aria-label="Terrain material debug">
+            <option value="final">Material: Final</option>
+            <option value="materialId">Debug: Material ID</option>
+            <option value="recipe">Debug: Recipe / zone</option>
+            <option value="biome">Debug: Biome</option>
+            <option value="height">Debug: Height</option>
+            <option value="temperature">Debug: Temperature</option>
+            <option value="rainfall">Debug: Rainfall</option>
+            <option value="slope">Debug: Slope</option>
+            <option value="shore">Debug: Shore</option>
+            <option value="coastType">Debug: Coast type</option>
+            <option value="moisture">Debug: Moisture</option>
+            <option value="wetness">Debug: Wetness</option>
+            <option value="drainage">Debug: Drainage</option>
+            <option value="distanceWater">Debug: Distance to water</option>
+            <option value="soil">Debug: Soil class</option>
+            <option value="geology">Debug: Geology class</option>
+            <option value="exposure">Debug: Exposure</option>
+            <option value="scree">Debug: Erosion / scree</option>
+            <option value="buildability">Debug: Buildability</option>
+            <option value="vegetation">Debug: Vegetation eligibility</option>
+            <option value="resource">Debug: Resource eligibility</option>
+            <option value="macro">Debug: Macro breakup</option>
+            <option value="lodMip">Debug: LOD / mip stress</option>
+          </select>
+        </div>
+        <div class="group">
+          <span class="group-label">Layers</span>
+          <p class="group-note">Gold buttons are visible. Debug layers may reduce readability or performance.</p>
+          <button id="toggleZones">Zone bounds</button>
+          <button id="toggleRivers" class="active">Rivers</button>
+          <button id="toggleLakes" class="active">Lakes</button>
+          <button id="toggleSettlements">Settlements</button>
+          <button id="toggleDressing" class="active">Ground life</button>
+          <button id="toggleWireframe">Wireframe</button>
+          <button id="toggleTileLod">Tile LOD</button>
+          <button id="freezeStreaming">Freeze stream</button>
+        </div>
+        <div class="legend" id="legend"></div>
+        </div>
+      </div>
+      <div id="status">loading…</div>
+      <div id="flyHint">Click world to navigate · Tab controls · Esc releases mouse</div>
+      <div id="crosshair"></div>
+    </div>
+  </body>
+</html>

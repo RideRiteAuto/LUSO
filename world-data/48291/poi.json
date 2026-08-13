@@ -1,0 +1,535 @@
+{
+  "settlements": [
+    {
+      "id": "alvora-farmland-0",
+      "name": "Valeoeira",
+      "tier": 2,
+      "type": "farmland",
+      "reason": "Agricultural heartland district: fertile, low-danger agricultural land",
+      "position": [
+        0.9309999999999999,
+        0.5
+      ],
+      "zoneId": "alvora"
+    },
+    {
+      "id": "alvora-rustic-1",
+      "name": "Brumaura",
+      "tier": 2,
+      "type": "rustic",
+      "reason": "Woodland district: convenient for woodcutting, foraging, and hunting",
+      "position": [
+        0.8095,
+        0.5701480577065395
+      ],
+      "zoneId": "alvora"
+    },
+    {
+      "id": "alvora-maritime-2",
+      "name": "Braveança",
+      "tier": 1,
+      "type": "maritime",
+      "reason": "Coastal district: coastal access and fishing grounds",
+      "position": [
+        0.8172043010752689,
+        0.4389051808406647
+      ],
+      "zoneId": "alvora"
+    },
+    {
+      "id": "valedouro-farmland-3",
+      "name": "Serranamar",
+      "tier": 2,
+      "type": "farmland",
+      "reason": "River-valley farming district: fertile, low-danger agricultural land",
+      "position": [
+        0.722,
+        0.55
+      ],
+      "zoneId": "valedouro"
+    },
+    {
+      "id": "valedouro-rustic-4",
+      "name": "Brumaoança",
+      "tier": 2,
+      "type": "rustic",
+      "reason": "Woodland homestead district: convenient for woodcutting, foraging, and hunting",
+      "position": [
+        0.65,
+        0.6220000000000001
+      ],
+      "zoneId": "valedouro"
+    },
+    {
+      "id": "valedouro-mining-5",
+      "name": "Douraninvado",
+      "tier": 2,
+      "type": "mining",
+      "reason": "Mining settlement district: proximity to mineral extraction",
+      "position": [
+        0.5780000000000001,
+        0.55
+      ],
+      "zoneId": "valedouro"
+    },
+    {
+      "id": "valedouro-merchant-6",
+      "name": "Vidroamar",
+      "tier": 1,
+      "type": "merchant",
+      "reason": "River-road junction district: protected water access + trade route intersection",
+      "position": [
+        0.65,
+        0.47800000000000004
+      ],
+      "zoneId": "valedouro"
+    },
+    {
+      "id": "serravela-farmland-7",
+      "name": "Rivaamar",
+      "tier": 3,
+      "type": "farmland",
+      "reason": "Lower-valley farms: fertile, low-danger agricultural land",
+      "position": [
+        0.5720000000000001,
+        0.65
+      ],
+      "zoneId": "serravela"
+    },
+    {
+      "id": "serravela-rustic-8",
+      "name": "Alvavado",
+      "tier": 3,
+      "type": "rustic",
+      "reason": "Mountain woodland homesteads: convenient for woodcutting, foraging, and hunting",
+      "position": [
+        0.5,
+        0.722
+      ],
+      "zoneId": "serravela"
+    },
+    {
+      "id": "serravela-mining-9",
+      "name": "Reedanança",
+      "tier": 2,
+      "type": "mining",
+      "reason": "Mining-town properties: proximity to mineral extraction",
+      "position": [
+        0.428,
+        0.65
+      ],
+      "zoneId": "serravela"
+    },
+    {
+      "id": "serravela-fortified-merchant-10",
+      "name": "Alvanura",
+      "tier": 1,
+      "type": "fortified-merchant",
+      "reason": "Strategic pass settlements: strategic chokepoint with logistical value",
+      "position": [
+        0.5,
+        0.5780000000000001
+      ],
+      "zoneId": "serravela"
+    },
+    {
+      "id": "cavora-farmland-11",
+      "name": "Corvavado",
+      "tier": 3,
+      "type": "farmland",
+      "reason": "Sheltered coastal-valley farms: fertile, low-danger agricultural land",
+      "position": [
+        0.8765000000000001,
+        0.25
+      ],
+      "zoneId": "cavora"
+    },
+    {
+      "id": "cavora-rustic-12",
+      "name": "Reedeela",
+      "tier": 3,
+      "type": "rustic",
+      "reason": "Clifftop homesteads: convenient for woodcutting, foraging, and hunting",
+      "position": [
+        0.8,
+        0.3265
+      ],
+      "zoneId": "cavora"
+    },
+    {
+      "id": "cavora-merchant-13",
+      "name": "Rivamar",
+      "tier": 1,
+      "type": "merchant",
+      "reason": "Harbor-edge merchant district: protected water access + trade route intersection",
+      "position": [
+        0.7135874877810362,
+        0.25513196480938416
+      ],
+      "zoneId": "cavora"
+    },
+    {
+      "id": "cavora-industry-14",
+      "name": "Noiteinela",
+      "tier": 2,
+      "type": "industry",
+      "reason": "Inland shipwright/lumber district: positioned between managed resources and the road network",
+      "position": [
+        0.8,
+        0.1735
+      ],
+      "zoneId": "cavora"
+    },
+    {
+      "id": "azurama-generic-settlement",
+      "name": "Alvvado",
+      "tier": 3,
+      "type": "settlement",
+      "reason": "generic placement pending design pass (docs/03 §6)",
+      "position": [
+        0.44868035190615835,
+        0.3812316715542522
+      ],
+      "zoneId": "azurama"
+    },
+    {
+      "id": "montemoura-generic-settlement",
+      "name": "Fendanora",
+      "tier": 3,
+      "type": "settlement",
+      "reason": "generic placement pending design pass (docs/03 §6)",
+      "position": [
+        0.23558162267839688,
+        0.6666666666666666
+      ],
+      "zoneId": "montemoura"
+    },
+    {
+      "id": "corvento-generic-settlement",
+      "name": "Serrinamar",
+      "tier": 3,
+      "type": "settlement",
+      "reason": "generic placement pending design pass (docs/03 §6)",
+      "position": [
+        0.17008797653958943,
+        0.27956989247311825
+      ],
+      "zoneId": "corvento"
+    },
+    {
+      "id": "lumevara-generic-settlement",
+      "name": "Valeanvado",
+      "tier": 3,
+      "type": "settlement",
+      "reason": "generic placement pending design pass (docs/03 §6)",
+      "position": [
+        0.09775171065493646,
+        0.46236559139784944
+      ],
+      "zoneId": "lumevara"
+    },
+    {
+      "id": "fonteira-farmland-0",
+      "name": "Solinança",
+      "tier": 2,
+      "type": "farmland",
+      "reason": "Floodplain agricultural district: fertile, low-danger agricultural land",
+      "position": [
+        0.23099999999999998,
+        0.5
+      ],
+      "zoneId": "fonteira"
+    },
+    {
+      "id": "fonteira-rustic-1",
+      "name": "Serrevado",
+      "tier": 2,
+      "type": "rustic",
+      "reason": "Wooded upland district: convenient for woodcutting, foraging, and hunting",
+      "position": [
+        0.10950000000000001,
+        0.5701480577065395
+      ],
+      "zoneId": "fonteira"
+    },
+    {
+      "id": "fonteira-merchant-2",
+      "name": "Corvora",
+      "tier": 1,
+      "type": "merchant",
+      "reason": "Riverfront district: protected water access + trade route intersection",
+      "position": [
+        0.11143695014662756,
+        0.43010752688172044
+      ],
+      "zoneId": "fonteira"
+    },
+    {
+      "id": "riveira-farmland-3",
+      "name": "Fontoeira",
+      "tier": 2,
+      "type": "farmland",
+      "reason": "Floodplain farming district: fertile, low-danger agricultural land",
+      "position": [
+        0.3965,
+        0.45
+      ],
+      "zoneId": "riveira"
+    },
+    {
+      "id": "riveira-rustic-4",
+      "name": "Velamanora",
+      "tier": 2,
+      "type": "rustic",
+      "reason": "Forested-island homestead district: convenient for woodcutting, foraging, and hunting",
+      "position": [
+        0.32,
+        0.5265
+      ],
+      "zoneId": "riveira"
+    },
+    {
+      "id": "riveira-mining-5",
+      "name": "Valeeança",
+      "tier": 2,
+      "type": "mining",
+      "reason": "Dry ridge settlement: proximity to mineral extraction",
+      "position": [
+        0.2435,
+        0.45
+      ],
+      "zoneId": "riveira"
+    },
+    {
+      "id": "riveira-merchant-6",
+      "name": "Brumaeamar",
+      "tier": 1,
+      "type": "merchant",
+      "reason": "Canal-front district: protected water access + trade route intersection",
+      "position": [
+        0.32,
+        0.3735
+      ],
+      "zoneId": "riveira"
+    },
+    {
+      "id": "vermara-farmland-7",
+      "name": "Velameora",
+      "tier": 3,
+      "type": "farmland",
+      "reason": "Large steppe farmsteads: fertile, low-danger agricultural land",
+      "position": [
+        0.581,
+        0.55
+      ],
+      "zoneId": "vermara"
+    },
+    {
+      "id": "vermara-rustic-8",
+      "name": "Fendeança",
+      "tier": 3,
+      "type": "rustic",
+      "reason": "River-gully properties: convenient for woodcutting, foraging, and hunting",
+      "position": [
+        0.5,
+        0.631
+      ],
+      "zoneId": "vermara"
+    },
+    {
+      "id": "vermara-mining-9",
+      "name": "Rivoança",
+      "tier": 2,
+      "type": "mining",
+      "reason": "Mining settlements near escarpments: proximity to mineral extraction",
+      "position": [
+        0.419,
+        0.55
+      ],
+      "zoneId": "vermara"
+    },
+    {
+      "id": "vermara-merchant-10",
+      "name": "Estrelaora",
+      "tier": 1,
+      "type": "merchant",
+      "reason": "Crossroads / river-crossing merchant properties: protected water access + trade route intersection",
+      "position": [
+        0.5,
+        0.46900000000000003
+      ],
+      "zoneId": "vermara"
+    },
+    {
+      "id": "solmara-farmland-11",
+      "name": "Azuraneira",
+      "tier": 3,
+      "type": "farmland",
+      "reason": "Levee and island farms: fertile, low-danger agricultural land",
+      "position": [
+        0.281,
+        0.75
+      ],
+      "zoneId": "solmara"
+    },
+    {
+      "id": "solmara-rustic-12",
+      "name": "Noiteaamar",
+      "tier": 3,
+      "type": "rustic",
+      "reason": "Canal homesteads: convenient for woodcutting, foraging, and hunting",
+      "position": [
+        0.2,
+        0.831
+      ],
+      "zoneId": "solmara"
+    },
+    {
+      "id": "solmara-merchant-13",
+      "name": "Bravanança",
+      "tier": 1,
+      "type": "merchant",
+      "reason": "Upland merchant district: protected water access + trade route intersection",
+      "position": [
+        0.11900000000000001,
+        0.75
+      ],
+      "zoneId": "solmara"
+    },
+    {
+      "id": "solmara-merchant-14",
+      "name": "Azuraeira",
+      "tier": 1,
+      "type": "merchant",
+      "reason": "Estuary waterfront district: protected water access + trade route intersection",
+      "position": [
+        0.21212121212121213,
+        0.6656891495601173
+      ],
+      "zoneId": "solmara"
+    },
+    {
+      "id": "vidrala-generic-settlement",
+      "name": "Serrain",
+      "tier": 3,
+      "type": "settlement",
+      "reason": "generic placement pending design pass (docs/03 §6)",
+      "position": [
+        0.541544477028348,
+        0.23264907135874877
+      ],
+      "zoneId": "vidrala"
+    },
+    {
+      "id": "altavera-generic-settlement",
+      "name": "Vidrinamar",
+      "tier": 3,
+      "type": "settlement",
+      "reason": "generic placement pending design pass (docs/03 §6)",
+      "position": [
+        0.6510263929618768,
+        0.5161290322580645
+      ],
+      "zoneId": "altavera"
+    },
+    {
+      "id": "fendoura-generic-settlement",
+      "name": "Bravaança",
+      "tier": 3,
+      "type": "settlement",
+      "reason": "generic placement pending design pass (docs/03 §6)",
+      "position": [
+        0.6871945259042033,
+        0.7605083088954057
+      ],
+      "zoneId": "fendoura"
+    },
+    {
+      "id": "lumeira-generic-settlement",
+      "name": "Solain",
+      "tier": 3,
+      "type": "settlement",
+      "reason": "generic placement pending design pass (docs/03 §6)",
+      "position": [
+        0.782991202346041,
+        0.2991202346041056
+      ],
+      "zoneId": "lumeira"
+    }
+  ],
+  "landmarks": [
+    {
+      "id": "alvora-lore-lusaran-lighthouse",
+      "type": "lusaran-lighthouse",
+      "position": [
+        0.7264608828794558,
+        0.37514100283886365
+      ],
+      "zoneId": "alvora"
+    },
+    {
+      "id": "valedouro-lore-lusaran-waymarkers",
+      "type": "lusaran-waymarkers",
+      "position": [
+        0.7139296477430724,
+        0.6477080947470962
+      ],
+      "zoneId": "valedouro"
+    },
+    {
+      "id": "serravela-lore-lusaran-chamber",
+      "type": "lusaran-chamber",
+      "position": [
+        0.5905155628942304,
+        0.5463769042864882
+      ],
+      "zoneId": "serravela"
+    },
+    {
+      "id": "cavora-lore-lusaran-beacon",
+      "type": "lusaran-beacon",
+      "position": [
+        0.8548077923425111,
+        0.3509576330699104
+      ],
+      "zoneId": "cavora"
+    },
+    {
+      "id": "fonteira-lore-lusaran-well",
+      "type": "lusaran-well",
+      "position": [
+        0.19277842977241197,
+        0.6252973904552076
+      ],
+      "zoneId": "fonteira"
+    },
+    {
+      "id": "riveira-lore-lusaran-worked-stone",
+      "type": "lusaran-worked-stone",
+      "position": [
+        0.3177495761268543,
+        0.331623965378978
+      ],
+      "zoneId": "riveira"
+    },
+    {
+      "id": "vermara-lore-lusaran-buried-structure",
+      "type": "lusaran-buried-structure",
+      "position": [
+        0.5088019266265871,
+        0.6749892686274312
+      ],
+      "zoneId": "vermara"
+    },
+    {
+      "id": "solmara-lore-lusaran-stone-ring",
+      "type": "lusaran-stone-ring",
+      "position": [
+        0.08569643136291298,
+        0.653504922141998
+      ],
+      "zoneId": "solmara"
+    }
+  ],
+  "ruinsAndDungeons": []
+}

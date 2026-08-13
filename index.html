@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Navora World Inspector</title>
+  <style>
+    :root{color-scheme:dark;font-family:Inter,ui-sans-serif,system-ui,sans-serif}*{box-sizing:border-box}body{margin:0;min-height:100vh;background:radial-gradient(circle at 50% 25%,#173245,#071018 65%);color:#eef8fb}.preloader{min-height:100vh;display:grid;place-items:center;padding:24px}.card{width:min(620px,100%);padding:38px;border:1px solid #315667;border-top-color:#cba66a;border-radius:14px;background:rgba(8,20,29,.94);box-shadow:0 24px 80px #0009}.eyebrow{margin:0 0 10px;color:#71d1c3;font:700 12px/1.2 ui-monospace,monospace;letter-spacing:.16em}h1{margin:0;font:italic 700 clamp(28px,6vw,46px)/1.05 Georgia,serif}.status{min-height:24px;margin:28px 0 12px;color:#c9dbe1;overflow-wrap:anywhere}.track{height:14px;overflow:hidden;border:1px solid #315667;border-radius:999px;background:#03090d}.fill{height:100%;width:0;border-radius:inherit;background:linear-gradient(90deg,#318f91,#71d1c3,#d0ae70);transition:width .2s ease}.copy{display:flex;justify-content:space-between;margin-top:9px;color:#71d1c3;font:700 12px/1.2 ui-monospace,monospace}.note{margin:28px 0 0;color:#91a8b0;font-size:14px;line-height:1.55}button{display:none;margin-top:20px;padding:10px 18px;border:1px solid #cba66a;border-radius:7px;background:#192a32;color:#fff;cursor:pointer}
+  </style>
+</head>
+<body>
+  <main class="preloader"><section class="card">
+    <p class="eyebrow">NAVORA WORLD COMPILER</p><h1>Preparing Seed 48291</h1>
+    <p class="status" id="status">Preparing the full-fidelity world package…</p>
+    <div class="track" aria-label="World download progress"><div class="fill" id="fill"></div></div>
+    <div class="copy"><span id="percent">0%</span><span id="bytes">0.0 MB</span></div>
+    <p class="note">The complete terrain, textures, water data, and environment assets are cached before launch. Keep this tab open until the inspector starts.</p>
+    <button id="retry" onclick="location.reload()">Try again</button>
+  </section></main>
+  <script>
+    const statusEl=document.querySelector('#status'),fillEl=document.querySelector('#fill'),percentEl=document.querySelector('#percent'),bytesEl=document.querySelector('#bytes'),retryEl=document.querySelector('#retry');
+    const mb=n=>(n/1048576).toFixed(1)+' MB';
+    const update=(loaded,total)=>{const percent=Math.min(100,Math.round(loaded/total*100));fillEl.style.width=percent+'%';percentEl.textContent=percent+'%';bytesEl.textContent=mb(loaded)+' / '+mb(total)};
+    (async()=>{
+      if(!('serviceWorker'in navigator)||!('caches'in window))throw new Error('Use a current version of Chrome or Edge.');
+      const manifest=await fetch('preload-manifest.json',{cache:'no-store'}).then(r=>{if(!r.ok)throw new Error('Could not load the Navora download manifest.');return r.json()});
+      const registration=await navigator.serviceWorker.register('navora-cache-worker.js',{scope:'./'});await navigator.serviceWorker.ready;
+      const cache=await caches.open(manifest.cacheName);if(await cache.match('__navora_ready__')){update(manifest.totalBytes,manifest.totalBytes);location.replace('viewer.html');return}
+      let loaded=0,cursor=0;const workers=Array.from({length:3},async()=>{while(true){const index=cursor++;if(index>=manifest.files.length)return;const file=manifest.files[index],url=new URL(file.path,document.baseURI).href;if(await cache.match(url)){loaded+=file.size;update(loaded,manifest.totalBytes);continue}statusEl.textContent='Downloading '+file.path.split('/').pop()+'…';const response=await fetch(url,{cache:'no-store'});if(!response.ok)throw new Error('Download failed: '+file.path);await cache.put(url,response);loaded+=file.size;update(loaded,manifest.totalBytes)}});await Promise.all(workers);await cache.put('__navora_ready__',new Response('ready'));update(manifest.totalBytes,manifest.totalBytes);statusEl.textContent='World cached. Launching…';location.replace('viewer.html');
+    })().catch(error=>{statusEl.textContent=error.message||String(error);retryEl.style.display='inline-block'});
+  </script>
+</body>
+</html>

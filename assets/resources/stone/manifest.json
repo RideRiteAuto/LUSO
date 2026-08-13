@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "familyId": "STONE",
+  "displayName": "Stone",
+  "status": "canon",
+  "deliveryStage": "review",
+  "profession": "mining",
+  "sourceAuthority": "Navora Worldbuilding Bible v11, Sections 21 and 24-25; data/design/starter-resource-art.json",
+  "realWorldReference": "Weathered fieldstone clusters with subdued region-compatible gray, olive-gray, and warm-gray variation and no ore signal",
+  "scaleMeters": { "minHeight": 1.2, "maxHeight": 2.8 },
+  "interactionDistanceMeters": 5,
+  "materials": 1,
+  "textureSet": { "maxResolution": 0, "runtimeFormat": "VERTEX_COLOR_PBR", "channels": ["color", "roughness"], "promotionTarget": "shared 1K KTX2 color + normal + ORM" },
+  "variants": [
+    { "id": "small", "lodTriangles": [2880, 720, 180], "runtimeFiles": ["small-lod0.glb", "small-lod1.glb", "small-lod2.glb"] },
+    { "id": "standard", "lodTriangles": [2880, 720, 180], "runtimeFiles": ["standard-lod0.glb", "standard-lod1.glb", "standard-lod2.glb"] },
+    { "id": "mature", "lodTriangles": [2880, 720, 180], "runtimeFiles": ["mature-lod0.glb", "mature-lod1.glb", "mature-lod2.glb"] }
+  ],
+  "collision": { "type": "convex-hull", "embeddedMetadata": true },
+  "lodDistancesMeters": [35, 90],
+  "provenance": [],
+  "review": { "yardApproved": false, "crowdedSceneMeasured": false }
+}

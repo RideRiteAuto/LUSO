@@ -1,0 +1,1038 @@
+{
+  "version": 1,
+  "libraryId": "navora-terrain-recipes-v1",
+  "zoneOrder": [
+    "alvora",
+    "valedouro",
+    "serravela",
+    "cavora",
+    "azurama",
+    "montemoura",
+    "corvento",
+    "lumevara",
+    "fonteira",
+    "riveira",
+    "vermara",
+    "solmara",
+    "vidrala",
+    "altavera",
+    "fendoura",
+    "lumeira"
+  ],
+  "recipes": [
+    {
+      "id": "alvora-fertile-coastal-basin",
+      "zoneId": "alvora",
+      "biomeIds": [
+        "coastal-plain",
+        "temperate-woodland",
+        "beach"
+      ],
+      "allowedMaterialFamilies": [
+        "temperate-meadow-grass",
+        "rich-agricultural-soil",
+        "deciduous-forest-loam",
+        "pale-beach-sand",
+        "grey-mountain-rock",
+        "damp-riverbank-mud",
+        "exposed-frost-rock"
+      ],
+      "primary": "temperate-meadow-grass",
+      "secondary": "rich-agricultural-soil",
+      "tertiary": "deciduous-forest-loam",
+      "shore": "pale-beach-sand",
+      "steep": "grey-mountain-rock",
+      "wet": "damp-riverbank-mud",
+      "cold": "exposed-frost-rock",
+      "rules": {
+        "secondaryDriver": "vegetation",
+        "secondaryRange": [
+          0.35,
+          0.72
+        ],
+        "secondaryInvert": true,
+        "tertiaryMacroRange": [
+          0.6,
+          0.86
+        ],
+        "tertiaryStrength": 0.34,
+        "shoreRange": [
+          0.42,
+          0.82
+        ],
+        "steepSlopeDegrees": [
+          22,
+          39
+        ],
+        "wetnessRange": [
+          0.62,
+          0.88
+        ],
+        "snowElevationM": [
+          1900,
+          2400
+        ],
+        "macroTintStrength": 0.08
+      },
+      "forbiddenCombinations": [
+        [
+          "red-earth",
+          "snow"
+        ],
+        [
+          "marsh-grass",
+          "alpine-scree"
+        ]
+      ]
+    },
+    {
+      "id": "valedouro-valley-woodland",
+      "zoneId": "valedouro",
+      "biomeIds": [
+        "river-valley-forest",
+        "wooded-highland"
+      ],
+      "allowedMaterialFamilies": [
+        "lush-valley-grass",
+        "deciduous-forest-loam",
+        "mossy-soil",
+        "river-sediment-silt",
+        "grey-mountain-rock",
+        "damp-riverbank-mud",
+        "exposed-frost-rock"
+      ],
+      "primary": "lush-valley-grass",
+      "secondary": "deciduous-forest-loam",
+      "tertiary": "mossy-soil",
+      "shore": "river-sediment-silt",
+      "steep": "grey-mountain-rock",
+      "wet": "damp-riverbank-mud",
+      "cold": "exposed-frost-rock",
+      "rules": {
+        "secondaryDriver": "moisture",
+        "secondaryRange": [
+          0.46,
+          0.74
+        ],
+        "secondaryInvert": false,
+        "tertiaryMacroRange": [
+          0.56,
+          0.84
+        ],
+        "tertiaryStrength": 0.31,
+        "shoreRange": [
+          0.28,
+          0.76
+        ],
+        "steepSlopeDegrees": [
+          20,
+          37
+        ],
+        "wetnessRange": [
+          0.58,
+          0.84
+        ],
+        "snowElevationM": [
+          1550,
+          2150
+        ],
+        "macroTintStrength": 0.1
+      },
+      "forbiddenCombinations": [
+        [
+          "storm-coast-sand",
+          "snow"
+        ],
+        [
+          "red-earth",
+          "peat-wetland"
+        ]
+      ]
+    },
+    {
+      "id": "serravela-foothill-mountain",
+      "zoneId": "serravela",
+      "biomeIds": [
+        "rugged-foothill",
+        "mountain-forest"
+      ],
+      "allowedMaterialFamilies": [
+        "highland-grass",
+        "pine-needle-floor",
+        "rooty-woodland",
+        "gravel-bar",
+        "dark-serravela-stone",
+        "mossy-soil",
+        "exposed-frost-rock"
+      ],
+      "primary": "highland-grass",
+      "secondary": "pine-needle-floor",
+      "tertiary": "rooty-woodland",
+      "shore": "gravel-bar",
+      "steep": "dark-serravela-stone",
+      "wet": "mossy-soil",
+      "cold": "exposed-frost-rock",
+      "rules": {
+        "secondaryDriver": "moisture",
+        "secondaryRange": [
+          0.42,
+          0.7
+        ],
+        "secondaryInvert": false,
+        "tertiaryMacroRange": [
+          0.62,
+          0.9
+        ],
+        "tertiaryStrength": 0.28,
+        "shoreRange": [
+          0.34,
+          0.8
+        ],
+        "steepSlopeDegrees": [
+          17,
+          33
+        ],
+        "wetnessRange": [
+          0.64,
+          0.9
+        ],
+        "snowElevationM": [
+          1150,
+          1700
+        ],
+        "macroTintStrength": 0.12
+      },
+      "forbiddenCombinations": [
+        [
+          "pale-beach-sand",
+          "dark-serravela-stone"
+        ],
+        [
+          "marsh-grass",
+          "alpine-scree"
+        ]
+      ]
+    },
+    {
+      "id": "cavora-storm-coast-cliffs",
+      "zoneId": "cavora",
+      "biomeIds": [
+        "sea-cliff-coastal",
+        "mountain-forest"
+      ],
+      "allowedMaterialFamilies": [
+        "sparse-coastal-grass",
+        "dry-brown-soil",
+        "pine-needle-floor",
+        "storm-coast-sand",
+        "coastal-cliff-rock",
+        "damp-riverbank-mud",
+        "exposed-frost-rock"
+      ],
+      "primary": "sparse-coastal-grass",
+      "secondary": "dry-brown-soil",
+      "tertiary": "pine-needle-floor",
+      "shore": "storm-coast-sand",
+      "steep": "coastal-cliff-rock",
+      "wet": "damp-riverbank-mud",
+      "cold": "exposed-frost-rock",
+      "rules": {
+        "secondaryDriver": "exposure",
+        "secondaryRange": [
+          0.52,
+          0.82
+        ],
+        "secondaryInvert": false,
+        "tertiaryMacroRange": [
+          0.62,
+          0.88
+        ],
+        "tertiaryStrength": 0.24,
+        "shoreRange": [
+          0.3,
+          0.72
+        ],
+        "steepSlopeDegrees": [
+          14,
+          30
+        ],
+        "wetnessRange": [
+          0.68,
+          0.9
+        ],
+        "snowElevationM": [
+          1700,
+          2250
+        ],
+        "macroTintStrength": 0.14
+      },
+      "forbiddenCombinations": [
+        [
+          "pale-beach-sand",
+          "snow"
+        ],
+        [
+          "marsh-grass",
+          "red-earth"
+        ]
+      ]
+    },
+    {
+      "id": "azurama-deep-mineral-forest",
+      "zoneId": "azurama",
+      "biomeIds": [
+        "deep-forest-mineral"
+      ],
+      "allowedMaterialFamilies": [
+        "mossy-soil",
+        "deciduous-forest-loam",
+        "rooty-woodland",
+        "pebble-shore",
+        "cave-ore-host-rock",
+        "peat-wetland",
+        "exposed-frost-rock"
+      ],
+      "primary": "mossy-soil",
+      "secondary": "deciduous-forest-loam",
+      "tertiary": "rooty-woodland",
+      "shore": "pebble-shore",
+      "steep": "cave-ore-host-rock",
+      "wet": "peat-wetland",
+      "cold": "exposed-frost-rock",
+      "rules": {
+        "secondaryDriver": "vegetation",
+        "secondaryRange": [
+          0.48,
+          0.78
+        ],
+        "secondaryInvert": false,
+        "tertiaryMacroRange": [
+          0.56,
+          0.82
+        ],
+        "tertiaryStrength": 0.36,
+        "shoreRange": [
+          0.38,
+          0.82
+        ],
+        "steepSlopeDegrees": [
+          19,
+          35
+        ],
+        "wetnessRange": [
+          0.66,
+          0.9
+        ],
+        "snowElevationM": [
+          1450,
+          2050
+        ],
+        "macroTintStrength": 0.11
+      },
+      "forbiddenCombinations": [
+        [
+          "dry-steppe-grass",
+          "peat-wetland"
+        ],
+        [
+          "pale-beach-sand",
+          "cave-ore-host-rock"
+        ]
+      ]
+    },
+    {
+      "id": "montemoura-elderwall-highland",
+      "zoneId": "montemoura",
+      "biomeIds": [
+        "ancient-highland-tableland"
+      ],
+      "allowedMaterialFamilies": [
+        "highland-grass",
+        "rooty-woodland",
+        "leaf-litter",
+        "gravel-bar",
+        "grey-mountain-rock",
+        "mossy-soil",
+        "exposed-frost-rock"
+      ],
+      "primary": "highland-grass",
+      "secondary": "rooty-woodland",
+      "tertiary": "leaf-litter",
+      "shore": "gravel-bar",
+      "steep": "grey-mountain-rock",
+      "wet": "mossy-soil",
+      "cold": "exposed-frost-rock",
+      "rules": {
+        "secondaryDriver": "moisture",
+        "secondaryRange": [
+          0.38,
+          0.64
+        ],
+        "secondaryInvert": false,
+        "tertiaryMacroRange": [
+          0.6,
+          0.9
+        ],
+        "tertiaryStrength": 0.26,
+        "shoreRange": [
+          0.4,
+          0.84
+        ],
+        "steepSlopeDegrees": [
+          18,
+          34
+        ],
+        "wetnessRange": [
+          0.68,
+          0.91
+        ],
+        "snowElevationM": [
+          1100,
+          1580
+        ],
+        "macroTintStrength": 0.13
+      },
+      "forbiddenCombinations": [
+        [
+          "marsh-grass",
+          "grey-mountain-rock"
+        ],
+        [
+          "pale-beach-sand",
+          "snow"
+        ]
+      ]
+    },
+    {
+      "id": "corvento-tempest-alpine",
+      "zoneId": "corvento",
+      "biomeIds": [
+        "alpine-extreme",
+        "alpine-snow-rock"
+      ],
+      "allowedMaterialFamilies": [
+        "exposed-frost-rock",
+        "snow",
+        "dirty-snow-slush",
+        "pebble-shore",
+        "alpine-scree"
+      ],
+      "primary": "exposed-frost-rock",
+      "secondary": "snow",
+      "tertiary": "dirty-snow-slush",
+      "shore": "pebble-shore",
+      "steep": "alpine-scree",
+      "wet": "dirty-snow-slush",
+      "cold": "snow",
+      "rules": {
+        "secondaryDriver": "moisture",
+        "secondaryRange": [
+          0.34,
+          0.62
+        ],
+        "secondaryInvert": false,
+        "tertiaryMacroRange": [
+          0.6,
+          0.88
+        ],
+        "tertiaryStrength": 0.22,
+        "shoreRange": [
+          0.44,
+          0.86
+        ],
+        "steepSlopeDegrees": [
+          16,
+          31
+        ],
+        "wetnessRange": [
+          0.64,
+          0.88
+        ],
+        "snowElevationM": [
+          700,
+          1100
+        ],
+        "macroTintStrength": 0.09
+      },
+      "forbiddenCombinations": [
+        [
+          "lush-valley-grass",
+          "snow"
+        ],
+        [
+          "peat-wetland",
+          "alpine-scree"
+        ]
+      ]
+    },
+    {
+      "id": "lumevara-verdelume-basin",
+      "zoneId": "lumevara",
+      "biomeIds": [
+        "luminous-basin"
+      ],
+      "allowedMaterialFamilies": [
+        "ancient-luminous-ground",
+        "mossy-soil",
+        "lush-valley-grass",
+        "river-sediment-silt",
+        "cave-ore-host-rock",
+        "peat-wetland",
+        "exposed-frost-rock"
+      ],
+      "primary": "ancient-luminous-ground",
+      "secondary": "mossy-soil",
+      "tertiary": "lush-valley-grass",
+      "shore": "river-sediment-silt",
+      "steep": "cave-ore-host-rock",
+      "wet": "peat-wetland",
+      "cold": "exposed-frost-rock",
+      "rules": {
+        "secondaryDriver": "wetness",
+        "secondaryRange": [
+          0.42,
+          0.72
+        ],
+        "secondaryInvert": false,
+        "tertiaryMacroRange": [
+          0.64,
+          0.9
+        ],
+        "tertiaryStrength": 0.24,
+        "shoreRange": [
+          0.34,
+          0.78
+        ],
+        "steepSlopeDegrees": [
+          21,
+          37
+        ],
+        "wetnessRange": [
+          0.68,
+          0.92
+        ],
+        "snowElevationM": [
+          1500,
+          2100
+        ],
+        "macroTintStrength": 0.16
+      },
+      "forbiddenCombinations": [
+        [
+          "red-earth",
+          "ancient-luminous-ground"
+        ],
+        [
+          "storm-coast-sand",
+          "peat-wetland"
+        ]
+      ]
+    },
+    {
+      "id": "fonteira-firstwater-floodplain",
+      "zoneId": "fonteira",
+      "biomeIds": [
+        "floodplain",
+        "temperate-woodland"
+      ],
+      "allowedMaterialFamilies": [
+        "rich-agricultural-soil",
+        "lush-valley-grass",
+        "leaf-litter",
+        "river-sediment-silt",
+        "riverbed-stone",
+        "damp-riverbank-mud",
+        "exposed-frost-rock"
+      ],
+      "primary": "rich-agricultural-soil",
+      "secondary": "lush-valley-grass",
+      "tertiary": "leaf-litter",
+      "shore": "river-sediment-silt",
+      "steep": "riverbed-stone",
+      "wet": "damp-riverbank-mud",
+      "cold": "exposed-frost-rock",
+      "rules": {
+        "secondaryDriver": "vegetation",
+        "secondaryRange": [
+          0.38,
+          0.7
+        ],
+        "secondaryInvert": false,
+        "tertiaryMacroRange": [
+          0.58,
+          0.86
+        ],
+        "tertiaryStrength": 0.28,
+        "shoreRange": [
+          0.24,
+          0.7
+        ],
+        "steepSlopeDegrees": [
+          24,
+          42
+        ],
+        "wetnessRange": [
+          0.54,
+          0.8
+        ],
+        "snowElevationM": [
+          1950,
+          2450
+        ],
+        "macroTintStrength": 0.08
+      },
+      "forbiddenCombinations": [
+        [
+          "dry-steppe-grass",
+          "damp-riverbank-mud"
+        ],
+        [
+          "alpine-scree",
+          "rich-agricultural-soil"
+        ]
+      ]
+    },
+    {
+      "id": "riveira-reedwater-marsh",
+      "zoneId": "riveira",
+      "biomeIds": [
+        "wetland-marsh",
+        "wooded-highland"
+      ],
+      "allowedMaterialFamilies": [
+        "marsh-grass",
+        "peat-wetland",
+        "mossy-soil",
+        "river-sediment-silt",
+        "riverbed-stone",
+        "dirty-snow-slush"
+      ],
+      "primary": "marsh-grass",
+      "secondary": "peat-wetland",
+      "tertiary": "mossy-soil",
+      "shore": "river-sediment-silt",
+      "steep": "riverbed-stone",
+      "wet": "peat-wetland",
+      "cold": "dirty-snow-slush",
+      "rules": {
+        "secondaryDriver": "wetness",
+        "secondaryRange": [
+          0.5,
+          0.76
+        ],
+        "secondaryInvert": false,
+        "tertiaryMacroRange": [
+          0.62,
+          0.88
+        ],
+        "tertiaryStrength": 0.3,
+        "shoreRange": [
+          0.2,
+          0.64
+        ],
+        "steepSlopeDegrees": [
+          24,
+          42
+        ],
+        "wetnessRange": [
+          0.48,
+          0.76
+        ],
+        "snowElevationM": [
+          1750,
+          2300
+        ],
+        "macroTintStrength": 0.1
+      },
+      "forbiddenCombinations": [
+        [
+          "dry-steppe-grass",
+          "peat-wetland"
+        ],
+        [
+          "pale-beach-sand",
+          "marsh-grass"
+        ]
+      ]
+    },
+    {
+      "id": "vermara-redwater-steppe",
+      "zoneId": "vermara",
+      "biomeIds": [
+        "grassland-steppe",
+        "canyon-mesa-frontier"
+      ],
+      "allowedMaterialFamilies": [
+        "dry-steppe-grass",
+        "red-earth",
+        "worn-path-dirt",
+        "gravel-bar",
+        "red-vermara-escarpment",
+        "river-sediment-silt",
+        "exposed-frost-rock"
+      ],
+      "primary": "dry-steppe-grass",
+      "secondary": "red-earth",
+      "tertiary": "worn-path-dirt",
+      "shore": "gravel-bar",
+      "steep": "red-vermara-escarpment",
+      "wet": "river-sediment-silt",
+      "cold": "exposed-frost-rock",
+      "rules": {
+        "secondaryDriver": "moisture",
+        "secondaryRange": [
+          0.24,
+          0.5
+        ],
+        "secondaryInvert": true,
+        "tertiaryMacroRange": [
+          0.58,
+          0.84
+        ],
+        "tertiaryStrength": 0.32,
+        "shoreRange": [
+          0.38,
+          0.82
+        ],
+        "steepSlopeDegrees": [
+          16,
+          32
+        ],
+        "wetnessRange": [
+          0.58,
+          0.84
+        ],
+        "snowElevationM": [
+          1650,
+          2200
+        ],
+        "macroTintStrength": 0.15
+      },
+      "forbiddenCombinations": [
+        [
+          "lush-valley-grass",
+          "red-earth"
+        ],
+        [
+          "snow",
+          "red-vermara-escarpment"
+        ]
+      ]
+    },
+    {
+      "id": "solmara-sunreach-delta",
+      "zoneId": "solmara",
+      "biomeIds": [
+        "floodplain",
+        "wetland-marsh"
+      ],
+      "allowedMaterialFamilies": [
+        "marsh-grass",
+        "rich-agricultural-soil",
+        "lush-valley-grass",
+        "river-sediment-silt",
+        "riverbed-stone",
+        "peat-wetland",
+        "dirty-snow-slush"
+      ],
+      "primary": "marsh-grass",
+      "secondary": "rich-agricultural-soil",
+      "tertiary": "lush-valley-grass",
+      "shore": "river-sediment-silt",
+      "steep": "riverbed-stone",
+      "wet": "peat-wetland",
+      "cold": "dirty-snow-slush",
+      "rules": {
+        "secondaryDriver": "wetness",
+        "secondaryRange": [
+          0.48,
+          0.76
+        ],
+        "secondaryInvert": true,
+        "tertiaryMacroRange": [
+          0.6,
+          0.88
+        ],
+        "tertiaryStrength": 0.27,
+        "shoreRange": [
+          0.18,
+          0.62
+        ],
+        "steepSlopeDegrees": [
+          25,
+          43
+        ],
+        "wetnessRange": [
+          0.54,
+          0.8
+        ],
+        "snowElevationM": [
+          2050,
+          2500
+        ],
+        "macroTintStrength": 0.08
+      },
+      "forbiddenCombinations": [
+        [
+          "alpine-scree",
+          "marsh-grass"
+        ],
+        [
+          "storm-coast-sand",
+          "rich-agricultural-soil"
+        ]
+      ]
+    },
+    {
+      "id": "vidrala-glassmere-lakes",
+      "zoneId": "vidrala",
+      "biomeIds": [
+        "great-lakes-country"
+      ],
+      "allowedMaterialFamilies": [
+        "temperate-meadow-grass",
+        "mossy-soil",
+        "pebble-shore",
+        "riverbed-stone",
+        "damp-riverbank-mud",
+        "exposed-frost-rock"
+      ],
+      "primary": "temperate-meadow-grass",
+      "secondary": "mossy-soil",
+      "tertiary": "pebble-shore",
+      "shore": "pebble-shore",
+      "steep": "riverbed-stone",
+      "wet": "damp-riverbank-mud",
+      "cold": "exposed-frost-rock",
+      "rules": {
+        "secondaryDriver": "moisture",
+        "secondaryRange": [
+          0.46,
+          0.74
+        ],
+        "secondaryInvert": false,
+        "tertiaryMacroRange": [
+          0.66,
+          0.92
+        ],
+        "tertiaryStrength": 0.2,
+        "shoreRange": [
+          0.24,
+          0.68
+        ],
+        "steepSlopeDegrees": [
+          22,
+          39
+        ],
+        "wetnessRange": [
+          0.58,
+          0.84
+        ],
+        "snowElevationM": [
+          1450,
+          2000
+        ],
+        "macroTintStrength": 0.1
+      },
+      "forbiddenCombinations": [
+        [
+          "red-earth",
+          "pebble-shore"
+        ],
+        [
+          "storm-coast-sand",
+          "mossy-soil"
+        ]
+      ]
+    },
+    {
+      "id": "altavera-skyplain",
+      "zoneId": "altavera",
+      "biomeIds": [
+        "high-plateau-grassland"
+      ],
+      "allowedMaterialFamilies": [
+        "highland-grass",
+        "dry-steppe-grass",
+        "worn-path-dirt",
+        "gravel-bar",
+        "alpine-scree",
+        "peat-wetland",
+        "snow"
+      ],
+      "primary": "highland-grass",
+      "secondary": "dry-steppe-grass",
+      "tertiary": "worn-path-dirt",
+      "shore": "gravel-bar",
+      "steep": "alpine-scree",
+      "wet": "peat-wetland",
+      "cold": "snow",
+      "rules": {
+        "secondaryDriver": "exposure",
+        "secondaryRange": [
+          0.5,
+          0.78
+        ],
+        "secondaryInvert": false,
+        "tertiaryMacroRange": [
+          0.62,
+          0.88
+        ],
+        "tertiaryStrength": 0.26,
+        "shoreRange": [
+          0.42,
+          0.84
+        ],
+        "steepSlopeDegrees": [
+          18,
+          33
+        ],
+        "wetnessRange": [
+          0.7,
+          0.92
+        ],
+        "snowElevationM": [
+          1150,
+          1600
+        ],
+        "macroTintStrength": 0.13
+      },
+      "forbiddenCombinations": [
+        [
+          "marsh-grass",
+          "snow"
+        ],
+        [
+          "pale-beach-sand",
+          "alpine-scree"
+        ]
+      ]
+    },
+    {
+      "id": "fendoura-shattered-canyon",
+      "zoneId": "fendoura",
+      "biomeIds": [
+        "canyon-mesa-frontier"
+      ],
+      "allowedMaterialFamilies": [
+        "dry-steppe-grass",
+        "red-earth",
+        "gravel-bar",
+        "storm-coast-sand",
+        "red-vermara-escarpment",
+        "riverbed-stone",
+        "exposed-frost-rock"
+      ],
+      "primary": "dry-steppe-grass",
+      "secondary": "red-earth",
+      "tertiary": "gravel-bar",
+      "shore": "storm-coast-sand",
+      "steep": "red-vermara-escarpment",
+      "wet": "riverbed-stone",
+      "cold": "exposed-frost-rock",
+      "rules": {
+        "secondaryDriver": "exposure",
+        "secondaryRange": [
+          0.46,
+          0.76
+        ],
+        "secondaryInvert": false,
+        "tertiaryMacroRange": [
+          0.56,
+          0.82
+        ],
+        "tertiaryStrength": 0.34,
+        "shoreRange": [
+          0.48,
+          0.88
+        ],
+        "steepSlopeDegrees": [
+          14,
+          29
+        ],
+        "wetnessRange": [
+          0.64,
+          0.88
+        ],
+        "snowElevationM": [
+          1500,
+          2050
+        ],
+        "macroTintStrength": 0.16
+      },
+      "forbiddenCombinations": [
+        [
+          "lush-valley-grass",
+          "red-earth"
+        ],
+        [
+          "peat-wetland",
+          "storm-coast-sand"
+        ]
+      ]
+    },
+    {
+      "id": "lumeira-luminous-hollow",
+      "zoneId": "lumeira",
+      "biomeIds": [
+        "luminous-basin"
+      ],
+      "allowedMaterialFamilies": [
+        "ancient-luminous-ground",
+        "mossy-soil",
+        "leaf-litter",
+        "pebble-shore",
+        "cave-ore-host-rock",
+        "peat-wetland",
+        "exposed-frost-rock"
+      ],
+      "primary": "ancient-luminous-ground",
+      "secondary": "mossy-soil",
+      "tertiary": "leaf-litter",
+      "shore": "pebble-shore",
+      "steep": "cave-ore-host-rock",
+      "wet": "peat-wetland",
+      "cold": "exposed-frost-rock",
+      "rules": {
+        "secondaryDriver": "wetness",
+        "secondaryRange": [
+          0.44,
+          0.72
+        ],
+        "secondaryInvert": false,
+        "tertiaryMacroRange": [
+          0.62,
+          0.88
+        ],
+        "tertiaryStrength": 0.3,
+        "shoreRange": [
+          0.38,
+          0.8
+        ],
+        "steepSlopeDegrees": [
+          19,
+          35
+        ],
+        "wetnessRange": [
+          0.66,
+          0.9
+        ],
+        "snowElevationM": [
+          1450,
+          2000
+        ],
+        "macroTintStrength": 0.18
+      },
+      "forbiddenCombinations": [
+        [
+          "red-earth",
+          "ancient-luminous-ground"
+        ],
+        [
+          "pale-beach-sand",
+          "peat-wetland"
+        ]
+      ]
+    }
+  ]
+}

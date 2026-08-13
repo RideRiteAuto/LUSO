@@ -1,0 +1,291 @@
+{
+  "version": 1,
+  "encoding": "rgba8",
+  "packs": [
+    {
+      "id": "climate",
+      "channels": [
+        {
+          "field": "temperature-c",
+          "kind": "continuous",
+          "min": -30,
+          "max": 40
+        },
+        {
+          "field": "precipitation",
+          "kind": "continuous",
+          "min": 0,
+          "max": 1
+        },
+        {
+          "field": "moisture",
+          "kind": "continuous",
+          "min": 0,
+          "max": 1
+        },
+        {
+          "field": "wetness",
+          "kind": "continuous",
+          "min": 0,
+          "max": 1
+        }
+      ]
+    },
+    {
+      "id": "hydrology",
+      "channels": [
+        {
+          "field": "drainage",
+          "kind": "continuous",
+          "min": 0,
+          "max": 1
+        },
+        {
+          "field": "distance-to-water-m",
+          "kind": "continuous",
+          "min": 0,
+          "max": 20000
+        },
+        {
+          "field": "shoreline-influence",
+          "kind": "continuous",
+          "min": 0,
+          "max": 1
+        },
+        {
+          "field": "slope-degrees",
+          "kind": "continuous",
+          "min": 0,
+          "max": 60
+        }
+      ]
+    },
+    {
+      "id": "terrain",
+      "channels": [
+        {
+          "field": "soil-class",
+          "kind": "category",
+          "min": 0,
+          "max": 11,
+          "labels": [
+            "ocean-sediment",
+            "beach-sand",
+            "coastal-loam",
+            "fertile-loam",
+            "forest-loam",
+            "river-silt",
+            "peat",
+            "rocky-thin",
+            "red-earth",
+            "alpine-tundra",
+            "frost",
+            "ancient-humus"
+          ]
+        },
+        {
+          "field": "geology-class",
+          "kind": "category",
+          "min": 0,
+          "max": 8,
+          "labels": [
+            "ocean-sediment",
+            "alluvium",
+            "limestone",
+            "granite",
+            "slate",
+            "basalt",
+            "metamorphic",
+            "red-sandstone",
+            "ancient-crystal"
+          ]
+        },
+        {
+          "field": "exposure",
+          "kind": "continuous",
+          "min": 0,
+          "max": 1
+        },
+        {
+          "field": "erosion-scree",
+          "kind": "continuous",
+          "min": 0,
+          "max": 1
+        }
+      ]
+    },
+    {
+      "id": "ecology",
+      "channels": [
+        {
+          "field": "buildability",
+          "kind": "continuous",
+          "min": 0,
+          "max": 1
+        },
+        {
+          "field": "vegetation-eligibility",
+          "kind": "continuous",
+          "min": 0,
+          "max": 1
+        },
+        {
+          "field": "biome-class",
+          "kind": "category",
+          "min": 0,
+          "max": 19,
+          "labels": [
+            "ocean",
+            "beach",
+            "coastal-plain",
+            "floodplain",
+            "wetland-marsh",
+            "grassland-steppe",
+            "temperate-woodland",
+            "river-valley-forest",
+            "wooded-highland",
+            "rugged-foothill",
+            "mountain-forest",
+            "sea-cliff-coastal",
+            "deep-forest-mineral",
+            "great-lakes-country",
+            "ancient-highland-tableland",
+            "high-plateau-grassland",
+            "alpine-extreme",
+            "canyon-mesa-frontier",
+            "luminous-basin",
+            "alpine-snow-rock"
+          ]
+        },
+        {
+          "field": "weather-region",
+          "kind": "category",
+          "min": 0,
+          "max": 16,
+          "labels": [
+            "luna-sea",
+            "valora-south-coast",
+            "valora-interior-valleys",
+            "greyspine-orographic",
+            "stormbreak-coast",
+            "azurewood-rainbelt",
+            "elderwall-highland",
+            "tempest-crown",
+            "verdelume-basin",
+            "firstwater-basin",
+            "reedwater-wetlands",
+            "redwater-steppe",
+            "sunreach-delta",
+            "glassmere-lakes",
+            "skyplain",
+            "shattered-reach",
+            "luminous-hollow"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "resources",
+      "channels": [
+        {
+          "field": "resource-forest",
+          "kind": "continuous",
+          "min": 0,
+          "max": 1
+        },
+        {
+          "field": "resource-forage",
+          "kind": "continuous",
+          "min": 0,
+          "max": 1
+        },
+        {
+          "field": "resource-ore",
+          "kind": "continuous",
+          "min": 0,
+          "max": 1
+        },
+        {
+          "field": "resource-stone",
+          "kind": "continuous",
+          "min": 0,
+          "max": 1
+        }
+      ]
+    },
+    {
+      "id": "habitat",
+      "channels": [
+        {
+          "field": "resource-reeds",
+          "kind": "continuous",
+          "min": 0,
+          "max": 1
+        },
+        {
+          "field": "resource-aquatic",
+          "kind": "continuous",
+          "min": 0,
+          "max": 1
+        },
+        {
+          "field": "resource-generic",
+          "kind": "continuous",
+          "min": 0,
+          "max": 1
+        },
+        {
+          "field": "zone-class",
+          "kind": "category",
+          "min": 0,
+          "max": 16,
+          "labels": [
+            "ocean-unclaimed",
+            "alvora",
+            "valedouro",
+            "serravela",
+            "cavora",
+            "azurama",
+            "montemoura",
+            "corvento",
+            "lumevara",
+            "fonteira",
+            "riveira",
+            "vermara",
+            "solmara",
+            "vidrala",
+            "altavera",
+            "fendoura",
+            "lumeira"
+          ]
+        }
+      ]
+    }
+  ],
+  "continents": {
+    "valora": {
+      "width": 1024,
+      "height": 1024,
+      "files": {
+        "climate": "control.valora.climate.rgba",
+        "hydrology": "control.valora.hydrology.rgba",
+        "terrain": "control.valora.terrain.rgba",
+        "ecology": "control.valora.ecology.rgba",
+        "resources": "control.valora.resources.rgba",
+        "habitat": "control.valora.habitat.rgba"
+      }
+    },
+    "seradia": {
+      "width": 1024,
+      "height": 1024,
+      "files": {
+        "climate": "control.seradia.climate.rgba",
+        "hydrology": "control.seradia.hydrology.rgba",
+        "terrain": "control.seradia.terrain.rgba",
+        "ecology": "control.seradia.ecology.rgba",
+        "resources": "control.seradia.resources.rgba",
+        "habitat": "control.seradia.habitat.rgba"
+      }
+    }
+  }
+}
