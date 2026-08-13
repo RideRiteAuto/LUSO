@@ -4,7 +4,7 @@ import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import { sampleWorldHeight } from "./terrain.js";
 import { uvToWorld } from "./layout.js";
 import type { ContinentData, Manifest, RiverRecord, WorldData } from "./worldData.js";
-import { buildRiverCenterline, isOceanReceivingRiver } from "./riverChannelField.js";
+import { buildRiverCenterline, isOceanReceivingRiver, type RiverCenterPoint } from "./riverChannelField.js";
 
 export type WaterBodyKind = "ocean" | "river" | "lake";
 
@@ -127,11 +127,21 @@ function closestPointOnSegment(x: number, z: number, segment: RiverSegment): { t
   return { t, distance: Math.hypot(x - px, z - pz), x: px, z: pz };
 }
 
+function pointInPolygonXZ(x: number, z: number, polygon: [number, number][]): boolean {
+  let inside = false;
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    const [xi, zi] = polygon[i], [xj, zj] = polygon[j];
+    if ((zi > z) !== (zj > z) && x < (xj - xi) * (z - zi) / (zj - zi) + xi) inside = !inside;
+  }
+  return inside;
+}
+
 function buildRiverGeometry(
   continent: ContinentData,
   river: RiverRecord,
   manifest: Manifest,
   segments: RiverSegment[],
+  stillWater: LakeSurface[],
   path: [number, number][] = river.path,
   progressStart = 0,
   widthScale = 1,
@@ -152,10 +162,19 @@ function buildRiverGeometry(
       currentA: point.current, currentB: next.current,
     });
   }
-  // Never stack a second surface over sea-level water. The ocean directly
-  // fills the carved lower estuary; only genuinely elevated reach points are
-  // meshed. This removes z-fighting and makes the mouth literally ocean water.
-  const points = oceanMouth ? centerline.filter((point) => point.y > OCEAN_RIVER_HANDOFF_M) : centerline;
+  // Never stack a second surface over water that is already rendered by
+  // another body. The ocean fills the carved lower estuary, and ponds/lakes
+  // the river pools through render their own flat surface at the same level
+  // — meshing the ribbon there would coplanar-fight the still water.
+  const kept: { point: RiverCenterPoint; originalIndex: number }[] = [];
+  centerline.forEach((point, originalIndex) => {
+    if (oceanMouth && point.y <= OCEAN_RIVER_HANDOFF_M) return;
+    const overStillWater = stillWater.some((lake) =>
+      Math.abs(lake.surfaceY - (point.y - 0.08)) < 2 && pointInPolygonXZ(point.x, point.z, lake.polygon));
+    if (overStillWater) return;
+    kept.push({ point, originalIndex });
+  });
+  const points = kept.map(({ point }) => point);
   if (points.length < 2) return null;
   const positions: number[] = [], uvs: number[] = [], colors: number[] = [], oceanBlends: number[] = [];
   const waterModes: number[] = [], flowXs: number[] = [], flowZs: number[] = [], flowSpeeds: number[] = [], indices: number[] = [];
@@ -188,6 +207,10 @@ function buildRiverGeometry(
   }
   const rowSize = 17;
   for (let i = 0; i < points.length - 1; i++) {
+    // Only join rows that were adjacent on the original centreline — where a
+    // pond/ocean span was removed, the ribbon breaks instead of bridging the
+    // gap with one long quad under the still water.
+    if (kept[i + 1].originalIndex !== kept[i].originalIndex + 1) continue;
     for (let cross = 0; cross < rowSize - 1; cross++) {
       const a = i * rowSize + cross, b = a + 1, c = a + rowSize, d = c + 1;
       indices.push(a, c, b, b, c, d);
@@ -305,10 +328,10 @@ export class NavoraWaterSystem {
         });
       }
       for (const river of continent.rivers) {
-        const geometry = buildRiverGeometry(continent, river, world.manifest, this.riverSegments);
+        const geometry = buildRiverGeometry(continent, river, world.manifest, this.riverSegments, this.lakeSurfaces);
         if (geometry) riverGeometries.push(geometry);
         for (const distributary of river.distributaries ?? []) {
-          const branch = buildRiverGeometry(continent, river, world.manifest, this.riverSegments, distributary, 0.68, 0.68);
+          const branch = buildRiverGeometry(continent, river, world.manifest, this.riverSegments, this.lakeSurfaces, distributary, 0.68, 0.68);
           if (branch) riverGeometries.push(branch);
         }
       }

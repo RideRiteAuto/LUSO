@@ -73,52 +73,52 @@ export function buildRiverCenterline(
 ): RiverCenterPoint[] {
   if (worldPath.length < 2) return [];
   const surfaces = river.surfaceElevationM ?? [];
-  const authoredPoints = worldPath.map(([x, z], index) => {
-    const localProgress = index / Math.max(1, worldPath.length - 1);
-    const progress = progressStart + localProgress * (1 - progressStart);
-    const surfaceIndex = progressStart > 0 ? Math.round(progress * Math.max(0, surfaces.length - 1)) : index;
-    const width = riverWidthAt(river, progress, widthScale);
-    return {
-      x, z, y: (surfaces[Math.min(surfaces.length - 1, surfaceIndex)] ?? 0) + 0.08, progress,
-      width,
-      depth: scenicRiverDepthM(width),
-      current: profileValue(river.profile?.currentMps, progress, [1.6, 0.45]),
-    };
-  });
-  const controlPoints = [authoredPoints[0]];
-  // Water-body spline controls stay a few channel-widths apart so the two
-  // banks never fold across one another at a bend, while remaining tight
-  // enough that the centreline cannot cut across a valley spur — that
-  // corner-cutting was one of the floating-ribbon causes.
-  const controlSpacing = Math.max(90, Math.min(240, (river.profile?.widthM[1] ?? 40) * widthScale * 2.2));
-  let distanceSinceControl = 0;
-  for (let i = 1; i < authoredPoints.length - 1; i++) {
-    distanceSinceControl += Math.hypot(authoredPoints[i].x - authoredPoints[i - 1].x, authoredPoints[i].z - authoredPoints[i - 1].z);
-    if (distanceSinceControl < controlSpacing) continue;
-    controlPoints.push(authoredPoints[i]);
-    distanceSinceControl = 0;
+  // Follow the compiler's path EXACTLY — it is already Chaikin-smoothed and
+  // is the line the terrain was carved along. The old Catmull-Rom respline
+  // (240–650 m control spacing) cut corners off that line, which pushed the
+  // water mesh onto ground the brush never shaped: the last source of
+  // floating edges. Arc-length resampling keeps mesh, brush, and compiled
+  // terrain on one centreline.
+  const cumulative: number[] = [0];
+  for (let i = 1; i < worldPath.length; i++) {
+    cumulative.push(cumulative[i - 1] + Math.hypot(
+      worldPath[i][0] - worldPath[i - 1][0],
+      worldPath[i][1] - worldPath[i - 1][1],
+    ));
   }
-  controlPoints.push(authoredPoints[authoredPoints.length - 1]);
-  let length = 0;
-  for (let i = 1; i < controlPoints.length; i++) length += Math.hypot(
-    controlPoints[i].x - controlPoints[i - 1].x,
-    controlPoints[i].z - controlPoints[i - 1].z,
-  );
-  const sampleCount = Math.max(2, Math.ceil(length / 22));
-  const curve = new THREE.CatmullRomCurve3(
-    controlPoints.map((point) => new THREE.Vector3(point.x, point.y, point.z)), false, "centripetal", 0.2,
-  );
-  return curve.getSpacedPoints(sampleCount).map((point, index) => {
-    const t = index / sampleCount;
-    const progress = progressStart + t * (1 - progressStart);
+  const totalLength = cumulative[cumulative.length - 1];
+  if (totalLength <= 0) return [];
+  const sampleCount = Math.max(2, Math.ceil(totalLength / 22));
+  const points: RiverCenterPoint[] = [];
+  let cursor = 0;
+  for (let sample = 0; sample <= sampleCount; sample++) {
+    const distance = totalLength * sample / sampleCount;
+    while (cursor < worldPath.length - 2 && cumulative[cursor + 1] < distance) cursor++;
+    const segmentLength = Math.max(1e-9, cumulative[cursor + 1] - cumulative[cursor]);
+    const frac = Math.max(0, Math.min(1, (distance - cumulative[cursor]) / segmentLength));
+    const x = worldPath[cursor][0] + (worldPath[cursor + 1][0] - worldPath[cursor][0]) * frac;
+    const z = worldPath[cursor][1] + (worldPath[cursor + 1][1] - worldPath[cursor][1]) * frac;
+    const pathParam = (cursor + frac) / Math.max(1, worldPath.length - 1);
+    const progress = progressStart + pathParam * (1 - progressStart);
+    let y: number;
+    if (progressStart > 0) {
+      // Distributary branches index the trunk's surface profile by progress.
+      const surfaceIndex = Math.round(progress * Math.max(0, surfaces.length - 1));
+      y = (surfaces[Math.min(surfaces.length - 1, surfaceIndex)] ?? 0) + 0.08;
+    } else {
+      const low = Math.min(surfaces.length - 1, cursor);
+      const high = Math.min(surfaces.length - 1, cursor + 1);
+      y = ((surfaces[low] ?? 0) + ((surfaces[high] ?? 0) - (surfaces[low] ?? 0)) * frac) + 0.08;
+    }
     const width = riverWidthAt(river, progress, widthScale);
-    return {
-      x: point.x, y: point.y, z: point.z, progress,
+    points.push({
+      x, y, z, progress,
       width,
       depth: scenicRiverDepthM(width),
       current: profileValue(river.profile?.currentMps, progress, [1.6, 0.45]),
-    };
-  });
+    });
+  }
+  return points;
 }
 
 function appendRiverSegments(

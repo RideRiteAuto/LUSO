@@ -1016,21 +1016,52 @@ export function generateWaterData(height: HeightField, riverIdPrefix: string, co
       const spill = basinComponents.componentSpill[component];
       const wetCells = cells.filter((basinCell) => data[basinCell] < spill - 0.5);
       if (wetCells.length < SCENIC_RIVER_RULES.minPondCells) continue;
-      const traced = traceBasinShoreline(wetCells, width, fieldHeight);
-      if (traced.length < 3) continue;
-      const polygon = roundedExpandedPolygon(traced, 0);
-      let deepest = spill;
-      for (const wet of wetCells) deepest = Math.min(deepest, data[wet]);
-      for (const wet of wetCells) lakeCellMask[wet] = 1;
-      ponds.push({
-        id: `${riverIdPrefix}-pond-${ponds.length}`,
-        kind: "pond",
-        polygon,
-        depthM: spill - deepest,
-        surfaceElevationM: spill,
-        spillElevationM: spill,
-        outlet: toUv(cell),
-      });
+      // Basin components flood 8-connected, but a shoreline is a 4-connected
+      // outline. A sprawling dendritic basin therefore splits into several
+      // wet lobes, and each needs its own polygon — tracing only the largest
+      // lobe left the rest of the pooling span uncovered by any water body.
+      const lobeOf = new Map<number, number>();
+      const lobes: number[][] = [];
+      const wetSet = new Set(wetCells);
+      for (const seed of wetCells) {
+        if (lobeOf.has(seed)) continue;
+        const lobe: number[] = [];
+        const queue = [seed];
+        lobeOf.set(seed, lobes.length);
+        let head = 0;
+        while (head < queue.length) {
+          const current = queue[head++];
+          lobe.push(current);
+          const x = current % width, y = Math.floor(current / width);
+          for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [0, 1]] as const) {
+            const nx = x + dx, ny = y + dy;
+            if (nx < 0 || ny < 0 || nx >= width || ny >= fieldHeight) continue;
+            const neighbor = idx(nx, ny, width);
+            if (!wetSet.has(neighbor) || lobeOf.has(neighbor)) continue;
+            lobeOf.set(neighbor, lobes.length);
+            queue.push(neighbor);
+          }
+        }
+        lobes.push(lobe);
+      }
+      for (const lobe of lobes) {
+        if (lobe.length < SCENIC_RIVER_RULES.minPondCells) continue;
+        const traced = traceBasinShoreline(lobe, width, fieldHeight);
+        if (traced.length < 3) continue;
+        const polygon = roundedExpandedPolygon(traced, 0);
+        let deepest = spill;
+        for (const wet of lobe) deepest = Math.min(deepest, data[wet]);
+        for (const wet of lobe) lakeCellMask[wet] = 1;
+        ponds.push({
+          id: `${riverIdPrefix}-pond-${ponds.length}`,
+          kind: "pond",
+          polygon,
+          depthM: spill - deepest,
+          surfaceElevationM: spill,
+          spillElevationM: spill,
+          outlet: toUv(cell),
+        });
+      }
     }
   }
 
