@@ -21,6 +21,7 @@
 
 import { createNoise2D } from "simplex-noise";
 import { mulberry32, type Rng, type SeedRegistry } from "../seed/index.js";
+import { silhouetteFieldAt, type SilhouetteNoise, type SilhouetteTreatment } from "./silhouettes.js";
 import type { ContinentId, ContinentLayoutDesign, HeightField, ZoneDesign } from "../types/index.js";
 
 const clamp01 = (value: number): number => Math.max(0, Math.min(1, value));
@@ -84,57 +85,17 @@ function zoneTargetElevationAt(u: number, v: number, zones: ZoneDesign[]): numbe
   return weightSum > 0 ? valueSum / weightSum : 0;
 }
 
-function continentMaskAt(u: number, v: number, coastNoise: number, continent: ContinentId, zones: ZoneDesign[]): number {
-  const dx = u - 0.5;
-  const dy = v - 0.5;
-  const anchor = (zoneId: string, fallback: [number, number]): [number, number] =>
-    zones.find((zone) => zone.id === zoneId)?.anchor ?? fallback;
-  let macro: number;
-  if (continent === "valora") {
-    // Broad, diagonally-oriented mainland with a southwestern peninsula and
-    // a northeastern coastal bite. It remains recognizably Valora across
-    // seeds while small-scale coast noise changes the shoreline.
-    const angle = -0.28;
-    const rx = dx * Math.cos(angle) - dy * Math.sin(angle);
-    const ry = dx * Math.sin(angle) + dy * Math.cos(angle);
-    const body = 1 - Math.hypot(rx / 0.58, ry / 0.45);
-    const peninsula = 0.35 - Math.hypot((u - 0.2) / 0.24, (v - 0.73) / 0.3);
-    const cavora = anchor("cavora", [0.8, 0.25]);
-    const alvora = anchor("alvora", [0.85, 0.5]);
-    const gulf = 0.38 - Math.hypot((u - (cavora[0] - 0.02)) / 0.2, (v - (cavora[1] + 0.02)) / 0.22);
-    // These two macro cuts are canon geography, not arbitrary coast noise:
-    // the Stormbreak gulf supplies Cavora's deep natural harbor coast, while
-    // the Crownlands bay supports Alvora's fishing/coastal transport identity.
-    const crownlandsBay = 0.18 - Math.hypot((u - (alvora[0] + 0.11)) / 0.13, (v - (alvora[1] + 0.03)) / 0.18);
-    macro = Math.max(body, peninsula)
-      - Math.max(0, gulf) * 0.70
-      - Math.max(0, crownlandsBay) * 0.38;
-  } else {
-    // Seradia is a taller crescent with a broken eastern coast, deliberately
-    // unlike Valora's broad diagonal body.
-    const outer = 1 - Math.hypot(dx / 0.43, dy / 0.59);
-    const innerBay = 0.42 - Math.hypot((u - 0.34) / 0.29, (v - 0.5) / 0.43);
-    const northernShoulder = 0.28 - Math.hypot((u - 0.67) / 0.24, (v - 0.2) / 0.24);
-    // Sunreach's broad estuarine bight is the ocean receiver for its authored
-    // delta/distributary system; it is not a generic decorative bay.
-    const solmara = anchor("solmara", [0.2, 0.75]);
-    const sunreachBight = 0.20 - Math.hypot((u - (solmara[0] - 0.05)) / 0.13, (v - (solmara[1] + 0.03)) / 0.17);
-    macro = Math.max(outer - Math.max(0, innerBay) * 0.9 - Math.max(0, sunreachBight) * 0.45, northernShoulder);
-  }
-  // Coast noise supplies natural bays and headlands, but it must remain
-  // subordinate to the continental silhouette. The former 0.14 amplitude
-  // produced similarly sized scallops every few height cells, which read as
-  // a repeated saw-tooth pattern from flight altitude.
-  const perturbed = macro + coastNoise * (continent === "valora" ? 0.10 : 0.12);
-  return Math.max(0, Math.min(1, (perturbed + 0.15) * 1.3));
-}
-
 interface ContinentSampler {
   (u: number, v: number): number;
 }
 
 /** Builds a continent's own noise-seeded elevation sampler. Safe to call with UV far outside [0,1] -- it just smoothly bottoms out at abyssal ocean depth. */
-function buildContinentSampler(rng: Rng, zones: ZoneDesign[], continent: ContinentId): ContinentSampler {
+function buildContinentSampler(
+  rng: Rng,
+  zones: ZoneDesign[],
+  continent: ContinentId,
+  treatment: SilhouetteTreatment,
+): ContinentSampler {
   const seed = Math.floor(rng.float() * 2 ** 31);
   // simplex-noise expects a stateful random sequence while it builds its
   // permutation table. Passing a constant function creates biased and highly
@@ -148,6 +109,15 @@ function buildContinentSampler(rng: Rng, zones: ZoneDesign[], continent: Contine
   const valleyNoise = createNoise2D(mulberry32(seed + 707));
   const faultNoise = createNoise2D(mulberry32(seed + 808));
   const microNoise = createNoise2D(mulberry32(seed + 909));
+  // Silhouette-only channels. They are seeded past the terrain channels so
+  // adding a treatment cannot perturb existing relief noise.
+  const silhouetteNoise: SilhouetteNoise = {
+    coast: coastNoise,
+    warpX: createNoise2D(mulberry32(seed + 1010)),
+    warpY: createNoise2D(mulberry32(seed + 1111)),
+    cape: createNoise2D(mulberry32(seed + 1212)),
+    islet: createNoise2D(mulberry32(seed + 1313)),
+  };
 
   return (u: number, v: number): number => {
     const warpScale = 2.2;
@@ -156,7 +126,10 @@ function buildContinentSampler(rng: Rng, zones: ZoneDesign[], continent: Contine
     const wy = v + warpAmount * warpNoiseY(u * warpScale, v * warpScale);
 
     const coastN = coastNoise(u * 2.6, v * 2.6);
-    const mask = continentMaskAt(wx, wy, coastN, continent, zones);
+    const silhouetteField = silhouetteFieldAt(
+      { u, v, wu: wx, wv: wy, coastN }, continent, zones, silhouetteNoise, treatment,
+    );
+    const mask = Math.max(0, Math.min(1, (silhouetteField + 0.15) * 1.3));
 
     const detail = fractalNoise2D(detailNoise, wx * 3.2, wy * 3.2, 6, 2.05, 0.5);
     // Ridge frequency raised 2.5 -> 3.4 and amplitude 900 -> 1600 (docs/01 §5
@@ -313,7 +286,8 @@ export function generateWorldHeightField(
   seeds: SeedRegistry,
   continentLayout: ContinentLayoutDesign,
   zoneDesigns: ZoneDesign[],
-  metersPerCell: number
+  metersPerCell: number,
+  treatment: SilhouetteTreatment = "legacy",
 ): UnifiedWorldField {
   const bounds = computeWorldBounds(continentLayout);
   const tileSize = continentLayout.continentTileSize;
@@ -323,7 +297,7 @@ export function generateWorldHeightField(
   for (const c of continentLayout.continents) {
     const rng = seeds.rngFor("elevation", c.id);
     const zonesForContinent = zoneDesigns.filter((z) => z.continent === c.id);
-    samplers.set(c.id, buildContinentSampler(rng, zonesForContinent, c.id));
+    samplers.set(c.id, buildContinentSampler(rng, zonesForContinent, c.id, treatment));
     offsets.set(c.id, c.worldOffset);
   }
 

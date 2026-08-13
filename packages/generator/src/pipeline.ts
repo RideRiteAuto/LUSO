@@ -3,6 +3,7 @@
 
 import { SeedRegistry } from "./seed/index.js";
 import { generateWorldHeightField, sliceContinentField } from "./elevation/index.js";
+import type { SilhouetteTreatment } from "./elevation/silhouettes.js";
 import { carveRiverChannels, generateWaterData } from "./hydrology/index.js";
 import { carveNavigableWaterways } from "./waterways/index.js";
 import { assignZones, resolveZones } from "./zones/index.js";
@@ -25,6 +26,8 @@ export interface GenerateOptions {
   continentTileSize?: number;
   continents?: ContinentId[];
   nameSettlements?: boolean;
+  /** Continent outline treatment (see elevation/silhouettes.ts). */
+  silhouette?: SilhouetteTreatment;
 }
 
 export function generateWorld(opts: GenerateOptions): WorldOutput {
@@ -47,7 +50,7 @@ export function generateWorld(opts: GenerateOptions): WorldOutput {
   const terrainMaterialRecipes = loadTerrainMaterialRecipes(terrainMaterialLibrary);
   const waterwayDesign = loadWaterwayDesigns();
 
-  const worldHeight = generateWorldHeightField(seeds, continentLayout, zoneDesigns, metersPerCell);
+  const worldHeight = generateWorldHeightField(seeds, continentLayout, zoneDesigns, metersPerCell, opts.silhouette ?? "legacy");
 
   const heightFields: WorldOutput["heightFields"] = {} as any;
   const biomeFields: WorldOutput["biomeFields"] = {} as any;
