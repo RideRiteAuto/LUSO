@@ -1,6 +1,9 @@
 import * as THREE from "three/webgpu";
-import { WaterMesh } from "three/addons/objects/WaterMesh.js";
-import { Fn, positionLocal, sin, time, vec3 } from "three/tsl";
+import {
+  Fn, cameraPosition, color, cos, dot, float, length, max, mix, normalize,
+  positionLocal, positionWorld, pow, sin, smoothstep, texture, time,
+  uniform, vec2, vec3,
+} from "three/tsl";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import { sampleHeight, sampleWorldHeight } from "./terrain.js";
 import { uvToWorld } from "./layout.js";
@@ -105,6 +108,59 @@ function makeNormalTexture(size: number, phase: number): THREE.Texture {
   return texture;
 }
 
+/**
+ * A square, camera-relative ocean grid with most of its vertices concentrated
+ * around the player. Far vertices stretch toward the fog horizon, so overview
+ * mode never exposes a rectangular water edge while walk mode retains enough
+ * tessellation for visible wave silhouettes.
+ */
+export function buildRadialOceanGeometry(extent: number, segments: number, exponent = 2.35): THREE.PlaneGeometry {
+  const geometry = new THREE.PlaneGeometry(extent, extent, segments, segments);
+  const positions = geometry.getAttribute("position") as THREE.BufferAttribute;
+  const half = extent * 0.5;
+  for (let index = 0; index < positions.count; index++) {
+    const nx = positions.getX(index) / half;
+    const ny = positions.getY(index) / half;
+    positions.setXY(
+      index,
+      Math.sign(nx) * Math.pow(Math.abs(nx), exponent) * half,
+      Math.sign(ny) * Math.pow(Math.abs(ny), exponent) * half,
+    );
+  }
+  positions.needsUpdate = true;
+  geometry.rotateX(-Math.PI / 2);
+  geometry.computeVertexNormals();
+  return geometry;
+}
+
+function makeOceanDepthTexture(world: WorldData): THREE.DataTexture {
+  const source = world.worldHeight;
+  const width = Math.min(512, source.width);
+  const height = Math.min(256, source.height);
+  const pixels = new Uint8Array(width * height * 4);
+  for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
+    const sourceX = Math.min(source.width - 1, Math.round(x / Math.max(1, width - 1) * (source.width - 1)));
+    const sourceY = Math.min(source.height - 1, Math.round(y / Math.max(1, height - 1) * (source.height - 1)));
+    const depth = Math.max(0, -source.data[sourceY * source.width + sourceX]);
+    const offset = (y * width + x) * 4;
+    // Two independent bands preserve a narrow turquoise shelf as well as the
+    // broad blue transition into genuinely deep ocean.
+    pixels[offset] = Math.round(Math.min(1, depth / 14) * 255);
+    pixels[offset + 1] = Math.round(Math.min(1, depth / 150) * 255);
+    pixels[offset + 2] = Math.round(Math.min(1, depth / 700) * 255);
+    pixels[offset + 3] = 255;
+  }
+  const result = new THREE.DataTexture(pixels, width, height, THREE.RGBAFormat, THREE.UnsignedByteType);
+  result.name = "navora-ocean-depth-bands";
+  result.colorSpace = THREE.NoColorSpace;
+  result.wrapS = result.wrapT = THREE.ClampToEdgeWrapping;
+  result.minFilter = THREE.LinearMipmapLinearFilter;
+  result.magFilter = THREE.LinearFilter;
+  result.generateMipmaps = true;
+  result.needsUpdate = true;
+  return result;
+}
+
 function riverWidth(progress: number, river: RiverRecord): number {
   // Headwaters remain fish/swimmer water; the lower half grows into the
   // navigable 18-52 m channel required by early rafts and cutters.
@@ -164,42 +220,102 @@ export class NavoraWaterSystem {
   readonly group = new THREE.Group();
   readonly riverGroup = new THREE.Group();
   private readonly riverSegments: RiverSegment[] = [];
-  readonly ocean: WaterMesh;
+  readonly ocean: THREE.Mesh;
   private readonly riverMesh: THREE.Mesh | null;
-  private readonly oceanNormal: THREE.Texture;
+  private readonly oceanDepth: THREE.DataTexture;
   private readonly riverNormal: THREE.Texture;
+  private readonly oceanOrigin = uniform(new THREE.Vector2());
   private elapsed = 0;
 
   constructor(private readonly world: WorldData, quality: "high" | "balanced" | "compatibility", sunDirection: THREE.Vector3) {
     this.group.name = "navora-unified-water";
     this.riverGroup.name = "navora-river-surfaces";
-    this.oceanNormal = makeNormalTexture(quality === "high" ? 1024 : quality === "balanced" ? 768 : 512, 0.37);
     this.riverNormal = makeNormalTexture(quality === "high" ? 1024 : 512, 2.11);
-    const extent = quality === "compatibility" ? 30000 : quality === "balanced" ? 48000 : 70000;
-    const segments = quality === "compatibility" ? 64 : quality === "balanced" ? 96 : 128;
-    const oceanGeometry = new THREE.PlaneGeometry(extent, extent, segments, segments);
-    oceanGeometry.rotateX(-Math.PI / 2);
-    this.ocean = new WaterMesh(oceanGeometry, {
-      waterNormals: this.oceanNormal,
-      sunDirection: sunDirection.clone().normalize(),
-      sunColor: 0xfff1d2,
-      waterColor: 0x06354a,
-      distortionScale: quality === "compatibility" ? 2.4 : 3.8,
-      size: 0.7,
-      alpha: 0.96,
-      resolutionScale: quality === "compatibility" ? 0.16 : quality === "balanced" ? 0.24 : 0.34,
-    });
-    this.ocean.name = "camera-relative-gerstner-ocean";
-    // Four low-cost geometry waves provide parallax and real height changes;
-    // the HD normal map supplies capillary detail without tessellating it.
-    this.ocean.material.positionNode = Fn(() => {
+    this.oceanDepth = makeOceanDepthTexture(world);
+    const worldBounds = world.worldHeight.bounds;
+    const worldSpan = Math.max(worldBounds.maxX - worldBounds.minX, worldBounds.maxZ - worldBounds.minZ);
+    const extent = Math.max(180000, worldSpan * 1.35);
+    const segments = quality === "compatibility" ? 80 : quality === "balanced" ? 112 : 144;
+    const oceanGeometry = buildRadialOceanGeometry(extent, segments);
+    const oceanMaterial = new THREE.NodeMaterial();
+    oceanMaterial.transparent = false;
+    oceanMaterial.depthWrite = true;
+    oceanMaterial.side = THREE.DoubleSide;
+    const normalizedSun = uniform(sunDirection.clone().normalize());
+    const worldMinimum = uniform(new THREE.Vector2(worldBounds.minX, worldBounds.minZ));
+    const inverseWorldSize = uniform(new THREE.Vector2(
+      1 / Math.max(1, worldBounds.maxX - worldBounds.minX),
+      1 / Math.max(1, worldBounds.maxZ - worldBounds.minZ),
+    ));
+    const depthBands = texture(this.oceanDepth);
+
+    const waveField = Fn(() => {
       const p = positionLocal.toVar();
-      const wave = sin(p.x.mul(0.185).add(p.z.mul(0.067)).add(time.mul(1.15))).mul(0.52)
-        .add(sin(p.x.mul(0.31).add(p.z.mul(0.29)).add(time.mul(0.93))).mul(0.27))
-        .add(sin(p.x.mul(-0.13).add(p.z.mul(0.72)).add(time.mul(0.71))).mul(0.14))
-        .add(sin(p.x.mul(0.72).add(p.z.mul(-1.31)).add(time.mul(0.54))).mul(0.07));
-      return p.add(vec3(0, wave, 0));
+      const worldX = p.x.add(this.oceanOrigin.x);
+      const worldZ = p.z.add(this.oceanOrigin.y);
+      const height = float(0).toVar();
+      const slopeX = float(0).toVar();
+      const slopeZ = float(0).toVar();
+      for (const wave of NAVORA_OCEAN_WAVES) {
+        const [dx, dz] = normalizedDirection(wave.directionX, wave.directionZ);
+        const k = Math.PI * 2 / wave.wavelength;
+        const phase = worldX.mul(k * dx).add(worldZ.mul(k * dz)).add(time.mul(wave.speed));
+        height.addAssign(sin(phase).mul(wave.amplitude));
+        slopeX.addAssign(cos(phase).mul(wave.amplitude * k * dx * wave.steepness));
+        slopeZ.addAssign(cos(phase).mul(wave.amplitude * k * dz * wave.steepness));
+      }
+      return vec3(height, slopeX, slopeZ);
+    });
+
+    oceanMaterial.positionNode = Fn(() => {
+      const p = positionLocal.toVar();
+      return p.add(vec3(0, waveField().x, 0));
     })();
+
+    oceanMaterial.colorNode = Fn(() => {
+      const p = positionLocal.toVar();
+      const trueWorld = vec2(p.x.add(this.oceanOrigin.x), p.z.add(this.oceanOrigin.y));
+      const wave = waveField();
+      const worldToEye = cameraPosition.sub(positionWorld);
+      const distanceToEye = length(worldToEye);
+      const microFade = float(1).sub(smoothstep(420, 2600, distanceToEye));
+      const waveNormalFade = mix(0.1, 1, float(1).sub(smoothstep(800, 6200, distanceToEye)));
+
+      // Three non-commensurate capillary bands add high-frequency detail
+      // without a tiled normal map, so there is no repeating checker pattern.
+      const microX = cos(trueWorld.x.mul(2.73).add(trueWorld.y.mul(1.19)).add(time.mul(1.7))).mul(0.075)
+        .add(cos(trueWorld.x.mul(-4.31).add(trueWorld.y.mul(3.77)).sub(time.mul(1.23))).mul(0.042))
+        .add(sin(trueWorld.x.mul(7.11).add(trueWorld.y.mul(-5.83)).add(time.mul(2.07))).mul(0.018));
+      const microZ = sin(trueWorld.x.mul(1.41).add(trueWorld.y.mul(2.91)).add(time.mul(1.49))).mul(0.072)
+        .add(sin(trueWorld.x.mul(3.61).add(trueWorld.y.mul(-4.67)).sub(time.mul(1.11))).mul(0.039))
+        .add(cos(trueWorld.x.mul(-6.29).add(trueWorld.y.mul(7.37)).add(time.mul(1.93))).mul(0.017));
+      const surfaceNormal = normalize(vec3(
+        wave.y.mul(waveNormalFade).add(microX.mul(microFade)).negate(),
+        1,
+        wave.z.mul(waveNormalFade).add(microZ.mul(microFade)).negate(),
+      ));
+      const eyeDirection = normalize(worldToEye);
+      const theta = max(dot(eyeDirection, surfaceNormal), 0);
+      const fresnel = float(0.025).add(pow(float(1).sub(theta), 5).mul(0.975));
+
+      const uv = trueWorld.sub(worldMinimum).mul(inverseWorldSize).clamp(0, 1);
+      const bands = depthBands.sample(uv);
+      const shelf = mix(color(0x2095a6), color(0x0b6680), smoothstep(0.04, 0.92, bands.r));
+      const body = mix(shelf, color(0x063c58), smoothstep(0.08, 0.95, bands.g));
+      const deep = mix(body, color(0x041f34), smoothstep(0.25, 1, bands.b));
+
+      const halfVector = normalize(eyeDirection.add(normalizedSun));
+      const sunGlint = pow(max(dot(surfaceNormal, halfVector), 0), quality === "compatibility" ? 96 : 180);
+      const skyReflection = mix(color(0x4e7188), color(0xa9bbc4), pow(float(1).sub(theta), 1.5));
+      const crest = smoothstep(0.57, 0.92, wave.x).mul(smoothstep(0.05, 0.28, float(1).sub(theta)));
+      return mix(deep, skyReflection, fresnel.mul(0.72))
+        .add(color(0xffefd0).mul(sunGlint).mul(2.4))
+        .add(color(0xb9dce0).mul(crest).mul(0.12));
+    })();
+
+    this.ocean = new THREE.Mesh(oceanGeometry, oceanMaterial);
+    this.ocean.name = "camera-relative-gerstner-ocean";
+    this.ocean.frustumCulled = false;
     this.ocean.renderOrder = 1;
     this.group.add(this.ocean);
 
@@ -227,9 +343,12 @@ export class NavoraWaterSystem {
 
   update(elapsedSeconds: number, cameraWorldX: number, cameraWorldZ: number): void {
     this.elapsed = elapsedSeconds;
-    const snap = 256;
-    this.ocean.position.x = Math.round(cameraWorldX / snap) * snap;
-    this.ocean.position.z = Math.round(cameraWorldZ / snap) * snap;
+    // Keep the high-density center of the radial grid exactly under the
+    // viewer. Wave phase is evaluated in true world coordinates through the
+    // origin uniform, so this continuous recentering cannot make crests pop.
+    this.ocean.position.x = cameraWorldX;
+    this.ocean.position.z = cameraWorldZ;
+    this.oceanOrigin.value.set(this.ocean.position.x, this.ocean.position.z);
     this.riverNormal.offset.set(elapsedSeconds * 0.004, -elapsedSeconds * 0.028);
     this.riverNormal.needsUpdate = true;
   }
@@ -258,7 +377,7 @@ export class NavoraWaterSystem {
   }
 
   dispose(): void {
-    this.ocean.geometry.dispose(); this.ocean.material.dispose(); this.oceanNormal.dispose(); this.riverNormal.dispose();
+    this.ocean.geometry.dispose(); (this.ocean.material as THREE.Material).dispose(); this.oceanDepth.dispose(); this.riverNormal.dispose();
     if (this.riverMesh) { this.riverMesh.geometry.dispose(); (this.riverMesh.material as THREE.Material).dispose(); }
     this.group.clear();
   }
