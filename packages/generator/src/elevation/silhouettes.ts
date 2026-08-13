@@ -269,10 +269,29 @@ const RIFT_COAST_BASE: Record<ContinentId, number> = { valora: 0.985, seradia: 0
 /** How fast land falls away past the seam. */
 const RIFT_FALLOFF = 3.4;
 
+/**
+ * How far each margin wanders on its own, independent of the shared seam.
+ *
+ * A continent does not tear along a clean line. If both coasts read only the
+ * shared curve they interlock exactly, and an exact jigsaw looks authored --
+ * the real Atlantic margins rhyme at the scale of a thousand kilometres and
+ * disagree at every scale below it, because the split shattered, overlapped,
+ * and left fragments stranded on both sides. This is that disagreement: each
+ * margin adds its own deviation, small enough that the two coasts still
+ * obviously answer each other, large enough that they never quite mate.
+ */
+function riftDivergenceAt(v: number, noise: SilhouetteNoise): number {
+  return fbm(noise.cape, v * 2.7 + 17.1, 4.9, 3) * 0.088
+    + fbm(noise.coast, v * 6.4, 23.4, 2) * 0.042;
+}
+
 function applyRift(
   field: number, u: number, v: number, continent: ContinentId, noise: SilhouetteNoise, shield: number,
 ): number {
-  const seam = RIFT_COAST_BASE[continent] + riftOffsetAt(v, noise);
+  // Shared seam plus this margin's own wander: the halves rhyme, they do not
+  // mate. `noise.cape`/`noise.coast` are continent-seeded, so the deviation
+  // differs on each side of the sea.
+  const seam = RIFT_COAST_BASE[continent] + riftOffsetAt(v, noise) + riftDivergenceAt(v, noise);
   // Valora keeps the land west of the seam, Seradia the land east of it.
   const past = (continent === "valora" ? u - seam : seam - u) * (1 - shield);
   if (past <= 0) return field;

@@ -7,8 +7,10 @@
 // gives the crossing something to navigate by.
 //
 // Islands are placed along the rift axis, deterministically from the world
-// seed, with hard keep-outs: nothing inside the Bruma, nothing close enough
-// to either coast to read as an offshore rock rather than a destination.
+// seed, kept far enough off both coasts to read as destinations rather than
+// offshore rocks. The Bruma is deliberately NOT excluded: it is strange
+// water rather than forbidden water, and islands standing in the anomaly are
+// the most interesting ground the sea has to offer.
 
 import { createNoise2D } from "simplex-noise";
 import { mulberry32 } from "../seed/index.js";
@@ -36,7 +38,11 @@ export interface IslandFieldConfig {
   /** Island radius range in metres — content-sized, never a third continent. */
   minRadiusM: number;
   maxRadiusM: number;
-  /** Clear water kept around the Bruma and off each coast. */
+  /**
+   * The Bruma is strange water, not forbidden water — ships cross it and
+   * anything found there is fair game to build on. Positive values pull the
+   * arc away from it; zero lets the chain run straight through.
+   */
   brumaKeepOutM: number;
   coastKeepOutM: number;
 }
@@ -45,8 +51,9 @@ export const DEFAULT_ISLAND_CONFIG: IslandFieldConfig = {
   count: 16,
   minRadiusM: 1_100,
   maxRadiusM: 3_400,
-  // Margin BEYOND the Bruma's own radius — nothing sits in those waters.
-  brumaKeepOutM: 6_000,
+  // No exclusion: the anomaly is a place to sail into and build on, and
+  // islands standing in it are the most interesting ground in the sea.
+  brumaKeepOutM: 0,
   coastKeepOutM: 4_500,
 };
 
@@ -128,8 +135,10 @@ export function planIslands(
       const clustering = fbm(noise.placement, worldX / 9_000, worldZ / 9_000, 2) * 0.5 + 0.5;
       if (clustering * (0.55 + seamFalloff * 0.85) < 0.26) continue;
 
-      const brumaDistance = Math.hypot(worldX - layout.bruma.center[0], worldZ - layout.bruma.center[1]);
-      if (brumaDistance < config.brumaKeepOutM + layout.bruma.radiusUnits) continue;
+      if (config.brumaKeepOutM > 0) {
+        const brumaDistance = Math.hypot(worldX - layout.bruma.center[0], worldZ - layout.bruma.center[1]);
+        if (brumaDistance < config.brumaKeepOutM + layout.bruma.radiusUnits) continue;
+      }
 
       // Skewed so the sea is mostly skerries with a few real islands, the
       // way an archipelago actually reads.
@@ -175,7 +184,10 @@ export function islandElevationAt(worldX: number, worldZ: number, islands: Islan
 
     if (distance < radius) {
       const inland = 1 - distance / radius;
-      const relief = fbm(noise.relief, worldX / 900, worldZ / 900, 3) * 0.22;
+      // Relief scaled to the island: a fixed noise wavelength gives a 2 km
+      // skerry the same detail as a 6 km island, which reads as spikes.
+      const reliefScale = Math.max(700, island.radiusM * 1.15);
+      const relief = fbm(noise.relief, worldX / reliefScale, worldZ / reliefScale, 2) * 0.18;
       const height = Math.pow(inland, 0.72) * island.peakM * (1 + relief);
       best = Math.max(best, Math.max(2, height));
     } else {
