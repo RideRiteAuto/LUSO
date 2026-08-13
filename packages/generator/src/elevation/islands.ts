@@ -21,6 +21,7 @@
 
 import { createNoise2D } from "simplex-noise";
 import { mulberry32 } from "../seed/index.js";
+import { RIFT_COAST_BASE } from "./silhouettes.js";
 import type { ContinentLayoutDesign } from "../types/index.js";
 
 type Noise2D = (x: number, y: number) => number;
@@ -58,13 +59,19 @@ export interface IslandFieldConfig {
 }
 
 export const DEFAULT_ISLAND_CONFIG: IslandFieldConfig = {
-  count: 16,
+  // Fewer, better-placed islands: ~3 lone anchors, 2 companions per coast
+  // plus the occasional trailing skerry, one sandbar. ArcheAge's sea carries
+  // roughly this many between Nuia and Haranya, and it reads as authored
+  // geography precisely because it is not two dozen.
+  count: 10,
   minRadiusM: 700,
   maxRadiusM: 3_400,
   // No exclusion: the anomaly is a place to sail into and build on, and
   // islands standing in it are the most interesting ground in the sea.
   brumaKeepOutM: 0,
-  coastKeepOutM: 4_500,
+  // Minimum water between a coast and its companion islets — a short boat
+  // trip, close enough that the islet is visible from the beach.
+  coastKeepOutM: 3_200,
 };
 
 /** One rounded swelling of an island's mass, in the island's local frame. */
@@ -160,92 +167,184 @@ function shapeIsland(
 }
 
 /**
- * Lays the arc out along the sea gap. `riftOffsetAt` is the same wandering
- * curve that shapes the two facing coastlines, so the chain follows the seam
- * the continents tore along instead of running down an arbitrary straight
- * line through the middle of the sea.
+ * Lays the sea out the way ArcheAge lays out the water between Nuia and
+ * Haranya. Measured off its world map, that sea has a grammar, not a
+ * scatter:
+ *
+ *  - The open ocean is almost empty. A handful of true mid-sea islands
+ *    (Freedich, Growlgate, Mirage) each stand ALONE, a third to half the
+ *    sea's width from the nearer coast, and each is a destination — roughly
+ *    5–15% of a continent's width across, far from zone-sized.
+ *  - Nearly everything else hugs a coastline: skerries 2–4% of a continent's
+ *    width, sitting 2–7% offshore in loose trails of one to three — visible
+ *    from the beach, reachable only by boat.
+ *
+ * The previous jittered lattice did the opposite: it filled the middle of
+ * the sea uniformly and left the coasts bare, which read as one random
+ * cluster in a small radius mid-ocean. Placement is now by role — lone
+ * anchors, coastal companions, one sandbar — each sized and separated to
+ * the proportions above.
+ *
+ * `riftOffsetAt` is the same wandering curve that shapes the two facing
+ * coastlines, so both the seam line and the coast estimates below stay
+ * honest when the tear wanders.
  */
 export function planIslands(
   layout: ContinentLayoutDesign,
   noise: IslandNoise,
   riftOffsetAt: (v: number) => number,
   config: IslandFieldConfig = DEFAULT_ISLAND_CONFIG,
+  isLandAt?: (worldX: number, worldZ: number) => boolean,
 ): Island[] {
   const tile = layout.continentTileSize;
   const valora = layout.continents.find((continent) => continent.id === "valora")!;
   const seradia = layout.continents.find((continent) => continent.id === "seradia")!;
-  const gapWest = valora.worldOffset[0] + tile;
-  const gapEast = seradia.worldOffset[0];
-  const usableWest = gapWest + config.coastKeepOutM;
-  const usableEast = gapEast - config.coastKeepOutM;
-  if (usableEast <= usableWest) return [];
+  const zMin = layout.continents[0].worldOffset[1];
+  if (seradia.worldOffset[0] <= valora.worldOffset[0] + tile * RIFT_COAST_BASE.valora) return [];
 
-  // A narrow sea holds smaller islands: sized as a fraction of the water
-  // available, so a channel gets a scatter of skerries rather than two plugs
-  // that nearly bridge it.
-  const bandWidth = usableEast - usableWest;
-  const maxRadiusM = Math.min(config.maxRadiusM, bandWidth * 0.15);
-  const minRadiusM = Math.min(config.minRadiusM, maxRadiusM * 0.22);
+  // Where each rift-facing coast roughly falls at a given latitude, from the
+  // seam clip alone. Only a fallback: the mass often stops well SHORT of the
+  // seam — the clip only bites where land actually reached it — so the true
+  // shoreline can sit over ten kilometres inboard of this line. Placing
+  // "coastal" islets against the estimate strands them mid-sea, which is
+  // exactly the randomly-scattered look this planner exists to kill.
+  const coastEstimate = (side: "valora" | "seradia", v: number): number =>
+    side === "valora"
+      ? valora.worldOffset[0] + (RIFT_COAST_BASE.valora + riftOffsetAt(v)) * tile
+      : seradia.worldOffset[0] + (RIFT_COAST_BASE.seradia + riftOffsetAt(v)) * tile;
 
-  const islands: Island[] = [];
-  // Walk a jittered lattice over the whole sea, not a single file down the
-  // middle: a chain of evenly spaced dots reads as a dotted line on a map,
-  // where a real archipelago clusters and thins. Density is highest along the
-  // seam — that is where the volcanism follows the tear — and falls off
-  // toward each coast.
-  const rows = Math.max(4, Math.round(Math.sqrt(config.count * 3)));
-  const columns = Math.max(2, Math.ceil(config.count / rows) + 2);
-  const seamOf = (worldZ: number) => {
-    const v = (worldZ - layout.continents[0].worldOffset[1]) / tile;
-    return (gapWest + gapEast) / 2 + riftOffsetAt(v) * tile;
+  // The real coast, found by marching from the tile edge into the land until
+  // the probe reports shore. Null when a latitude has no land in range (open
+  // bays, the continents' tapered ends) — roles simply retry elsewhere.
+  const COAST_SCAN_M = 32_000;
+  const COAST_STEP_M = 400;
+  const coastXOf = (side: "valora" | "seradia", v: number): number | null => {
+    if (!isLandAt) return coastEstimate(side, v);
+    const z = zMin + v * tile;
+    const from = side === "valora" ? valora.worldOffset[0] + tile : seradia.worldOffset[0];
+    const inland = side === "valora" ? -1 : 1;
+    for (let step = 0; step * COAST_STEP_M <= COAST_SCAN_M; step++) {
+      const x = from + inland * step * COAST_STEP_M;
+      if (isLandAt(x, z)) return x - inland * COAST_STEP_M * 0.5;
+    }
+    return null;
   };
 
-  for (let row = 0; row < rows && islands.length < config.count; row++) {
-    for (let column = 0; column < columns && islands.length < config.count; column++) {
-      const rowT = (row + 0.5) / rows;
-      const columnT = (column + 0.5) / columns;
-      const jitterZ = fbm(noise.placement, row * 3.1 + 0.5, column * 2.7, 2) * (tile / rows) * 0.92;
-      const jitterX = fbm(noise.placement, column * 4.3, row * 1.9 + 7.7, 2) * ((usableEast - usableWest) / columns) * 0.95;
-      const worldZ = layout.continents[0].worldOffset[1] + rowT * tile + jitterZ;
-      const worldX = usableWest + columnT * (usableEast - usableWest) + jitterX;
-      if (worldX < usableWest || worldX > usableEast) continue;
-      if (worldZ < layout.continents[0].worldOffset[1] || worldZ > layout.continents[0].worldOffset[1] + tile) continue;
+  const rng = mulberry32(noise.seed + 4_001);
+  const islands: Island[] = [];
 
-      // Thin the field out away from the seam, and leave gaps so the arc has
-      // clusters and open water rather than uniform coverage.
-      const seamDistance = Math.abs(worldX - seamOf(worldZ));
-      const seamFalloff = 1 - Math.min(1, seamDistance / Math.max(1, (usableEast - usableWest) * 0.55));
-      const clustering = fbm(noise.placement, worldX / 9_000, worldZ / 9_000, 2) * 0.5 + 0.5;
-      if (clustering * (0.55 + seamFalloff * 0.85) < 0.26) continue;
+  const blockedByBruma = (x: number, z: number): boolean => {
+    if (config.brumaKeepOutM <= 0) return false;
+    return Math.hypot(x - layout.bruma.center[0], z - layout.bruma.center[1])
+      < config.brumaKeepOutM + layout.bruma.radiusUnits;
+  };
 
-      if (config.brumaKeepOutM > 0) {
-        const brumaDistance = Math.hypot(worldX - layout.bruma.center[0], worldZ - layout.bruma.center[1]);
-        if (brumaDistance < config.brumaKeepOutM + layout.bruma.radiusUnits) continue;
+  const place = (
+    x: number, z: number, radiusM: number, peakM: number, size: number, minSeparationM: number,
+  ): boolean => {
+    if (islands.length >= config.count) return false;
+    if (z < zMin + tile * 0.04 || z > zMin + tile * 0.96) return false;
+    if (blockedByBruma(x, z)) return false;
+    // Stay in open water. With a probe this is exact — the island's whole
+    // footprint must miss the land; without one, fall back to the seam
+    // estimate with the keep-out as slack.
+    if (isLandAt) {
+      for (const [dx, dz] of [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
+        if (isLandAt(x + dx * radiusM * 1.3, z + dz * radiusM * 1.3)) return false;
       }
+    } else {
+      const v = (z - zMin) / tile;
+      if (x < coastEstimate("valora", v) + config.coastKeepOutM * 0.7) return false;
+      if (x > coastEstimate("seradia", v) - config.coastKeepOutM * 0.7) return false;
+    }
+    const tooClose = islands.some((existing) =>
+      Math.hypot(existing.x - x, existing.z - z)
+      < Math.max(minSeparationM, (existing.radiusM + radiusM) * 1.1));
+    if (tooClose) return false;
+    islands.push(shapeIsland(x, z, radiusM, peakM, (islands.length * 7.3 + 3.1) % 41, size, rng));
+    return true;
+  };
 
-      // One RNG stream per lattice cell, so an island's shape is stable
-      // against the seed and independent of how many were placed before it.
-      const rng = mulberry32(noise.seed + row * 8_191 + column * 131 + 17);
-
-      // Skewed hard, and taken from the RNG rather than from a smooth noise
-      // field: sampling fbm for size gave neighbouring islands near-identical
-      // sizes, because that is exactly what a smooth field is for.
-      const size = Math.pow(rng(), 2.3);
-      const radiusM = minRadiusM + size * (maxRadiusM - minRadiusM);
-      // Small islands are low and rounded; the larger ones earn a real summit.
-      const peakM = 40 + Math.pow(size, 1.25) * 460;
-      const candidate = shapeIsland(worldX, worldZ, radiusM, peakM, (row * 7.3 + column * 3.1) % 41, size, rng);
-
-      // Keep them from fusing into one mass, but allow real clusters: an
-      // archipelago has islands lying close enough to shelter a channel
-      // between them, which a wide exclusion radius forbids outright.
-      const tooClose = islands.some((existing) =>
-        Math.hypot(existing.x - candidate.x, existing.z - candidate.z)
-        < (existing.radiusM + candidate.radiusM) * 0.95);
-      if (tooClose) continue;
-      islands.push(candidate);
+  // --- Lone anchors: the Freedich islands of the Luna Sea. Each stands in
+  // open water, sized to be lived on, and far enough from the next that the
+  // map reads as placed islands rather than a cluster. Stratified latitudes
+  // keep them spread down the whole sea instead of bunching at one end.
+  const anchorCount = Math.max(2, Math.min(4, Math.round(config.count * 0.3)));
+  // A sea-crossing apart. ArcheAge's lone islands sit half a map from each
+  // other; at anything much tighter the anchors read as one loose cluster in
+  // the middle of the ocean, which is the look this planner replaces.
+  const anchorSeparationM = Math.max(16_000, tile * 0.24);
+  for (let index = 0; index < anchorCount; index++) {
+    // Banded latitude first so the anchors spread down the whole sea; if a
+    // band offers no water (a continent's tapered end returns no coast
+    // there), fall back to any latitude rather than dropping the anchor.
+    for (let attempt = 0; attempt < 26; attempt++) {
+      const band = (index + 0.5) / anchorCount;
+      const v = attempt < 14
+        ? Math.min(0.94, Math.max(0.06, band + (rng() - 0.5) * (1.1 / anchorCount)))
+        : 0.08 + rng() * 0.84;
+      // Where only one continent still has land at this latitude (past a
+      // tapered end), the sea is open in that direction — bound it at a
+      // crossing's width from the coast that exists instead of skipping the
+      // whole latitude, or the southern reaches would never hold an anchor.
+      let west = coastXOf("valora", v);
+      let east = coastXOf("seradia", v);
+      if (west === null && east !== null) west = east - 40_000;
+      if (east === null && west !== null) east = west + 40_000;
+      if (west === null || east === null || east - west < 16_000) continue;
+      const across = 0.24 + rng() * 0.52; // roam most of the sea's width
+      const x = west + (east - west) * across;
+      const size = index === 0 ? 0.85 + rng() * 0.15 : 0.5 + rng() * 0.3;
+      const radiusM = config.minRadiusM + size * (config.maxRadiusM - config.minRadiusM);
+      const peakM = 160 + Math.pow(size, 1.25) * 340;
+      if (place(x, zMin + v * tile, radiusM, peakM, size, anchorSeparationM)) break;
     }
   }
+
+  // --- Coastal companions: small islands a short sail off each rift coast,
+  // near enough to see from the beach. Roughly half bring a smaller partner,
+  // the loose pairs and trails every real coast collects.
+  const perSide = Math.max(1, Math.min(3, Math.round(config.count * 0.2)));
+  for (const side of ["valora", "seradia"] as const) {
+    const seaward = side === "valora" ? 1 : -1;
+    for (let index = 0; index < perSide; index++) {
+      for (let attempt = 0; attempt < 12; attempt++) {
+        const v = 0.10 + rng() * 0.80;
+        const coast = coastXOf(side, v);
+        if (coast === null) continue;
+        const offshoreM = config.coastKeepOutM + rng() * 3_200;
+        const x = coast + seaward * offshoreM;
+        const size = 0.10 + rng() * 0.20;
+        const radiusM = 520 + size * 2_600;
+        const peakM = 25 + size * 220;
+        if (!place(x, zMin + v * tile, radiusM, peakM, size, 7_000)) continue;
+        const lead = islands[islands.length - 1];
+        if (rng() < 0.55) {
+          const angle = rng() * Math.PI * 2;
+          const spacing = (lead.radiusM * (1.6 + rng() * 1.2)) + 600;
+          place(
+            lead.x + Math.cos(angle) * spacing, lead.z + Math.sin(angle) * spacing,
+            lead.radiusM * (0.38 + rng() * 0.25), 18 + rng() * 40, 0.08, 0,
+          );
+        }
+        break;
+      }
+    }
+  }
+
+  // --- One sandbar: a low mid-sea sliver that barely clears the swell.
+  // Flavor, not a destination — proof the sea has a floor.
+  if (config.count >= 8) {
+    for (let attempt = 0; attempt < 10; attempt++) {
+      const v = 0.15 + rng() * 0.70;
+      const west = coastXOf("valora", v);
+      const east = coastXOf("seradia", v);
+      if (west === null || east === null || east - west < 12_000) continue;
+      const x = west + (east - west) * (0.30 + rng() * 0.40);
+      if (place(x, zMin + v * tile, 380 + rng() * 260, 4, 0.05, 6_500)) break;
+    }
+  }
+
   return islands;
 }
 

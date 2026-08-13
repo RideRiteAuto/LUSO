@@ -74,7 +74,12 @@ export function generateWorld(opts: GenerateOptions): WorldOutput {
     // Navigable trade waterways carve first: their channel beds sit below sea
     // level, so the shoreline-seeded hydrology flood that follows treats them
     // as ocean and resolves scenic-river drainage straight into them.
-    const { waterways, channelMask } = carveNavigableWaterways(height, continent, waterwayDesign, continentTileSize);
+    const { waterways, channelMask } = carveNavigableWaterways(
+      height, continent, waterwayDesign, continentTileSize,
+      // Channel routing must never cross a zone anchor: the bed is below sea
+      // level, and a routed corridor across an anchor drowns the zone centre.
+      zoneDesigns.filter((zone) => zone.continent === continent).map((zone) => zone.anchor),
+    );
     const { water: waterData, riverCellMask, lakeCellMask, drainage } = generateWaterData(height, continent, continentTileSize);
     carveRiverChannels(height, waterData, continentTileSize, riverCellMask, lakeCellMask, channelMask);
     water[continent] = { ...waterData, waterways };

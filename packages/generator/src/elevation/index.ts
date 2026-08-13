@@ -22,7 +22,7 @@
 import { createNoise2D } from "simplex-noise";
 import { mulberry32, type Rng, type SeedRegistry } from "../seed/index.js";
 import { riftOffsetAt, silhouetteFieldAt, type SilhouetteNoise, type SilhouetteTreatment } from "./silhouettes.js";
-import { buildIslandNoise, islandElevationAt, planIslands, DEFAULT_ISLAND_CONFIG, type IslandFieldConfig } from "./islands.js";
+import { buildIslandNoise, islandElevationAt, planIslands, DEFAULT_ISLAND_CONFIG, type IslandFieldConfig, type Island } from "./islands.js";
 import type { ContinentId, ContinentLayoutDesign, HeightField, ZoneDesign } from "../types/index.js";
 
 const clamp01 = (value: number): number => Math.max(0, Math.min(1, value));
@@ -334,6 +334,8 @@ export function computeWorldBounds(continentLayout: ContinentLayoutDesign): Worl
 export interface UnifiedWorldField {
   field: HeightField;
   bounds: WorldBounds;
+  /** The Luna Sea islands as placed, for tooling and downstream naming. */
+  islands: Island[];
 }
 
 /**
@@ -364,12 +366,22 @@ export function generateWorldHeightField(
     offsets.set(c.id, c.worldOffset);
   }
 
-  // The island arc follows the same seam that shapes the facing coasts.
+  // The island arc follows the same seam that shapes the facing coasts, and
+  // the planner probes the real coastline through the finished samplers: the
+  // mass often stops short of the seam clip, so a seam-based coast estimate
+  // can be ten kilometres wrong, stranding "coastal" islets in open water.
   const islandNoise = buildIslandNoise(riftSeed);
   const riftNoise = createNoise2D(mulberry32(riftSeed));
   const seamAt = (v: number) => riftOffsetAt(v, { rift: riftNoise } as unknown as SilhouetteNoise);
+  const isLandAt = (wx: number, wz: number): boolean => {
+    for (const [id, sampler] of samplers) {
+      const [ox, oz] = offsets.get(id)!;
+      if (sampler((wx - ox) / tileSize, (wz - oz) / tileSize) > 0) return true;
+    }
+    return false;
+  };
   const islands = islandConfig && treatment !== "legacy"
-    ? planIslands(continentLayout, islandNoise, seamAt, islandConfig)
+    ? planIslands(continentLayout, islandNoise, seamAt, islandConfig, isLandAt)
     : [];
 
   const width = Math.max(2, Math.round((bounds.maxX - bounds.minX) / metersPerCell));
@@ -393,7 +405,7 @@ export function generateWorldHeightField(
     }
   }
 
-  return { field: { width, height, data }, bounds };
+  return { field: { width, height, data }, bounds, islands };
 }
 
 /** Resamples a continent's own [0,1]x[0,1] local region out of the unified world field, for the existing per-continent pipeline stages (hydrology, biomes, resources, ...). */

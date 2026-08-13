@@ -248,7 +248,7 @@ export function riftOffsetAt(v: number, noise: SilhouetteNoise): number {
  * continent its half-moon read: a torn, near-straight face toward the sea it
  * opened, and a rounded ocean-facing back.
  */
-const RIFT_COAST_BASE: Record<ContinentId, number> = { valora: 0.895, seradia: 0.105 };
+export const RIFT_COAST_BASE: Record<ContinentId, number> = { valora: 0.895, seradia: 0.105 };
 /**
  * How fast land falls away past the seam.
  *
@@ -551,13 +551,23 @@ export function silhouetteFieldAt(
     const swell = fbm(noise.coast, u * 1.5 + 4.2, v * 1.5, 3);
     const spine = ridged(noise.cape, u * 3.1, v * 3.1, 3, 1.0) * 2 - 1;
     const fine = fbm(noise.cape, u * 7.0, v * 7.0, 2);
-    const grain = swell * 0.62 + spine * 0.26 + fine * 0.12;
+    // The two coasts carry different weather. Valora stays swell-dominant —
+    // long smooth bends. Seradia leans back toward the ridged spine at higher
+    // amplitude, recovering the craggier pre-reshape character of its shore
+    // (art direction preferred it) without the old faceting: the swell still
+    // outweighs the spine, it just no longer drowns it.
+    const seradian = continent === "seradia";
+    const grain = seradian
+      ? swell * 0.46 + spine * 0.40 + fine * 0.14
+      : swell * 0.62 + spine * 0.26 + fine * 0.12;
+    const grainAmp = seradian ? 0.38 : 0.30;
+    const grainBand = seradian ? 0.32 : 0.26;
     // Shielded like every other coast-shaping term. Grain is signed, so a
     // wide band around a zone anchor can subtract as easily as it adds, and
     // widening the band far enough to break up the rift margin was enough to
     // drown five inland zones outright.
     field = applyGulfs(body
-      + (grain * 0.30 * coastalBand(body, 0.26) + coastN * 0.07) * (1 - shield)
+      + (grain * grainAmp * coastalBand(body, grainBand) + coastN * 0.07) * (1 - shield)
       + authoredCapes(u, v, continent) * 0.6, u, v, continent, noise, shield);
   } else if (treatment === "broken-shield") {
     // One deliberate mass, deeply bitten: bold headlands and long gulfs that

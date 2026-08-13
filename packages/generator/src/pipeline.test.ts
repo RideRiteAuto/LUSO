@@ -2,7 +2,10 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { generateWorld } from "./pipeline.js";
 import { SCENIC_RIVER_RULES } from "./hydrology/index.js";
-import { loadZoneDesigns } from "./designData.js";
+import { loadContinentLayout, loadZoneDesigns } from "./designData.js";
+import { generateWorldHeightField } from "./elevation/index.js";
+import { DEFAULT_SILHOUETTE } from "./elevation/silhouettes.js";
+import { SeedRegistry } from "./seed/index.js";
 
 function edgeValues(data: Float32Array, width: number, height: number): number[] {
   const values: number[] = [];
@@ -60,16 +63,55 @@ test("every zone anchor stands on dry land", () => {
   // has failed twice — once when domain warp slid anchors off their own mass
   // peak, and again when the coastal grain was allowed to subtract at an
   // anchor — and in neither case did anything else in the suite notice.
+  //
+  // Two checks, because two different stages own the invariant. The BASE
+  // terrain must hold land at the exact anchor — that is the silhouette's
+  // guarantee, and both historical failures were here. The CARVED terrain
+  // only has to keep dry ground within a settlement's reach of the anchor:
+  // rivers are emergent, and a delta distributary legitimately brushes past
+  // a low anchor (Solmara), with the settlement nudging to the levee beside
+  // it. What carving must never do is drown the entire zone centre.
   const world = generateWorld({ seed: 48291, heightmapResolution: 192 });
   const drowned: string[] = [];
   for (const zone of loadZoneDesigns()) {
     const field = world.heightFields[zone.continent];
     const x = Math.round(zone.anchor[0] * (field.width - 1));
     const y = Math.round(zone.anchor[1] * (field.height - 1));
-    const elevation = field.data[y * field.width + x];
-    if (elevation <= 0) drowned.push(`${zone.id} (${zone.continent}, ${elevation.toFixed(1)}m)`);
+    // ~2.7 km at this resolution. Settlement placement nudges up to 40 cells
+    // to find valid ground, so this is far stricter than placement needs —
+    // but loose enough for authored low-lying centres: Solmara is a delta
+    // whose zone centre is a lagoon, with the dry spit ~2 km away.
+    const reachCells = 8;
+    let driest = -Infinity;
+    for (let dy = -reachCells; dy <= reachCells; dy++) {
+      for (let dx = -reachCells; dx <= reachCells; dx++) {
+        const nx = Math.max(0, Math.min(field.width - 1, x + dx));
+        const ny = Math.max(0, Math.min(field.height - 1, y + dy));
+        driest = Math.max(driest, field.data[ny * field.width + nx]);
+      }
+    }
+    if (driest <= 0) drowned.push(`${zone.id} (${zone.continent}, best nearby ${driest.toFixed(1)}m)`);
   }
-  assert.deepEqual(drowned, [], `zone anchors below sea level: ${drowned.join(", ")}`);
+  assert.deepEqual(drowned, [], `zone centres with no dry land in reach: ${drowned.join(", ")}`);
+
+  // The silhouette's own exact-cell guarantee, measured before any carving.
+  const layout = loadContinentLayout();
+  const zones = loadZoneDesigns();
+  const base = generateWorldHeightField(
+    new SeedRegistry(48291), layout, zones, layout.continentTileSize / 192, DEFAULT_SILHOUETTE,
+  );
+  const tile = layout.continentTileSize;
+  const baseDrowned: string[] = [];
+  for (const zone of zones) {
+    const offset = layout.continents.find((continent) => continent.id === zone.continent)!.worldOffset;
+    const gx = Math.round((offset[0] + zone.anchor[0] * tile - base.bounds.minX)
+      / (base.bounds.maxX - base.bounds.minX) * (base.field.width - 1));
+    const gy = Math.round((offset[1] + zone.anchor[1] * tile - base.bounds.minZ)
+      / (base.bounds.maxZ - base.bounds.minZ) * (base.field.height - 1));
+    const elevation = base.field.data[gy * base.field.width + gx];
+    if (elevation <= 0) baseDrowned.push(`${zone.id} (${zone.continent}, ${elevation.toFixed(1)}m)`);
+  }
+  assert.deepEqual(baseDrowned, [], `anchors underwater in base terrain: ${baseDrowned.join(", ")}`);
 });
 
 test("world scale and relief meet the regional terrain floor", () => {

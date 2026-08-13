@@ -65,7 +65,9 @@ function cellCost(elevation: number): number {
   return 1 + rise * rise;
 }
 
-function routeLowGround(height: HeightField, from: number, to: number): number[] | null {
+function routeLowGround(
+  height: HeightField, from: number, to: number, penalty: Float32Array | null,
+): number[] | null {
   const { width, height: fieldHeight, data } = height;
   const count = width * fieldHeight;
   const dist = new Float64Array(count).fill(Infinity);
@@ -85,7 +87,8 @@ function routeLowGround(height: HeightField, from: number, to: number): number[]
       if (nx < 0 || ny < 0 || nx >= width || ny >= fieldHeight) continue;
       const neighbor = ny * width + nx;
       if (done[neighbor]) continue;
-      const candidate = dist[current.index] + stepLength * cellCost(data[neighbor]);
+      const candidate = dist[current.index]
+        + stepLength * (cellCost(data[neighbor]) + (penalty ? penalty[neighbor] : 0));
       if (candidate < dist[neighbor]) {
         dist[neighbor] = candidate;
         previous[neighbor] = current.index;
@@ -98,6 +101,38 @@ function routeLowGround(height: HeightField, from: number, to: number): number[]
   for (let cell = to; cell >= 0; cell = previous[cell]) path.push(cell);
   path.reverse();
   return path;
+}
+
+/**
+ * Routing penalty around zone anchors.
+ *
+ * A channel bed sits below sea level, so a route through a zone's anchor
+ * drowns the zone's centre — settlements, roads and the anchor-on-land
+ * invariant with it. That actually happened: on the reshaped terrain the
+ * Reedwater Run's cheapest corridor to Solmara's port ran straight across
+ * Solmara's anchor. The penalty is steep enough that a detour is always
+ * preferred where one exists, but finite, because ports legitimately sit
+ * near the zones they serve — a route that must enter the bubble's rim to
+ * reach its terminal still can, paying for every cell.
+ */
+function buildAnchorPenalty(
+  width: number, fieldHeight: number, zoneAnchorsUv: Vec2[],
+): Float32Array | null {
+  if (!zoneAnchorsUv.length) return null;
+  const CORE_UV = 0.016, RIM_UV = 0.05, WEIGHT = 30;
+  const penalty = new Float32Array(width * fieldHeight);
+  for (let y = 0; y < fieldHeight; y++) {
+    const v = y / Math.max(1, fieldHeight - 1);
+    for (let x = 0; x < width; x++) {
+      const u = x / Math.max(1, width - 1);
+      let nearest = Infinity;
+      for (const [au, av] of zoneAnchorsUv) nearest = Math.min(nearest, Math.hypot(u - au, v - av));
+      if (nearest < RIM_UV) {
+        penalty[y * width + x] = WEIGHT * (1 - smoothstep01((nearest - CORE_UV) / (RIM_UV - CORE_UV)));
+      }
+    }
+  }
+  return penalty;
 }
 
 function simplifyPath(points: Vec2[], toleranceUv: number): Vec2[] {
@@ -224,9 +259,11 @@ export function carveNavigableWaterways(
   continent: ContinentId,
   design: WaterwayDesign,
   continentTileSize: number,
+  zoneAnchorsUv: Vec2[] = [],
 ): WaterwayResult {
   const { width, height: fieldHeight } = height;
   const channelMask = new Uint8Array(width * fieldHeight);
+  const anchorPenalty = buildAnchorPenalty(width, fieldHeight, zoneAnchorsUv);
   const waterways: NavigableWaterway[] = [];
   const toCell = (uv: Vec2): number => {
     const x = Math.max(0, Math.min(width - 1, Math.round(uv[0] * (width - 1))));
@@ -247,7 +284,7 @@ export function carveNavigableWaterways(
     for (const [fromId, toId] of network.edges) {
       const from = nodesById.get(fromId), to = nodesById.get(toId);
       if (!from || !to) throw new Error(`waterways.json network ${network.id} edge references unknown node ${fromId} or ${toId}`);
-      const legCells = routeLowGround(height, toCell(from.uv), toCell(to.uv));
+      const legCells = routeLowGround(height, toCell(from.uv), toCell(to.uv), anchorPenalty);
       if (!legCells) throw new Error(`waterway ${network.id} could not route ${fromId} -> ${toId}`);
       // Consecutive legs share their junction node; skip the duplicate cell.
       routedCells.push(...(routedCells.length ? legCells.slice(1) : legCells));
