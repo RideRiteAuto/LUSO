@@ -4,7 +4,7 @@
 // a closed basin (recorded as a lake). Rivers always originate at elevation
 // and flow downhill to a terminus — no decorative/closed-loop rivers.
 
-import type { HeightField, River, Vec2, WaterData } from "../types/index.js";
+import type { HeightField, River, ScalarField, Vec2, WaterData } from "../types/index.js";
 
 const NEIGHBORS: [number, number][] = [
   [-1, -1], [0, -1], [1, -1],
@@ -20,6 +20,8 @@ export interface HydrologyResult {
   water: WaterData;
   /** grid-resolution mask (1 = part of a traced river path), consumed by climate/index.ts so moisture accounts for river proximity, not just ocean proximity. */
   riverCellMask: Uint8Array;
+  /** Log-normalized upstream flow accumulation, compiler truth for drainage/wetness/resource rules. */
+  drainage: ScalarField;
 }
 
 export function generateWaterData(height: HeightField, riverIdPrefix: string): HydrologyResult {
@@ -144,5 +146,19 @@ export function generateWaterData(height: HeightField, riverIdPrefix: string): H
     }
   }
 
-  return { water: { oceanLevelM: 0, rivers, lakes }, riverCellMask: visited };
+  let maxLogAccumulation = 1;
+  for (let i = 0; i < n; i++) {
+    if (data[i] <= 0) continue;
+    maxLogAccumulation = Math.max(maxLogAccumulation, Math.log1p(accumulation[i]));
+  }
+  const drainageData = new Float32Array(n);
+  for (let i = 0; i < n; i++) {
+    drainageData[i] = data[i] > 0 ? Math.log1p(accumulation[i]) / maxLogAccumulation : 0;
+  }
+
+  return {
+    water: { oceanLevelM: 0, rivers, lakes },
+    riverCellMask: visited,
+    drainage: { width, height: h, data: drainageData },
+  };
 }

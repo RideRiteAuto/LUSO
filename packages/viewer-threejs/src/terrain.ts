@@ -279,6 +279,14 @@ export interface TerrainColorMap {
   height: number;
 }
 
+export interface TerrainControlMap {
+  /** Pixel-major, then pack-major RGBA8 compiler control values. */
+  data: Uint8Array;
+  width: number;
+  height: number;
+  packCount: number;
+}
+
 /**
  * Builds a compact, unified lookup texture for worker-generated terrain
  * tiles. The source remains the generated biome maps; this merely avoids
@@ -317,6 +325,56 @@ export function buildTerrainColorMap(world: WorldData, targetWidth = 1024): Terr
     }
   }
   return { data, width, height };
+}
+
+/**
+ * Reprojects per-continent compiler control packs into the same compact world
+ * lookup used by terrain workers. Values remain compiler-authored; this is
+ * only a coordinate/packing transform for streamed geometry.
+ */
+export function buildTerrainControlMap(world: WorldData, targetWidth = 1024): TerrainControlMap {
+  const { manifest, worldHeight, continents, controlFields } = world;
+  const { bounds } = worldHeight;
+  const width = Math.min(targetWidth, worldHeight.width);
+  const height = Math.max(2, Math.round(width * (bounds.maxZ - bounds.minZ) / (bounds.maxX - bounds.minX)));
+  const packCount = controlFields.packs.length;
+  const data = new Uint8Array(width * height * packCount * 4);
+  const packIndex = new Map(controlFields.packs.map((pack, index) => [pack.id, index]));
+
+  for (let z = 0; z < height; z++) {
+    const worldZ = bounds.minZ + (z / (height - 1)) * (bounds.maxZ - bounds.minZ);
+    for (let x = 0; x < width; x++) {
+      const worldX = bounds.minX + (x / (width - 1)) * (bounds.maxX - bounds.minX);
+      const outputPixel = z * width + x;
+      const owner = findOwningContinent(worldX, worldZ, manifest.continents, manifest);
+      if (owner) {
+        const continent = continents[owner.id];
+        const sourceX = Math.round(owner.u * (continent.controlWidth - 1));
+        const sourceZ = Math.round(owner.v * (continent.controlHeight - 1));
+        const sourcePixel = sourceZ * continent.controlWidth + sourceX;
+        for (let pack = 0; pack < packCount; pack++) {
+          const sourceOffset = sourcePixel * 4;
+          const outputOffset = (outputPixel * packCount + pack) * 4;
+          data.set(continent.controlPacks[pack].subarray(sourceOffset, sourceOffset + 4), outputOffset);
+        }
+      } else {
+        // The unified sea gap and synthetic ocean skirt do not belong to a
+        // continent tile. Give them explicit ocean truth, never random land.
+        const set = (id: string, rgba: [number, number, number, number]) => {
+          const pack = packIndex.get(id);
+          if (pack === undefined) return;
+          data.set(rgba, (outputPixel * packCount + pack) * 4);
+        };
+        set("climate", [128, 150, 255, 255]);
+        set("hydrology", [0, 0, 255, 0]);
+        set("terrain", [0, 0, 190, 0]);
+        set("ecology", [0, 0, 0, 0]);
+        set("resources", [0, 0, 0, 0]);
+        set("habitat", [0, 255, 255, 0]);
+      }
+    }
+  }
+  return { data, width, height, packCount };
 }
 
 function buildAxis(coreCount: number, min: number, max: number, reach: number): number[] {

@@ -58,6 +58,26 @@ export interface RiverRecord {
   };
 }
 
+export interface ControlFieldChannel {
+  field: string;
+  kind: "continuous" | "category";
+  min: number;
+  max: number;
+  labels?: string[];
+}
+
+export interface ControlFieldPack {
+  id: string;
+  channels: [ControlFieldChannel, ControlFieldChannel, ControlFieldChannel, ControlFieldChannel];
+}
+
+export interface ControlFieldManifest {
+  version: number;
+  encoding: "rgba8";
+  packs: ControlFieldPack[];
+  continents: Record<string, { width: number; height: number; files: Record<string, string> }>;
+}
+
 /** A closed-basin pit lake (hydrology/index.ts) -- generated since Phase 2 but never wired into the viewer until now, which is why low inland basins rendered as flat "ocean" biome color with no actual water surface (Kevin: "not sure if it's water or a lake"). */
 export interface LakeRecord {
   id: string;
@@ -86,6 +106,9 @@ export interface ContinentData {
   rivers: RiverRecord[];
   lakes: LakeRecord[];
   roads: RoadRecord[];
+  controlWidth: number;
+  controlHeight: number;
+  controlPacks: Uint8Array[];
 }
 
 /** The unified world heightfield (docs/01 §3 stage 3) -- both continents plus the connecting seabed between them, one grid. */
@@ -103,6 +126,7 @@ export interface WorldData {
   seaRegions: SeaRegionRecord[];
   continents: Record<string, ContinentData>;
   worldHeight: WorldHeightData;
+  controlFields: ControlFieldManifest;
 }
 
 function base(seed: number) {
@@ -122,6 +146,12 @@ async function fetchFloat32(url: string): Promise<Float32Array> {
   return new Float32Array(buf);
 }
 
+async function fetchUint8(url: string): Promise<Uint8Array> {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Failed to fetch ${url}: ${res.status}`);
+  return new Uint8Array(await res.arrayBuffer());
+}
+
 // --- Embedded-data loading path -------------------------------------------
 // Used by the self-contained claude.ai artifact build (scripts/build-artifact.mjs),
 // which has no dev server to fetch /world-data/* from and instead inlines
@@ -137,6 +167,10 @@ export interface EmbeddedWorld {
   waterways: { continents: Record<string, { rivers: RiverRecord[]; lakes: LakeRecord[] }> };
   continents: Record<string, { heightDataBase64: string; biomeImageDataUri: string }>;
   worldHeightBase64: string;
+  controlFields: {
+    manifest: ControlFieldManifest;
+    continents: Record<string, Record<string, string>>;
+  };
 }
 
 function base64ToFloat32Array(b64: string): Float32Array {
@@ -146,11 +180,19 @@ function base64ToFloat32Array(b64: string): Float32Array {
   return new Float32Array(bytes.buffer);
 }
 
+function base64ToUint8Array(b64: string): Uint8Array {
+  const binary = atob(b64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes;
+}
+
 export async function loadEmbeddedWorld(onProgress?: (msg: string) => void): Promise<WorldData> {
   const embedded = (globalThis as unknown as { __NEVORA_WORLD__?: EmbeddedWorld }).__NEVORA_WORLD__;
   if (!embedded) throw new Error("window.__NEVORA_WORLD__ was not found -- this build was expected to have embedded world data.");
 
   const continents: Record<string, ContinentData> = {};
+  const controlFields = embedded.controlFields.manifest;
   for (const id of embedded.manifest.continents) {
     onProgress?.(`decoding ${id}…`);
     const src = embedded.continents[id];
@@ -164,6 +206,9 @@ export async function loadEmbeddedWorld(onProgress?: (msg: string) => void): Pro
       rivers: embedded.waterways.continents[id]?.rivers ?? [],
       lakes: embedded.waterways.continents[id]?.lakes ?? [],
       roads: embedded.roads.filter((r) => r.id.startsWith(id)),
+      controlWidth: controlFields.continents[id].width,
+      controlHeight: controlFields.continents[id].height,
+      controlPacks: controlFields.packs.map((pack) => base64ToUint8Array(embedded.controlFields.continents[id][pack.id])),
     };
   }
 
@@ -182,6 +227,7 @@ export async function loadEmbeddedWorld(onProgress?: (msg: string) => void): Pro
     seaRegions: embedded.seaRegions,
     continents,
     worldHeight,
+    controlFields,
   };
 }
 
@@ -216,11 +262,25 @@ export async function loadWorld(seed: number, onProgress?: (msg: string) => void
   onProgress?.("sea regions…");
   const seaRegionsData = await fetchJson<{ regions: SeaRegionRecord[] }>(`${b}/seaRegions.json`);
 
+  onProgress?.("environmental controls");
+  const controlFields = await fetchJson<ControlFieldManifest>(`${b}/controlFields.json`);
+  if (controlFields.version !== 1 || controlFields.encoding !== "rgba8") {
+    throw new Error(`Unsupported environmental control contract v${controlFields.version}/${controlFields.encoding}`);
+  }
+
   const continents: Record<string, ContinentData> = {};
   for (const continent of manifest.continents) {
     onProgress?.(`heightmap ${continent}…`);
     const heightData = await fetchFloat32(`${b}/heightmap.${continent}.raw`);
     const biomeImage = await loadImage(`${b}/biome_map.${continent}.png`);
+    const controlRecord = controlFields.continents[continent];
+    if (!controlRecord) throw new Error(`Control manifest is missing ${continent}`);
+    const controlPacks = await Promise.all(controlFields.packs.map((pack) => fetchUint8(`${b}/${controlRecord.files[pack.id]}`)));
+    for (let i = 0; i < controlPacks.length; i++) {
+      if (controlPacks[i].length !== controlRecord.width * controlRecord.height * 4) {
+        throw new Error(`Invalid ${continent}/${controlFields.packs[i].id} control-map dimensions`);
+      }
+    }
     continents[continent] = {
       id: continent,
       heightData,
@@ -229,6 +289,9 @@ export async function loadWorld(seed: number, onProgress?: (msg: string) => void
       rivers: waterways.continents[continent]?.rivers ?? [],
       lakes: waterways.continents[continent]?.lakes ?? [],
       roads: roadsData.roads.filter((r) => r.id.startsWith(continent)),
+      controlWidth: controlRecord.width,
+      controlHeight: controlRecord.height,
+      controlPacks,
     };
   }
 
@@ -241,5 +304,5 @@ export async function loadWorld(seed: number, onProgress?: (msg: string) => void
     bounds: manifest.worldHeightmap.bounds,
   };
 
-  return { manifest, zones: zonesRaw.zones, settlements: poi.settlements, seaRegions: seaRegionsData.regions, continents, worldHeight };
+  return { manifest, zones: zonesRaw.zones, settlements: poi.settlements, seaRegions: seaRegionsData.regions, continents, worldHeight, controlFields };
 }

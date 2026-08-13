@@ -1,6 +1,7 @@
 import * as THREE from "three/webgpu";
 import { KTX2Loader } from "three/addons/loaders/KTX2Loader.js";
 import {
+  attribute,
   cameraPosition,
   color,
   float,
@@ -19,7 +20,10 @@ import {
   vertexColor,
 } from "three/tsl";
 
-export type TerrainMaterialDebugMode = "final" | "biome" | "height" | "slope" | "shore" | "moisture" | "macro";
+export type TerrainMaterialDebugMode =
+  | "final" | "biome" | "height" | "temperature" | "rainfall" | "moisture" | "wetness"
+  | "drainage" | "distanceWater" | "slope" | "shore" | "soil" | "geology"
+  | "exposure" | "scree" | "buildability" | "vegetation" | "resource" | "macro";
 export type TerrainQuality = "high" | "balanced" | "compatibility";
 
 type TerrainLayer = "sand" | "grass" | "soil" | "forest" | "rock" | "scree" | "snow";
@@ -89,18 +93,33 @@ export class AlvoraTerrainMaterial {
     const worldPosition = positionWorld.add(this.originNode);
     const biome = vertexColor();
     const height = worldPosition.y;
-    const slope = normalWorld.y.abs().oneMinus();
-    // `biome` is a presentation palette, not physical climate data. Until
-    // the compiler emits explicit control maps, use a continuous regional
-    // moisture field with altitude drying instead of the former RGB-green
-    // proxy that painted whole biome grid cells alike.
-    const climateMoisture = mx_noise_float(worldPosition.xz.mul(0.00018).add(vec2(71.4, -38.2))).mul(0.5).add(0.5);
-    const altitudeDrying = smoothstep(650, 1750, height).mul(0.34);
-    const biomeVegetationHint = smoothstep(0.22, 0.72, biome.g).mul(0.18);
-    const moisture = climateMoisture.mul(0.62).add(0.28).add(biomeVegetationHint).sub(altitudeDrying).clamp(0, 1);
+    const controlClimate: any = attribute("controlClimate", "vec4");
+    const controlHydrology: any = attribute("controlHydrology", "vec4");
+    const controlTerrain: any = attribute("controlTerrain", "vec4");
+    const controlEcology: any = attribute("controlEcology", "vec4");
+    const controlResources: any = attribute("controlResources", "vec4");
+    const controlHabitat: any = attribute("controlHabitat", "vec4");
+    const temperature = controlClimate.r;
+    const rainfall = controlClimate.g;
+    const moisture = controlClimate.b;
+    const wetness = controlClimate.a;
+    const drainage = controlHydrology.r;
+    const distanceWater = controlHydrology.g;
+    const shoreInfluence = controlHydrology.b;
+    // The packed field stores 0..60 degrees. Convert it to the previous
+    // 1-cos(theta) metric so existing physically meaningful thresholds stay
+    // readable while their source becomes compiler-authoritative.
+    const slope = controlHydrology.a.mul(Math.PI / 3).cos().oneMinus();
+    const soilClass = controlTerrain.r;
+    const geologyClass = controlTerrain.g;
+    const exposure = controlTerrain.b;
+    const screeTendency = controlTerrain.a;
+    const buildability = controlEcology.r;
+    const vegetationEligibility = controlEcology.g;
+    const resourceEligibility = controlHabitat.b.max(controlResources.r.max(controlResources.g).max(controlResources.b).max(controlResources.a));
     const viewDistance = cameraPosition.sub(positionWorld).length();
     const microVisibility = smoothstep(180, 900, viewDistance).oneMinus();
-    const shore = smoothstep(-3, 5, height);
+    const landTransition = smoothstep(-3, 5, height);
     const macro = mx_noise_float(worldPosition.xz.mul(0.00042)).mul(0.5).add(0.5);
     const fineMacro = mx_noise_float(worldPosition.xz.mul(0.0021).add(vec2(31.7, -14.2))).mul(0.5).add(0.5);
     // High keeps independent stochastic fields and spatial warping. Balanced
@@ -159,16 +178,16 @@ export class AlvoraTerrainMaterial {
 
     const landMask = smoothstep(1, 9, height);
     const sandMask = smoothstep(-0.5, 2.5, height).mul(smoothstep(4, 11, height).oneMinus());
-    const wetMask = smoothstep(-2, 0.4, height).mul(smoothstep(0.8, 3.2, height).oneMinus());
+    const wetMask = wetness.mul(shoreInfluence.mul(0.65).add(drainage.mul(0.35))).mul(landTransition);
     // slope = 1-cos(theta): 0.06≈20°, 0.13≈30°, 0.23≈40°.
     // The previous 0.34 rock threshold was roughly 49°, leaving almost every
     // mountain grass-covered. Low-frequency breakup softens selection while
     // staying stable across geometry LOD.
     const slopeVariation = macro.sub(0.5).mul(0.045).add(fineMacro.sub(0.5).mul(0.018));
     const classifiedSlope = slope.add(slopeVariation);
-    const forestMask = moisture.mul(smoothstep(18, 90, height)).mul(smoothstep(0.07, 0.16, classifiedSlope).oneMinus());
-    const screeMask = smoothstep(0.075, 0.14, classifiedSlope).mul(smoothstep(0.21, 0.32, classifiedSlope).oneMinus());
-    const rockMask = smoothstep(0.14, 0.27, classifiedSlope);
+    const forestMask = moisture.mul(vegetationEligibility).mul(smoothstep(18, 90, height)).mul(smoothstep(0.07, 0.16, classifiedSlope).oneMinus());
+    const screeMask = smoothstep(0.075, 0.14, classifiedSlope).mul(smoothstep(0.21, 0.32, classifiedSlope).oneMinus()).max(screeTendency.mul(0.72));
+    const rockMask = smoothstep(0.14, 0.27, classifiedSlope).max(geologyClass.mul(exposure).mul(0.16));
     const snowMask = smoothstep(1050, 1450, height).mul(smoothstep(0.05, 0.25, slope).oneMinus());
 
     const paleSand = mix(sand, color(0xcab88e), macro.mul(0.3));
@@ -187,13 +206,13 @@ export class AlvoraTerrainMaterial {
     const dirtyGrass = mix(dappledGrass, soil.mul(color(0x8b7e68)), dryPatch.mul(0.48));
     const heathGrass = mix(dirtyGrass, color(0x536c36), heathPatch.mul(0.22));
     const wornGround = mix(heathGrass, soil, smoothstep(0.78, 0.96, fineMacro).mul(0.34));
-    const grassCoverage = moisture.mul(0.12).add(regionalGreen.mul(0.1)).add(0.78).clamp(0, 1);
+    const grassCoverage = vegetationEligibility.mul(0.18).add(moisture.mul(0.08)).add(regionalGreen.mul(0.08)).add(0.68).clamp(0, 1);
     const grassSoil = mix(soil, wornGround, grassCoverage);
     const lowland = mix(mud, grassSoil, smoothstep(1.5, 12, height));
     const variedScree = mix(scree, rock, localPatch.mul(0.38));
     const seabed = mottledSand.mul(color(0x31525a));
 
-    let finalColor = mix(seabed, wetSand, shore);
+    let finalColor = mix(seabed, wetSand, landTransition);
     finalColor = mix(finalColor, lowland, landMask);
     finalColor = mix(finalColor, mottledSand, sandMask);
     finalColor = mix(finalColor, wetSand, wetMask);
@@ -202,7 +221,7 @@ export class AlvoraTerrainMaterial {
     finalColor = mix(finalColor, rock, rockMask);
     finalColor = mix(finalColor, snow, snowMask);
     finalColor = finalColor.mul(macro.mul(0.1).add(fineMacro.mul(0.04)).add(0.93));
-    finalColor = mix(finalColor, biome, 0.035);
+    finalColor = mix(finalColor, biome.rgb, 0.035);
 
     const material = new THREE.MeshStandardNodeMaterial();
     material.name = "Navora scanned PBR terrain";
@@ -241,11 +260,28 @@ export class AlvoraTerrainMaterial {
     this.material = material;
 
     this.debugNodes.set("final", finalColor);
-    this.debugNodes.set("biome", biome);
+    this.debugNodes.set("biome", biome.rgb);
     this.debugNodes.set("height", mix(color(0x163755), color(0xf4ead0), smoothstep(-300, 1500, height)));
+    this.debugNodes.set("temperature", mix(color(0x2b63b8), color(0xf28b48), temperature));
+    this.debugNodes.set("rainfall", mix(color(0xb99a68), color(0x3977bc), rainfall));
+    this.debugNodes.set("wetness", mix(color(0x9a7a50), color(0x225f68), wetness));
+    this.debugNodes.set("drainage", mix(color(0x2d2520), color(0x49a4d8), drainage));
+    this.debugNodes.set("distanceWater", mix(color(0x297fbc), color(0xc9ad6a), distanceWater));
     this.debugNodes.set("slope", mix(color(0x1f4b32), color(0xe6563d), slope));
-    this.debugNodes.set("shore", mix(color(0x174d79), color(0xf2ce85), shore));
+    this.debugNodes.set("shore", mix(color(0x203a59), color(0xf2ce85), shoreInfluence));
     this.debugNodes.set("moisture", mix(color(0xa56b3b), color(0x3d7a55), moisture));
+    const categoryColor = (value: any) => vec3(
+      value.mul(37.1).sin().mul(0.5).add(0.5),
+      value.mul(53.7).add(1.9).sin().mul(0.5).add(0.5),
+      value.mul(71.3).add(4.1).sin().mul(0.5).add(0.5),
+    );
+    this.debugNodes.set("soil", categoryColor(soilClass.mul(11).add(0.5).floor()));
+    this.debugNodes.set("geology", categoryColor(geologyClass.mul(8).add(0.5).floor()));
+    this.debugNodes.set("exposure", mix(color(0x27485b), color(0xf0d09a), exposure));
+    this.debugNodes.set("scree", mix(color(0x315f3e), color(0x8d8175), screeTendency));
+    this.debugNodes.set("buildability", mix(color(0x9a3f3f), color(0x58c67a), buildability));
+    this.debugNodes.set("vegetation", mix(color(0x6a4b2f), color(0x2dc45a), vegetationEligibility));
+    this.debugNodes.set("resource", mix(color(0x242638), color(0xe9c45a), resourceEligibility));
     this.debugNodes.set("macro", vec3(macro));
   }
 

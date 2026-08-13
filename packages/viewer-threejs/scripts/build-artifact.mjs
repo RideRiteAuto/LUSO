@@ -38,13 +38,19 @@ const settlements = readJson("poi.json").settlements;
 const seaRegions = readJson("seaRegions.json").regions;
 const roads = readJson("roads.json").roads;
 const waterways = readJson("waterways.json");
+const controlFieldManifest = readJson("controlFields.json");
 
 const continents = {};
+const embeddedControls = {};
 for (const id of manifest.continents) {
   continents[id] = {
     heightDataBase64: readBase64(`heightmap.${id}.raw`),
     biomeImageDataUri: `data:image/png;base64,${readBase64(`biome_map.${id}.png`)}`,
   };
+  embeddedControls[id] = Object.fromEntries(controlFieldManifest.packs.map((pack) => [
+    pack.id,
+    readBase64(controlFieldManifest.continents[id].files[pack.id]),
+  ]));
 }
 
 const embedded = {
@@ -56,6 +62,7 @@ const embedded = {
   waterways: { continents: waterways.continents },
   continents,
   worldHeightBase64: readBase64("heightmap.world.raw"),
+  controlFields: { manifest: controlFieldManifest, continents: embeddedControls },
 };
 
 // Standalone file:// artifacts cannot fetch KTX2 transcoder workers. Embed the

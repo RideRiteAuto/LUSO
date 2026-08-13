@@ -11,6 +11,8 @@ Defines the exact output contract of `packages/generator` — the interface betw
 | `heightmap.world.png` | 16-bit grayscale PNG of the **unified world heightfield** — both continents *and* the connecting seabed between them, one grid | Elevation (03) |
 | `heightmap.world.raw` | Raw float32 array of the same unified field, row-major, no header — dimensions/bounds come from `manifest.json`'s `worldHeightmap` | Elevation (03) |
 | `biome_map.png` | 8-bit indexed PNG, palette = biome IDs | Biomes (07) |
+| `controlFields.json` | versioned RGBA8 control-pack schema, channel ranges/class labels, dimensions, and file names | Environmental truth (05) |
+| `control.<continent>.<pack>.rgba` | raw RGBA8 compiler control pack, row-major, six packs per continent | Environmental truth (05) |
 | `waterways.json` | rivers, lakes, ocean boundary polylines/polygons | Hydrology (04) |
 | `zones.json` | zone boundaries, identity, climate/resource/danger summary | Zone resolution (06) |
 | `resources.json` | resource node type, location, density, tier | Resources (08) |
@@ -212,6 +214,7 @@ Named open-ocean regions that don't belong to either continent's UV space — cu
 - `heightmap.<continent>.png` / `heightmap.world.png`: 16-bit grayscale, value `0..65535` maps linearly to `[-maxDepthM, +maxHeightM]` — the world variant uses a dual land/ocean gamma curve so both abyssal depth and mountain peaks stay visually legible in one 16-bit image.
 - `heightmap.<continent>.raw` / `heightmap.world.raw`: float32, little-endian, row-major, no header — dimensions come from `manifest.json` (`worldScale.heightmapResolution` for the per-continent files, `worldHeightmap.width`/`height` for the world file); kept alongside the PNGs because PNG's 16-bit quantization is lossy for downstream erosion/re-processing. `heightmap.world.raw` is the authoritative source for the connecting seabed between continents (docs/01 §3 stage 3) and for grounding the viewer's walk-mode camera anywhere in the world, including mid-ocean.
 - `biome_map.png`: 8-bit indexed color; the palette-to-biome-ID mapping is fixed and versioned in `packages/generator/src/biomes/palette.ts` and mirrored in this doc's biome table (doc 04 §2).
+- `controlFields.json` + `control.<continent>.<pack>.rgba`: version 1 exports six four-channel RGBA8 packs (`climate`, `hydrology`, `terrain`, `ecology`, `resources`, `habitat`). The manifest records each channel's field name, continuous range or categorical labels, so clients never hard-code byte interpretation. The source fields remain float32/integer arrays inside `WorldOutput`; RGBA8 is the browser/asset transport. The viewer reprojects these values into streamed terrain vertex attributes and uses the same attributes for final material selection and debug modes.
 
 ## 10. Versioning & regeneration contract
 

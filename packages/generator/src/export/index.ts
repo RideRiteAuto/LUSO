@@ -9,7 +9,70 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { PNG } from "pngjs";
 import { BIOMES } from "../biomes/palette.js";
-import type { WorldOutput, ContinentId } from "../types/index.js";
+import { GEOLOGY_CLASSES, SOIL_CLASSES, WEATHER_REGION_CLASSES } from "../environment/index.js";
+import type { WorldOutput, ContinentId, EnvironmentalFields } from "../types/index.js";
+
+type ControlFieldKind = "continuous" | "category";
+interface ControlChannelSpec {
+  field: string;
+  kind: ControlFieldKind;
+  min: number;
+  max: number;
+  labels?: readonly string[];
+  values: (environment: EnvironmentalFields, biome: WorldOutput["biomeFields"][ContinentId]) => Float32Array | null;
+}
+interface ControlPackSpec { id: string; channels: [ControlChannelSpec, ControlChannelSpec, ControlChannelSpec, ControlChannelSpec]; }
+
+const continuous = (
+  field: string,
+  min: number,
+  max: number,
+  values: ControlChannelSpec["values"],
+): ControlChannelSpec => ({ field, kind: "continuous", min, max, values });
+const category = (
+  field: string,
+  labels: readonly string[],
+  values: ControlChannelSpec["values"],
+): ControlChannelSpec => ({ field, kind: "category", min: 0, max: labels.length - 1, labels, values });
+
+const CONTROL_PACKS: ControlPackSpec[] = [
+  { id: "climate", channels: [
+    continuous("temperature-c", -30, 40, (environment) => environment.temperatureC.data),
+    continuous("precipitation", 0, 1, (environment) => environment.precipitation.data),
+    continuous("moisture", 0, 1, (environment) => environment.moisture.data),
+    continuous("wetness", 0, 1, (environment) => environment.wetness.data),
+  ] },
+  { id: "hydrology", channels: [
+    continuous("drainage", 0, 1, (environment) => environment.drainage.data),
+    continuous("distance-to-water-m", 0, 20000, (environment) => environment.distanceToWaterM.data),
+    continuous("shoreline-influence", 0, 1, (environment) => environment.shorelineInfluence.data),
+    continuous("slope-degrees", 0, 60, (environment) => environment.slopeDegrees.data),
+  ] },
+  { id: "terrain", channels: [
+    category("soil-class", SOIL_CLASSES, (environment) => environment.soilClass.data),
+    category("geology-class", GEOLOGY_CLASSES, (environment) => environment.geologyClass.data),
+    continuous("exposure", 0, 1, (environment) => environment.exposure.data),
+    continuous("erosion-scree", 0, 1, (environment) => environment.erosionScree.data),
+  ] },
+  { id: "ecology", channels: [
+    continuous("buildability", 0, 1, (environment) => environment.buildability.data),
+    continuous("vegetation-eligibility", 0, 1, (environment) => environment.vegetationEligibility.data),
+    category("biome-class", BIOMES.map((biome) => biome.id), (_environment, biome) => biome.data),
+    category("weather-region", WEATHER_REGION_CLASSES, (environment) => environment.weatherRegionClass.data),
+  ] },
+  { id: "resources", channels: [
+    continuous("resource-forest", 0, 1, (environment) => environment.resources.forest.data),
+    continuous("resource-forage", 0, 1, (environment) => environment.resources.forage.data),
+    continuous("resource-ore", 0, 1, (environment) => environment.resources.ore.data),
+    continuous("resource-stone", 0, 1, (environment) => environment.resources.stone.data),
+  ] },
+  { id: "habitat", channels: [
+    continuous("resource-reeds", 0, 1, (environment) => environment.resources.reeds.data),
+    continuous("resource-aquatic", 0, 1, (environment) => environment.resources.aquatic.data),
+    continuous("resource-generic", 0, 1, (environment) => environment.resources.generic.data),
+    continuous("reserved", 0, 1, () => null),
+  ] },
+];
 
 function writeHeightmapPng(outDir: string, continent: ContinentId, height: WorldOutput["heightFields"][ContinentId]) {
   const { width, height: h, data } = height;
@@ -86,6 +149,44 @@ function writeBiomeMapPng(outDir: string, continent: ContinentId, biomes: WorldO
   writeFileSync(path.join(outDir, `biome_map.${continent}.png`), PNG.sync.write(png));
 }
 
+function writeControlFields(outDir: string, output: WorldOutput): void {
+  const continents: Record<string, { width: number; height: number; files: Record<string, string> }> = {};
+  for (const continent of output.manifest.continents) {
+    const environment = output.environmentalFields[continent];
+    const biome = output.biomeFields[continent];
+    const { width, height } = environment.moisture;
+    const files: Record<string, string> = {};
+    for (const pack of CONTROL_PACKS) {
+      const bytes = new Uint8Array(width * height * 4);
+      for (let channelIndex = 0; channelIndex < 4; channelIndex++) {
+        const channel = pack.channels[channelIndex];
+        const values = channel.values(environment, biome);
+        if (!values) continue;
+        if (values.length !== width * height) throw new Error(`${continent}/${channel.field} has invalid dimensions`);
+        const span = Math.max(0.000001, channel.max - channel.min);
+        for (let i = 0; i < values.length; i++) {
+          const normalized = Math.max(0, Math.min(1, (values[i] - channel.min) / span));
+          bytes[i * 4 + channelIndex] = Math.round(normalized * 255);
+        }
+      }
+      const file = `control.${continent}.${pack.id}.rgba`;
+      writeFileSync(path.join(outDir, file), bytes);
+      files[pack.id] = file;
+    }
+    continents[continent] = { width, height, files };
+  }
+  const manifest = {
+    version: 1,
+    encoding: "rgba8",
+    packs: CONTROL_PACKS.map((pack) => ({
+      id: pack.id,
+      channels: pack.channels.map(({ values: _values, ...channel }) => channel),
+    })),
+    continents,
+  };
+  writeFileSync(path.join(outDir, "controlFields.json"), JSON.stringify(manifest, null, 2));
+}
+
 export function writeWorldOutput(output: WorldOutput, outputRootDir: string) {
   const outDir = path.join(outputRootDir, String(output.manifest.seed));
   mkdirSync(outDir, { recursive: true });
@@ -94,6 +195,7 @@ export function writeWorldOutput(output: WorldOutput, outputRootDir: string) {
     writeHeightmapPng(outDir, continent, output.heightFields[continent]);
     writeBiomeMapPng(outDir, continent, output.biomeFields[continent]);
   }
+  writeControlFields(outDir, output);
   writeWorldHeightmap(outDir, output.worldHeightField);
 
   const waterways = {

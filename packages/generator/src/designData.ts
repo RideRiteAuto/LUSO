@@ -5,7 +5,7 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
-import type { ZoneDesign, ResourceDesign, CreatureDesign, ContinentLayoutDesign } from "./types/index.js";
+import type { ZoneDesign, ResourceDesign, CreatureDesign, ContinentLayoutDesign, EnvironmentalRegionDesign } from "./types/index.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // packages/generator/src -> repo root is four levels up (src -> generator -> packages -> root)
@@ -71,4 +71,20 @@ export function loadContinentLayout(): ContinentLayoutDesign {
   assertUniqueIds(layout.continents, "continents.json");
   if (!(layout.continentTileSize > 0) || !(layout.lunaSeaGapUnits >= 0)) throw new Error("continents.json has invalid scale values");
   return layout;
+}
+
+export function loadEnvironmentalRegionDesigns(): EnvironmentalRegionDesign[] {
+  const { regions } = loadJson<{ regions: EnvironmentalRegionDesign[] }>("environment-regions.json");
+  const seen = new Set<string>();
+  for (const region of regions) {
+    if (!region.zoneId || seen.has(region.zoneId)) throw new Error(`environment-regions.json contains duplicate zoneId: ${region.zoneId}`);
+    seen.add(region.zoneId);
+    for (const [key, value] of Object.entries(region)) {
+      if (typeof value === "number" && !Number.isFinite(value)) throw new Error(`Environmental region ${region.zoneId} has invalid ${key}`);
+    }
+  }
+  const zoneIds = new Set(loadZoneDesigns().map((zone) => zone.id));
+  for (const id of zoneIds) if (!seen.has(id)) throw new Error(`environment-regions.json is missing zone ${id}`);
+  for (const id of seen) if (!zoneIds.has(id)) throw new Error(`environment-regions.json references unknown zone ${id}`);
+  return regions;
 }

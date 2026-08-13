@@ -92,6 +92,58 @@ export interface ScalarField {
   data: Float32Array;
 }
 
+export interface CategoricalField {
+  width: number;
+  height: number;
+  /** Integer class index stored in a float array for pipeline consistency. */
+  data: Float32Array;
+}
+
+export interface EnvironmentalRegionDesign {
+  zoneId: string;
+  temperatureOffsetC: number;
+  precipitationBias: number;
+  moistureBias: number;
+  exposureBias: number;
+  vegetationBias: number;
+  housingBias: number;
+  soilPrimary: string;
+  soilSecondary: string;
+  geologyPrimary: string;
+  geologySecondary: string;
+  weatherRegion: string;
+}
+
+export interface ResourceEligibilityFields {
+  forest: ScalarField;
+  forage: ScalarField;
+  ore: ScalarField;
+  stone: ScalarField;
+  reeds: ScalarField;
+  aquatic: ScalarField;
+  generic: ScalarField;
+}
+
+/** Compiler-authored environmental truth consumed by rendering and gameplay. */
+export interface EnvironmentalFields {
+  temperatureC: ScalarField;
+  precipitation: ScalarField;
+  moisture: ScalarField;
+  wetness: ScalarField;
+  drainage: ScalarField;
+  distanceToWaterM: ScalarField;
+  shorelineInfluence: ScalarField;
+  slopeDegrees: ScalarField;
+  exposure: ScalarField;
+  erosionScree: ScalarField;
+  buildability: ScalarField;
+  vegetationEligibility: ScalarField;
+  soilClass: CategoricalField;
+  geologyClass: CategoricalField;
+  weatherRegionClass: CategoricalField;
+  resources: ResourceEligibilityFields;
+}
+
 export interface River {
   id: string;
   path: Vec2[];
@@ -214,6 +266,7 @@ export interface WorldOutput {
   worldBounds: { minX: number; minZ: number; maxX: number; maxZ: number };
   heightFields: Record<ContinentId, HeightField>;
   biomeFields: Record<ContinentId, ScalarField>;
+  environmentalFields: Record<ContinentId, EnvironmentalFields>;
   water: Record<ContinentId, WaterData>;
   zones: ResolvedZone[];
   resources: PlacedResource[];

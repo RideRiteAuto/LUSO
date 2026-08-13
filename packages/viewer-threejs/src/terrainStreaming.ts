@@ -1,6 +1,6 @@
 import * as THREE from "three/webgpu";
 import type { WorldData } from "./worldData.js";
-import { buildTerrainColorMap, SKIRT_REACH } from "./terrain.js";
+import { buildTerrainColorMap, buildTerrainControlMap, SKIRT_REACH } from "./terrain.js";
 import { selectTerrainTiles, type TerrainLodSettings, type TerrainTileSpec } from "./terrainLod.js";
 import { AlvoraTerrainMaterial, type TerrainMaterialDebugMode, type TerrainQuality } from "./terrainMaterial.js";
 
@@ -29,8 +29,11 @@ interface TileResult {
   colors: ArrayBuffer;
   uvs: ArrayBuffer;
   indices: ArrayBuffer;
+  controls: ArrayBuffer[];
   workerMs: number;
 }
+
+const CONTROL_PACK_IDS = ["climate", "hydrology", "terrain", "ecology", "resources", "habitat"] as const;
 
 interface WorkerSlot {
   worker: Worker;
@@ -46,6 +49,10 @@ function terrainWorkerMain() {
     colorData: Uint8Array;
     colorWidth: number;
     colorHeight: number;
+    controlData: Uint8Array;
+    controlWidth: number;
+    controlHeight: number;
+    controlPackCount: number;
     seed: number;
     skirtReach: number;
   };
@@ -126,6 +133,23 @@ function terrainWorkerMain() {
     }
     out[index] = r; out[index + 1] = g; out[index + 2] = bl;
   }
+  function sampleControls(x: number, z: number, outputs: Float32Array[], vertexIndex: number): void {
+    const s = state!;
+    const b = s.bounds;
+    const cx = Math.max(b.minX, Math.min(b.maxX, x));
+    const cz = Math.max(b.minZ, Math.min(b.maxZ, z));
+    const px = Math.round((cx - b.minX) / (b.maxX - b.minX) * (s.controlWidth - 1));
+    const pz = Math.round((cz - b.minZ) / (b.maxZ - b.minZ) * (s.controlHeight - 1));
+    const pixel = pz * s.controlWidth + px;
+    for (let pack = 0; pack < s.controlPackCount; pack++) {
+      const sourceOffset = (pixel * s.controlPackCount + pack) * 4;
+      const outputOffset = vertexIndex * 4;
+      outputs[pack][outputOffset] = s.controlData[sourceOffset] / 255;
+      outputs[pack][outputOffset + 1] = s.controlData[sourceOffset + 1] / 255;
+      outputs[pack][outputOffset + 2] = s.controlData[sourceOffset + 2] / 255;
+      outputs[pack][outputOffset + 3] = s.controlData[sourceOffset + 3] / 255;
+    }
+  }
   function buildTile(spec: WorkerTile) {
     const started = performance.now();
     const n = spec.segments + 1;
@@ -134,6 +158,7 @@ function terrainWorkerMain() {
     const normals = new Float32Array(coreCount * 3);
     const colors = new Float32Array(coreCount * 3);
     const uvs = new Float32Array(coreCount * 2);
+    const controls = Array.from({ length: state!.controlPackCount }, () => new Float32Array(coreCount * 4));
     const step = spec.size / spec.segments;
     const centerX = spec.minX + spec.size * 0.5;
     const centerZ = spec.minZ + spec.size * 0.5;
@@ -174,6 +199,7 @@ function terrainWorkerMain() {
         const length = Math.hypot(nx, ny, nz) || 1;
         normals[i] = nx / length; normals[i + 1] = ny / length; normals[i + 2] = nz / length;
         sampleColor(worldX, worldZ, colors, i);
+        sampleControls(worldX, worldZ, controls, vi);
         uvs[vi * 2] = x / spec.segments;
         uvs[vi * 2 + 1] = z / spec.segments;
       }
@@ -189,13 +215,18 @@ function terrainWorkerMain() {
         indices[ii++] = b; indices[ii++] = c; indices[ii++] = d;
       }
     }
-    return { positions, normals, colors, uvs, indices, workerMs: performance.now() - started };
+    return { positions, normals, colors, uvs, indices, controls, workerMs: performance.now() - started };
   }
 
   scope.onmessage = (event: MessageEvent) => {
-    const message = event.data as { type: string; token?: number; spec?: WorkerTile; state?: Omit<WorkerState, "heights" | "colorData"> & { heights: ArrayBuffer; colorData: ArrayBuffer } };
+    const message = event.data as { type: string; token?: number; spec?: WorkerTile; state?: Omit<WorkerState, "heights" | "colorData" | "controlData"> & { heights: ArrayBuffer; colorData: ArrayBuffer; controlData: ArrayBuffer } };
     if (message.type === "init" && message.state) {
-      state = { ...message.state, heights: new Float32Array(message.state.heights), colorData: new Uint8Array(message.state.colorData) };
+      state = {
+        ...message.state,
+        heights: new Float32Array(message.state.heights),
+        colorData: new Uint8Array(message.state.colorData),
+        controlData: new Uint8Array(message.state.controlData),
+      };
       scope.postMessage({ type: "ready" });
       return;
     }
@@ -205,8 +236,9 @@ function terrainWorkerMain() {
       type: "tile", token: message.token, spec: message.spec, workerMs: result.workerMs,
       positions: result.positions.buffer, normals: result.normals.buffer,
       colors: result.colors.buffer, uvs: result.uvs.buffer, indices: result.indices.buffer,
+      controls: result.controls.map((control) => control.buffer),
     };
-    scope.postMessage(response, [response.positions, response.normals, response.colors, response.uvs, response.indices]);
+    scope.postMessage(response, [response.positions, response.normals, response.colors, response.uvs, response.indices, ...response.controls]);
   };
 }
 
@@ -253,6 +285,9 @@ export class TerrainStreamer {
     this.expandedBounds = { minX: b.minX - SKIRT_REACH, minZ: b.minZ - SKIRT_REACH, maxX: b.maxX + SKIRT_REACH, maxZ: b.maxZ + SKIRT_REACH };
 
     const colorMap = buildTerrainColorMap(world, quality === "compatibility" ? 512 : 1024);
+    const controlMap = buildTerrainControlMap(world, quality === "compatibility" ? 512 : 1024);
+    const packIds = world.controlFields.packs.map((pack) => pack.id);
+    if (packIds.join(",") !== CONTROL_PACK_IDS.join(",")) throw new Error(`Unsupported terrain control-pack order: ${packIds.join(",")}`);
     const workerUrl = URL.createObjectURL(new Blob([`(${terrainWorkerMain.toString()})()`], { type: "text/javascript" }));
     const workerCount = Math.max(1, Math.min(2, Math.floor((navigator.hardwareConcurrency || 4) / 4)));
     for (let i = 0; i < workerCount; i++) {
@@ -266,15 +301,18 @@ export class TerrainStreamer {
       };
       const heights = world.worldHeight.data.slice().buffer;
       const colors = colorMap.data.slice().buffer;
+      const controls = controlMap.data.slice().buffer;
       worker.postMessage({
         type: "init",
         state: {
           heights, width: world.worldHeight.width, height: world.worldHeight.height,
           bounds: world.worldHeight.bounds, colorData: colors,
           colorWidth: colorMap.width, colorHeight: colorMap.height,
+          controlData: controls, controlWidth: controlMap.width, controlHeight: controlMap.height,
+          controlPackCount: controlMap.packCount,
           seed: world.manifest.seed, skirtReach: SKIRT_REACH,
         },
-      }, [heights, colors]);
+      }, [heights, colors, controls]);
       this.workers.push(slot);
     }
     URL.revokeObjectURL(workerUrl);
@@ -379,7 +417,7 @@ export class TerrainStreamer {
     if (message.type !== "tile") return;
     slot.busy = false;
     if (message.token === this.generation && message.spec && this.desired.has(message.spec.id)
-      && message.positions && message.normals && message.colors && message.uvs && message.indices) {
+      && message.positions && message.normals && message.colors && message.uvs && message.indices && message.controls) {
       const mesh = this.createMesh(message as TileResult);
       mesh.visible = false;
       this.staging.set(message.spec.id, mesh);
@@ -399,6 +437,11 @@ export class TerrainStreamer {
     geometry.setAttribute("color", new THREE.BufferAttribute(new Float32Array(result.colors), 3));
     geometry.setAttribute("uv", new THREE.BufferAttribute(new Float32Array(result.uvs), 2));
     geometry.setIndex(new THREE.BufferAttribute(new Uint32Array(result.indices), 1));
+    result.controls.forEach((control, index) => {
+      const id = CONTROL_PACK_IDS[index];
+      const name = `control${id[0].toUpperCase()}${id.slice(1)}`;
+      geometry.setAttribute(name, new THREE.BufferAttribute(new Float32Array(control), 4));
+    });
     geometry.computeBoundingSphere();
     const mesh = new THREE.Mesh(geometry, this.terrainMaterial.material);
     mesh.position.set(result.spec.minX + result.spec.size * 0.5, 0, result.spec.minZ + result.spec.size * 0.5);

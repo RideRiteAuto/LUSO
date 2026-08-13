@@ -4,15 +4,15 @@
 import { SeedRegistry } from "./seed/index.js";
 import { generateWorldHeightField, sliceContinentField } from "./elevation/index.js";
 import { generateWaterData } from "./hydrology/index.js";
-import { generateClimateFields } from "./climate/index.js";
 import { assignZones, resolveZones } from "./zones/index.js";
 import { classifyBiomes } from "./biomes/index.js";
+import { generateEnvironmentalFields } from "./environment/index.js";
 import { placeResources } from "./resources/index.js";
 import { placeEcology } from "./ecology/index.js";
 import { placeSettlements } from "./settlements/index.js";
 import { generateRoads } from "./roads/index.js";
 import { generateSettlementName } from "./naming/index.js";
-import { loadZoneDesigns, loadResourceDesigns, loadCreatureDesigns, loadContinentLayout } from "./designData.js";
+import { loadZoneDesigns, loadResourceDesigns, loadCreatureDesigns, loadContinentLayout, loadEnvironmentalRegionDesigns } from "./designData.js";
 import type { ContinentId, Landmark, ResolvedZone, WorldOutput } from "./types/index.js";
 
 const GENERATOR_VERSION = "0.4.0";
@@ -40,11 +40,13 @@ export function generateWorld(opts: GenerateOptions): WorldOutput {
   const zoneDesigns = loadZoneDesigns();
   const resourceDesigns = loadResourceDesigns();
   const creatureDesigns = loadCreatureDesigns();
+  const environmentalRegionDesigns = loadEnvironmentalRegionDesigns();
 
   const worldHeight = generateWorldHeightField(seeds, continentLayout, zoneDesigns, metersPerCell);
 
   const heightFields: WorldOutput["heightFields"] = {} as any;
   const biomeFields: WorldOutput["biomeFields"] = {} as any;
+  const environmentalFields: WorldOutput["environmentalFields"] = {} as any;
   const water: WorldOutput["water"] = {} as any;
   const allZones: ResolvedZone[] = [];
   const allResources: WorldOutput["resources"] = [];
@@ -60,13 +62,24 @@ export function generateWorld(opts: GenerateOptions): WorldOutput {
     const height = sliceContinentField(worldHeight, continentLayout, continent, resolution);
     heightFields[continent] = height;
 
-    const { water: waterData, riverCellMask } = generateWaterData(height, continent);
+    const { water: waterData, riverCellMask, drainage } = generateWaterData(height, continent);
     water[continent] = waterData;
 
-    const climateRng = seeds.rngFor("climate", continent);
-    const climate = generateClimateFields(climateRng, height, riverCellMask);
-
     const zoneAssignment = assignZones(zoneDesigns, continent, resolution, height);
+    const climateRng = seeds.rngFor("climate", continent);
+    const environment = generateEnvironmentalFields({
+      rng: climateRng,
+      continent,
+      continentTileSize,
+      height,
+      drainage,
+      riverCellMask,
+      zoneAssignment,
+      zones: zoneDesigns,
+      regions: environmentalRegionDesigns,
+    });
+    environmentalFields[continent] = environment;
+    const climate = { temperatureC: environment.temperatureC, moisture: environment.moisture };
     const zoneRng = seeds.rngFor("resources", `${continent}:zones`);
     const resolvedZones = resolveZones(zoneDesigns, continent, zoneAssignment, climate, zoneRng);
     allZones.push(...resolvedZones);
@@ -146,6 +159,7 @@ export function generateWorld(opts: GenerateOptions): WorldOutput {
     seaRegions,
     heightFields,
     biomeFields,
+    environmentalFields,
     water,
     zones: allZones,
     resources: allResources,
