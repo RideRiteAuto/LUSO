@@ -32,3 +32,7 @@ SpeedTree's current generator guidance favors proportional/bifurcating growth, v
 ## Remaining gate
 
 This pass is ready for user silhouette/art-direction review, but the families must not be scattered into the world until approved. A later production pass should replace the procedural foliage color maps with a shared KTX2 color/normal/ORM set, move wind detail into the vertex shader, and validate LOD transitions in a crowded forest benchmark.
+
+## Subsequent art-direction reference — 2026-08-12
+
+The user approved the runtime `dead_tree_trunk` hero-debris scan as a close-range wood, bark, taper, and broken-silhouette reference. It may inform selected bare secondary branches where appropriate, but must not be copied across every tree family. The same review explicitly rejected the current procedural grass clumps and crossed-plane plant/reed fallbacks for final walking-distance quality. The exact asset identity, screenshot, hashes, constraints, and vegetation replacement criteria are locked in [`19_Navora_Approved_Visual_References.md`](19_Navora_Approved_Visual_References.md).

@@ -19,7 +19,19 @@
     { "id": "boulder_01", "role": "weathered lichen boulder", "targetZones": ["valedouro", "serravela"] },
     { "id": "rock_07", "role": "weathered field rock", "targetZones": ["alvora", "serravela", "cavora"] },
     { "id": "coast_land_rocks_02", "role": "coastal rock cluster", "targetZones": ["alvora", "cavora"] },
-    { "id": "dead_tree_trunk", "role": "driftwood and deadfall", "targetZones": ["alvora", "cavora", "valedouro"] },
+    {
+      "id": "dead_tree_trunk",
+      "role": "driftwood and deadfall",
+      "targetZones": ["alvora", "cavora", "valedouro"],
+      "visualStatus": "user-approved-reference",
+      "approvedReferenceUses": [
+        "hero driftwood and deadfall",
+        "weathered bark and exposed-wood material quality",
+        "irregular taper and broken-end silhouette",
+        "selected bare secondary branches on ecologically appropriate tree families"
+      ],
+      "approvalRecord": "docs/19_Navora_Approved_Visual_References.md#dead-tree-trunk"
+    },
     { "id": "dry_branches_medium_01", "role": "forest and shore debris", "targetZones": ["alvora", "cavora", "valedouro"] }
   ],
   "qualityGates": {
