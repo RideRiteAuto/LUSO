@@ -36,10 +36,6 @@
           0.3782991202346041
         ],
         [
-          0.8856304985337243,
-          0.38514173998044965
-        ],
-        [
           0.8905180840664711,
           0.3939393939393939
         ],
@@ -170,7 +166,7 @@
         "beach"
       ],
       "climate": {
-        "avgTemperatureC": 22.4,
+        "avgTemperatureC": 22.3,
         "avgMoisture": 0.66
       },
       "housingDistricts": [
@@ -438,7 +434,7 @@
       ],
       "climate": {
         "avgTemperatureC": 19.1,
-        "avgMoisture": 0.7
+        "avgMoisture": 0.71
       },
       "housingDistricts": [
         {
@@ -523,7 +519,7 @@
           0.8504398826979472
         ],
         [
-          0.7321603128054741,
+          0.7350928641251222,
           0.8504398826979472
         ],
         [
@@ -1796,7 +1792,7 @@
       ],
       "climate": {
         "avgTemperatureC": 23.8,
-        "avgMoisture": 0.76
+        "avgMoisture": 0.78
       },
       "housingDistricts": [
         {
@@ -2001,8 +1997,8 @@
           0.4056695992179863
         ],
         [
-          0.21407624633431085,
-          0.38514173998044965
+          0.21212121212121213,
+          0.3763440860215054
         ],
         [
           0.2101661779081134,
@@ -2043,7 +2039,7 @@
       ],
       "climate": {
         "avgTemperatureC": 23.3,
-        "avgMoisture": 0.89
+        "avgMoisture": 0.9
       },
       "housingDistricts": [
         {
@@ -2396,7 +2392,7 @@
       ],
       "climate": {
         "avgTemperatureC": 23.2,
-        "avgMoisture": 0.87
+        "avgMoisture": 0.88
       },
       "housingDistricts": [
         {
@@ -2721,7 +2717,7 @@
         "great-lakes-country"
       ],
       "climate": {
-        "avgTemperatureC": 17.7,
+        "avgTemperatureC": 17.8,
         "avgMoisture": 0.74
       }
     },
