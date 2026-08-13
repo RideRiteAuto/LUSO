@@ -3,7 +3,7 @@ import type { WorldData } from "./worldData.js";
 import { buildTerrainControlMap, SKIRT_REACH, type TerrainControlMap } from "./terrain.js";
 import { selectTerrainTiles, type TerrainLodSettings, type TerrainRefinementRegion, type TerrainTileSpec } from "./terrainLod.js";
 import { AlvoraTerrainMaterial, defaultTerrainTextureTuning, type TerrainMaterialDebugMode, type TerrainQuality } from "./terrainMaterial.js";
-import type { RiverChannelField } from "./riverChannelField.js";
+import { riverWidthAt, type RiverChannelField } from "./riverChannelField.js";
 import { uvToWorld } from "./layout.js";
 
 export interface TerrainStreamingStats {
@@ -68,6 +68,46 @@ export function buildWaterRefinementRegions(world: WorldData, maxTileSize = 512)
         maxZ: Math.max(...points.map(([, z]) => z)) + bankMarginM,
         maxTileSize,
       });
+    }
+    const addRiverCorridor = (
+      river: typeof continent.rivers[number],
+      path: [number, number][],
+      progressStart = 0,
+      widthScale = 1,
+    ) => {
+      if (path.length < 2) return;
+      const points = path.map(([u, v]) => uvToWorld(u, v, continent.id, world.manifest));
+      let chunkStart = 0;
+      let distance = 0;
+      const emit = (end: number) => {
+        const chunk = points.slice(chunkStart, end + 1);
+        if (chunk.length < 2) return;
+        let widest = 0;
+        for (let i = chunkStart; i <= end; i++) {
+          const local = i / Math.max(1, points.length - 1);
+          widest = Math.max(widest, riverWidthAt(river, progressStart + local * (1 - progressStart), widthScale));
+        }
+        const margin = Math.max(bankMarginM, widest * 0.95);
+        regions.push({
+          minX: Math.min(...chunk.map(([x]) => x)) - margin,
+          minZ: Math.min(...chunk.map(([, z]) => z)) - margin,
+          maxX: Math.max(...chunk.map(([x]) => x)) + margin,
+          maxZ: Math.max(...chunk.map(([, z]) => z)) + margin,
+          maxTileSize,
+          activationDistance: 24_000,
+        });
+      };
+      for (let i = 1; i < points.length; i++) {
+        distance += Math.hypot(points[i][0] - points[i - 1][0], points[i][1] - points[i - 1][1]);
+        if (distance < 4_000 && i < points.length - 1) continue;
+        emit(i);
+        chunkStart = i;
+        distance = 0;
+      }
+    };
+    for (const river of continent.rivers) {
+      addRiverCorridor(river, river.path);
+      for (const distributary of river.distributaries ?? []) addRiverCorridor(river, distributary, 0.68, 0.68);
     }
   }
   return regions;

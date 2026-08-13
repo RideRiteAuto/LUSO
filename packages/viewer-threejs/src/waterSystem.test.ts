@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { NAVORA_OCEAN_WAVES, NAVIGABLE_RIVER_WIDTH_M, NAVIGABLE_WATER_DEPTH_M, OCEAN_RENDER_EXTENT_M, sampleOceanWaves } from "./waterSystem.js";
+import { NAVORA_OCEAN_WAVES, NAVIGABLE_RIVER_WIDTH_M, NAVIGABLE_WATER_DEPTH_M, OCEAN_RENDER_EXTENT_M, OCEAN_RIVER_HANDOFF_M, sampleOceanWaves } from "./waterSystem.js";
 
 test("ocean spectrum is deterministic, bounded, and normalized", () => {
   const a = sampleOceanWaves(12_345.5, 6_789.25, 42.125);
@@ -31,4 +31,9 @@ test("single-surface shoreline swell remains gentle enough for hull stability", 
 test("camera-relative ocean extends beyond the fully fogged overview horizon", () => {
   const overviewFogEndM = 280_000;
   assert.ok(OCEAN_RENDER_EXTENT_M * 0.5 > overviewFogEndM);
+});
+
+test("ocean fills the lower estuary without an overlapping river sheet", () => {
+  const completeWaveEnvelope = NAVORA_OCEAN_WAVES.reduce((total, wave) => total + wave.amplitude, 0) + 0.22;
+  assert.ok(OCEAN_RIVER_HANDOFF_M > completeWaveEnvelope);
 });

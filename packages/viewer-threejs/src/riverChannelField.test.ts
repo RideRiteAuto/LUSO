@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { sampleRiverCarvedHeight, type RiverChannelField } from "./riverChannelField.js";
+import { riverWidthAt, sampleRiverCarvedHeight, type RiverChannelField } from "./riverChannelField.js";
 
 const field: RiverChannelField = {
   // One 100 m segment. Surface rises 9 -> 10 m, width 200 m,
@@ -31,4 +31,17 @@ test("river terrain brush creates a deep bed and sloped banks", () => {
 test("river terrain brush leaves terrain outside its watershed reach unchanged", () => {
   assert.equal(sampleRiverCarvedHeight(field, 50, 400, 50), 50);
   assert.equal(sampleRiverCarvedHeight(field, 800, 0, 50), 50);
+});
+
+test("ocean mouth flare is part of the authoritative carved width", () => {
+  const river = {
+    id: "test-estuary",
+    path: [[0, 0], [1, 1]] as [number, number][],
+    terminatesIn: { type: "ocean" as const, featureId: "luna-sea" },
+    mouthKind: "estuary" as const,
+    profile: { widthM: [320, 1_520] as [number, number], depthM: [11, 30] as [number, number], currentMps: [1.8, 0.32] as [number, number], navigableFromT: 0 },
+  };
+  assert.equal(riverWidthAt(river, 0), 320);
+  assert.ok(riverWidthAt(river, 1) >= 1_850, "mouth did not broaden beyond the lower reach");
+  assert.ok(riverWidthAt(river, 0.5) >= 240, "natural variation violated the two-lane navigation floor");
 });

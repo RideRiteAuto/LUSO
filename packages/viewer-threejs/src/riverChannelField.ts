@@ -22,6 +22,36 @@ function profileValue(range: [number, number] | undefined, progress: number, fal
   return start + Math.pow(progress, power) * (end - start);
 }
 
+function riverPhase(id: string): number {
+  let hash = 2166136261;
+  for (let i = 0; i < id.length; i++) hash = Math.imul(hash ^ id.charCodeAt(i), 16777619);
+  return (hash >>> 0) / 4294967295 * Math.PI * 2;
+}
+
+export function isOceanReceivingRiver(river: RiverRecord): boolean {
+  return river.terminatesIn?.type === "ocean" || river.mouthKind === "estuary" || river.mouthKind === "delta";
+}
+
+/**
+ * Authoritative bank-to-bank width used by terrain, rendering, collision and
+ * water queries. Natural reach variation and the mouth flare live here so a
+ * presentation mesh can never become wider than its carved channel again.
+ */
+export function riverWidthAt(river: RiverRecord, progress: number, widthScale = 1): number {
+  const t = Math.max(0, Math.min(1, progress));
+  const authored = profileValue(river.profile?.widthM, t, [240, 1_040], 1.35) * widthScale;
+  const endpointTaper = Math.sin(t * Math.PI) ** 0.65;
+  const phase = riverPhase(river.id);
+  const reachVariation = 1 + endpointTaper * (
+    Math.sin(t * Math.PI * 7.2 + phase) * 0.075
+    + Math.sin(t * Math.PI * 15.8 + phase * 0.47) * 0.035
+  );
+  const mouth = isOceanReceivingRiver(river)
+    ? 1 + Math.max(0, Math.min(1, (t - 0.72) / 0.28)) ** 2 * 0.22
+    : 1;
+  return authored * reachVariation * mouth;
+}
+
 export interface RiverCenterPoint {
   x: number;
   y: number;
@@ -46,7 +76,7 @@ export function buildRiverCenterline(
     const surfaceIndex = progressStart > 0 ? Math.round(progress * Math.max(0, surfaces.length - 1)) : index;
     return {
       x, z, y: (surfaces[Math.min(surfaces.length - 1, surfaceIndex)] ?? 0) + 0.08, progress,
-      width: profileValue(river.profile?.widthM, progress, [70, 320], 1.35) * widthScale,
+      width: riverWidthAt(river, progress, widthScale),
       depth: profileValue(river.profile?.depthM, progress, [3.5, 13], 1.15),
       current: profileValue(river.profile?.currentMps, progress, [2, 0.42]),
     };
@@ -79,7 +109,7 @@ export function buildRiverCenterline(
     const progress = progressStart + t * (1 - progressStart);
     return {
       x: point.x, y: point.y, z: point.z, progress,
-      width: profileValue(river.profile?.widthM, progress, [70, 320], 1.35) * widthScale,
+      width: riverWidthAt(river, progress, widthScale),
       depth: profileValue(river.profile?.depthM, progress, [3.5, 13], 1.15),
       current: profileValue(river.profile?.currentMps, progress, [2, 0.42]),
     };

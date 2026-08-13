@@ -21,12 +21,15 @@ const idx = (x: number, y: number, width: number): number => y * width + x;
  * waterways, not every seasonal creek, so every exported channel must carry
  * useful draft along its compiled route. */
 export const NAVIGABLE_WATERWAY_RULES = {
-  minimumWidthM: 120,
-  minimumDepthM: 7,
-  estuaryWidthM: 760,
-  estuaryDepthM: 24,
-  deltaWidthM: 900,
-  deltaDepthM: 28,
+  // These exported reaches are the world's trunk waterways, not creeks.
+  // 240 m leaves two generous ship lanes plus bank clearance even at the
+  // narrow upstream end; mouths broaden into kilometre-scale estuaries.
+  minimumWidthM: 240,
+  minimumDepthM: 9,
+  estuaryWidthM: 1_520,
+  estuaryDepthM: 30,
+  deltaWidthM: 1_800,
+  deltaDepthM: 34,
   coastalPoolDepthM: 14,
   wetlandPoolDepthM: 11,
   poolExpansionM: 260,
@@ -100,6 +103,57 @@ function convexHull(points: Vec2[]): Vec2[] {
   }
   lower.pop(); upper.pop();
   return lower.concat(upper);
+}
+
+/** Trace the outer shoreline of a raster basin instead of wrapping it in a
+ * convex envelope. The latter filled bays and caused nearby pools to overlap
+ * as straight, intersecting wedges. Coordinates use doubled cell corners so
+ * adjacency remains exact while loops are assembled. */
+function traceBasinShoreline(cells: number[], width: number, fieldHeight: number): Vec2[] {
+  type Edge = { from: [number, number]; to: [number, number]; used: boolean };
+  const wet = new Set(cells);
+  const edges: Edge[] = [];
+  const add = (from: [number, number], to: [number, number]) => edges.push({ from, to, used: false });
+  for (const cell of cells) {
+    const x = cell % width, y = Math.floor(cell / width);
+    const left = x * 2 - 1, right = x * 2 + 1, top = y * 2 - 1, bottom = y * 2 + 1;
+    if (y === 0 || !wet.has(idx(x, y - 1, width))) add([left, top], [right, top]);
+    if (x === width - 1 || !wet.has(idx(x + 1, y, width))) add([right, top], [right, bottom]);
+    if (y === fieldHeight - 1 || !wet.has(idx(x, y + 1, width))) add([right, bottom], [left, bottom]);
+    if (x === 0 || !wet.has(idx(x - 1, y, width))) add([left, bottom], [left, top]);
+  }
+  const outgoing = new Map<string, number[]>();
+  const key = ([x, y]: [number, number]) => `${x}:${y}`;
+  edges.forEach((edge, index) => {
+    const list = outgoing.get(key(edge.from)) ?? [];
+    list.push(index);
+    outgoing.set(key(edge.from), list);
+  });
+  const loops: Vec2[][] = [];
+  for (let start = 0; start < edges.length; start++) {
+    if (edges[start].used) continue;
+    const loop: Vec2[] = [];
+    let edgeIndex = start;
+    for (let guard = 0; guard <= edges.length; guard++) {
+      const edge = edges[edgeIndex];
+      if (edge.used) break;
+      edge.used = true;
+      loop.push([
+        Math.max(0, Math.min(1, edge.from[0] * 0.5 / Math.max(1, width - 1))),
+        Math.max(0, Math.min(1, edge.from[1] * 0.5 / Math.max(1, fieldHeight - 1))),
+      ]);
+      const next = (outgoing.get(key(edge.to)) ?? []).find((candidate) => !edges[candidate].used);
+      if (next === undefined) break;
+      edgeIndex = next;
+      if (edgeIndex === start) break;
+    }
+    if (loop.length >= 3) loops.push(loop);
+  }
+  const area = (polygon: Vec2[]) => Math.abs(polygon.reduce((sum, point, i) => {
+    const next = polygon[(i + 1) % polygon.length];
+    return sum + point[0] * next[1] - next[0] * point[1];
+  }, 0));
+  return loops.sort((a, b) => area(b) - area(a))[0] ?? [];
 }
 
 function buildPriorityDrainage(height: HeightField): {
@@ -330,17 +384,15 @@ function resolveBasins(
     }
     const surfaceElevationM = filled[outletIndex];
     const wetCells = component.cells.filter((cell) => data[cell] < surfaceElevationM - 0.5);
-    const boundaryPoints: Vec2[] = [];
     for (const cell of wetCells) {
       membership[cell] = lakeIndex;
       lakeCellMask[cell] = 1;
       const x = cell % width, y = Math.floor(cell / width);
-      if (NEIGHBORS.some(([dx, dy]) => {
-        const nx = x + dx, ny = y + dy;
-        return nx < 0 || ny < 0 || nx >= width || ny >= fieldHeight || !cellSet.has(idx(nx, ny, width));
-      })) boundaryPoints.push([x / (width - 1), y / (fieldHeight - 1)]);
     }
-    const rawPolygon = convexHull(boundaryPoints);
+    const tracedShoreline = traceBasinShoreline(wetCells, width, fieldHeight);
+    const rawPolygon = tracedShoreline.length >= 3 ? tracedShoreline : convexHull(wetCells.map((cell) => [
+      (cell % width) / (width - 1), Math.floor(cell / width) / (fieldHeight - 1),
+    ]));
     const expansionUv = isShallowPool ? NAVIGABLE_WATERWAY_RULES.poolExpansionM / continentTileSize : 0;
     const polygon = roundedExpandedPolygon(rawPolygon, expansionUv);
     const outlet: Vec2 = [(outletIndex % width) / (width - 1), Math.floor(outletIndex / width) / (fieldHeight - 1)];
@@ -432,17 +484,17 @@ function smoothRiverPath(path: Vec2[], surfaces: number[], iterations = 2): { pa
 function profileForMouth(mouthKind: River["mouthKind"]): River["profile"] {
   switch (mouthKind) {
     case "delta":
-      return { widthM: [180, 900], depthM: [10, 28], currentMps: [1.65, 0.28], navigableFromT: 0 };
+      return { widthM: [360, 1_800], depthM: [12, 34], currentMps: [1.65, 0.28], navigableFromT: 0 };
     case "estuary":
-      return { widthM: [160, 760], depthM: [9, 24], currentMps: [1.8, 0.32], navigableFromT: 0 };
+      return { widthM: [320, 1_520], depthM: [11, 30], currentMps: [1.8, 0.32], navigableFromT: 0 };
     case "lake-outlet":
-      return { widthM: [150, 560], depthM: [9, 21], currentMps: [0.85, 0.34], navigableFromT: 0 };
+      return { widthM: [300, 1_120], depthM: [11, 26], currentMps: [0.85, 0.34], navigableFromT: 0 };
     case "lake-inlet":
-      return { widthM: [120, 480], depthM: [7, 19], currentMps: [1.9, 0.42], navigableFromT: 0 };
+      return { widthM: [240, 960], depthM: [9, 24], currentMps: [1.9, 0.42], navigableFromT: 0 };
     case "confluence":
-      return { widthM: [120, 420], depthM: [7, 17], currentMps: [2.1, 0.62], navigableFromT: 0 };
+      return { widthM: [240, 840], depthM: [9, 22], currentMps: [2.1, 0.62], navigableFromT: 0 };
     default:
-      return { widthM: [120, 520], depthM: [7, 20], currentMps: [2, 0.42], navigableFromT: 0 };
+      return { widthM: [240, 1_040], depthM: [9, 25], currentMps: [2, 0.42], navigableFromT: 0 };
   }
 }
 
@@ -476,7 +528,11 @@ function roundedExpandedPolygon(polygon: Vec2[], expansionUv: number): Vec2[] {
     const irregular = 1 + Math.sin(index * 2.399 + center[0] * 31 + center[1] * 47) * 0.12;
     return [center[0] + dx + dx / length * expansionUv * irregular, center[1] + dy + dy / length * expansionUv * irregular] as Vec2;
   });
-  for (let iteration = 0; iteration < 2; iteration++) {
+  // Three Chaikin passes turn the traced 64 m compiler cells into an 8 m
+  // shoreline cadence. This is intentionally denser than the old outline;
+  // mobile profiling left enough headroom and the added pass removes the
+  // visible stair-step/scallop pattern from low flight.
+  for (let iteration = 0; iteration < 3; iteration++) {
     const rounded: Vec2[] = [];
     for (let i = 0; i < points.length; i++) {
       const a = points[i], b = points[(i + 1) % points.length];
@@ -584,7 +640,11 @@ export function carveRiverChannels(
     const basinWidthM = (Math.max(...xs) - Math.min(...xs)) * metersPerCellX;
     const basinHeightM = (Math.max(...ys) - Math.min(...ys)) * metersPerCellY;
     const deepRampM = Math.max(70, Math.min(420, Math.min(basinWidthM, basinHeightM) * 0.30));
-    const shorelineDepthM = Math.min(1.1, Math.max(0.45, lake.depthM * 0.055));
+    // Runtime terrain adds up to ~1.5 m of local rock/soil relief after the
+    // compiled heightfield is sampled. A sub-metre shelf therefore poked back
+    // through the water and sliced pools into triangular fragments. Keep the
+    // complete shoreline safely submerged, then ease upward outside it.
+    const shorelineDepthM = Math.min(4.5, Math.max(3.2, lake.depthM * 0.09));
     let deepestInteriorIndex = -1;
     let deepestInteriorDistance = -1;
     for (let y = minY; y <= maxY; y++) for (let x = minX; x <= maxX; x++) {

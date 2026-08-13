@@ -36,6 +36,9 @@ export interface TerrainRefinementRegion {
   maxX: number;
   maxZ: number;
   maxTileSize: number;
+  /** Optional camera range. Long river corridors refine locally as the player
+   * approaches instead of consuming the entire strategic-view tile budget. */
+  activationDistance?: number;
 }
 
 function distanceToSquare(x: number, z: number, minX: number, minZ: number, size: number): number {
@@ -141,9 +144,10 @@ export function selectTerrainTiles(
   // split, which becomes cubic enough to create 30–50 ms walking hitches at
   // ~200 tiles. Nearest-first refinement is safe to perform once, followed by
   // a single balance pass.
-  const activeRegions = (settings.refinementRegions ?? []).filter((region) =>
-    !settings.viewDistance || regionDistanceToPoint(region, cameraX, cameraZ) <= settings.viewDistance,
-  );
+  const activeRegions = (settings.refinementRegions ?? []).filter((region) => {
+    const limit = region.activationDistance ?? settings.viewDistance;
+    return !limit || regionDistanceToPoint(region, cameraX, cameraZ) <= limit;
+  });
   const refinementLimit = Math.max(4, Math.floor(settings.maxTiles * (activeRegions.length ? 0.68 : 0.58)));
   while (leaves.length + 3 <= refinementLimit) {
     const candidates: Array<{ index: number; priority: number; forced: boolean }> = [];
