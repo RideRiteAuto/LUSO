@@ -120,107 +120,107 @@ function canonicalCuts(u: number, v: number, continent: ContinentId, zones: Zone
  * of bay, and `phase` decorrelates their shoreline noise so no two wander
  * alike.
  */
+interface GulfLobe { at: Vec2; radius: number }
+
 interface GulfCut {
-  /** Curving axis, sea end first; the head is the last point. */
-  axis: Vec2[];
-  /** Half-width at the mouth and at the head, before shaping and wander. */
-  mouthWidth: number;
-  headWidth: number;
+  /**
+   * Overlapping rounded basins that merge into one bay. Ordered sea end
+   * first: the leading lobes form the entrance, the rest the body.
+   */
+  lobes: GulfLobe[];
   /** Shoreline irregularity, 0 = smooth arc. */
   roughness: number;
-  /** Decorrelates this gulf's wander from its neighbours'. */
+  /** Decorrelates this bay's wander from its neighbours'. */
   phase: number;
   /** How completely this bay floods, 0..1. */
   flood: number;
-  /** Drowned side valleys branching off the main axis. */
-  branches?: { at: number; direction: number; length: number; width: number }[];
 }
 
 const AUTHORED_GULFS: Record<ContinentId, GulfCut[]> = {
   valora: [
-    // Stormwatch Gulf — enters through the natural northern embayment and
-    // drives south into the body of the continent, putting deep water within
-    // reach of Azurewood and the Crownlands' hinterland. Broad-mouthed and
-    // generous: the kind of water a fleet anchors in.
+    // Stormwatch Gulf — a narrow entrance off the northern embayment opening
+    // into a broad rounded basin, the kind of sheltered water a fleet anchors
+    // in. The basin lobes are what give it its shape; the entrance is only
+    // the neck.
     {
-      axis: [[0.478, 0.150], [0.470, 0.255], [0.458, 0.360], [0.472, 0.462]],
-      mouthWidth: 0.115, headWidth: 0.066, roughness: 0.34, phase: 0, flood: 1,
-      branches: [{ at: 0.62, direction: -1, length: 0.080, width: 0.034 }],
+      lobes: [
+        { at: [0.482, 0.168], radius: 0.052 },
+        { at: [0.474, 0.238], radius: 0.058 },
+        { at: [0.461, 0.316], radius: 0.094 },
+        { at: [0.497, 0.348], radius: 0.071 },
+        { at: [0.437, 0.375], radius: 0.068 },
+        { at: [0.479, 0.424], radius: 0.052 },
+      ],
+      roughness: 0.30, phase: 0, flood: 1,
     },
     // The Elderwall Ria — a drowned river valley on the south-west coast:
-    // narrower, sinuous, and branching into side arms, so its shoreline
-    // reads as flooded country rather than an excavation.
+    // a rounded flooded basin with smaller lobes running off it, so its
+    // shoreline reads as flooded country rather than an excavation.
     {
-      axis: [[0.302, 0.850], [0.296, 0.772], [0.284, 0.702], [0.302, 0.640]],
-      mouthWidth: 0.086, headWidth: 0.046, roughness: 0.46, phase: 11.3, flood: 1,
-      branches: [
-        { at: 0.40, direction: 1, length: 0.082, width: 0.035 },
-        { at: 0.72, direction: -1, length: 0.058, width: 0.026 },
+      lobes: [
+        { at: [0.303, 0.836], radius: 0.046 },
+        { at: [0.297, 0.774], radius: 0.055 },
+        { at: [0.290, 0.714], radius: 0.076 },
+        { at: [0.328, 0.692], radius: 0.055 },
+        { at: [0.263, 0.680], radius: 0.049 },
+        { at: [0.305, 0.646], radius: 0.044 },
       ],
+      roughness: 0.42, phase: 11.3, flood: 1,
     },
   ],
   seradia: [
-    // The Hollow Bight — a wide scallop of a bay biting west between the
-    // Luminous Hollow and the Shattered Reach; the only realistic sea access
-    // for Seradia's eastern zones.
+    // The Hollow Bight — a wide scallop open to the eastern sea, nearly all
+    // basin and barely any neck.
     {
-      axis: [[0.960, 0.540], [0.902, 0.556], [0.846, 0.572], [0.792, 0.586]],
-      mouthWidth: 0.112, headWidth: 0.078, roughness: 0.26, phase: 23.7, flood: 1,
+      lobes: [
+        { at: [0.968, 0.544], radius: 0.080 },
+        { at: [0.903, 0.560], radius: 0.092 },
+        { at: [0.848, 0.579], radius: 0.074 },
+        { at: [0.879, 0.512], radius: 0.052 },
+      ],
+      roughness: 0.24, phase: 23.7, flood: 1,
     },
-    // The Glassmere Inlet — a long, kinked reach running south off the north
-    // coast toward the Glassmere lowland margin; sheltered small-craft water.
+    // The Glassmere Inlet — a slim northern entrance widening into a small
+    // sheltered basin; small-craft water.
     {
-      axis: [[0.442, 0.196], [0.436, 0.278], [0.452, 0.352], [0.434, 0.424]],
-      mouthWidth: 0.080, headWidth: 0.044, roughness: 0.42, phase: 41.1, flood: 0.95,
-      branches: [{ at: 0.55, direction: 1, length: 0.060, width: 0.027 }],
+      lobes: [
+        { at: [0.443, 0.208], radius: 0.042 },
+        { at: [0.436, 0.272], radius: 0.046 },
+        { at: [0.450, 0.340], radius: 0.064 },
+        { at: [0.420, 0.396], radius: 0.055 },
+      ],
+      roughness: 0.38, phase: 41.1, flood: 0.95,
     },
   ],
 };
 
 /**
- * Full flood across the channel, feathering to land over the outer third.
- * Written out rather than via `smoothstep`, whose zero-denominator guard
- * (`Math.max(1e-6, b - a)`) silently collapses a descending range to zero.
+ * A bay as a cluster of overlapping round basins rather than a width swept
+ * along an axis. A swept profile always reads as a wedge — it is widest at
+ * one end and narrows to the other, which is a cone however much its edges
+ * wander. Merging round lobes instead gives a roughly round, lobed basin
+ * whose outline is irregular without being circular, which is what a drowned
+ * basin actually looks like from above.
  */
-function shoreProfile(normalizedDistance: number): number {
-  const t = clamp01((1 - clamp01(normalizedDistance)) / 0.34);
-  return t * t * (3 - 2 * t);
-}
-
-/** Closest approach to a polyline, with normalized position along it. */
-function polylineProjection(px: number, py: number, axis: Vec2[], lengths: number[], total: number): { distance: number; t: number } {
-  let distance = Infinity, t = 0, travelled = 0;
-  for (let i = 0; i < axis.length - 1; i++) {
-    const a = axis[i], b = axis[i + 1];
-    const dx = b[0] - a[0], dy = b[1] - a[1];
-    const lengthSq = Math.max(1e-12, dx * dx + dy * dy);
-    const local = clamp01(((px - a[0]) * dx + (py - a[1]) * dy) / lengthSq);
-    const candidate = Math.hypot(px - (a[0] + dx * local), py - (a[1] + dy * local));
-    if (candidate < distance) {
-      distance = candidate;
-      t = (travelled + local * lengths[i]) / total;
+function authoredGulfs(u: number, v: number, continent: ContinentId, noise: SilhouetteNoise): number {
+  let strongest = 0;
+  for (const gulf of AUTHORED_GULFS[continent]) {
+    // One wander field per bay, sampled at this point: the whole shoreline
+    // breathes together rather than each lobe wobbling independently.
+    const wander = 1
+      + fbm(noise.cape, u * 4.2 + gulf.phase, v * 4.2 + gulf.phase, 2) * gulf.roughness
+      + fbm(noise.cape, u * 11.5 + gulf.phase, v * 11.5 + gulf.phase, 2) * gulf.roughness * 0.42;
+    const scale = Math.max(0.32, wander);
+    let presence = 0;
+    for (const lobe of gulf.lobes) {
+      const normalized = Math.hypot(u - lobe.at[0], v - lobe.at[1]) / Math.max(1e-6, lobe.radius * scale);
+      presence += Math.exp(-normalized * normalized);
     }
-    travelled += lengths[i];
+    // Flat-topped: open water through the basin, feathering only at the rim.
+    const t = clamp01((presence - 0.46) / 0.34);
+    strongest = Math.max(strongest, t * t * (3 - 2 * t) * gulf.flood);
   }
-  return { distance, t };
-}
-
-/** Axis arc lengths, computed once — the gulf table is constant. */
-const GULF_GEOMETRY = new Map<GulfCut, { lengths: number[]; total: number }>();
-function geometryOf(gulf: GulfCut): { lengths: number[]; total: number } {
-  let cached = GULF_GEOMETRY.get(gulf);
-  if (!cached) {
-    const lengths: number[] = [];
-    let total = 0;
-    for (let i = 0; i < gulf.axis.length - 1; i++) {
-      const length = Math.hypot(gulf.axis[i + 1][0] - gulf.axis[i][0], gulf.axis[i + 1][1] - gulf.axis[i][1]);
-      lengths.push(length);
-      total += length;
-    }
-    cached = { lengths, total: Math.max(1e-9, total) };
-    GULF_GEOMETRY.set(gulf, cached);
-  }
-  return cached;
+  return strongest;
 }
 
 /** Field value a fully flooded gulf reaches: solidly open water. */
@@ -236,70 +236,6 @@ const GULF_WATER_FLOOR = LAND_FIELD_THRESHOLD - 0.16;
 function applyGulfs(field: number, u: number, v: number, continent: ContinentId, noise: SilhouetteNoise): number {
   const flood = authoredGulfs(u, v, continent, noise);
   return flood > 0 ? field + (Math.min(field, GULF_WATER_FLOOR) - field) * flood : field;
-}
-
-function authoredGulfs(u: number, v: number, continent: ContinentId, noise: SilhouetteNoise): number {
-  let cut = 0;
-  for (const gulf of AUTHORED_GULFS[continent]) {
-    const { lengths, total } = geometryOf(gulf);
-    const { distance, t } = polylineProjection(u, v, gulf.axis, lengths, total);
-
-    // Stay broad along the reach, then round off at the head. A linear taper
-    // would close the bay to a sharp cone; `(1 - t^3)^0.42` holds most of the
-    // width until the last stretch and finishes as a rounded bowl.
-    const along = Math.pow(Math.max(0, 1 - t * t * t), 0.42);
-    const base = gulf.mouthWidth + (gulf.headWidth - gulf.mouthWidth) * t;
-    // Two scales of wander: broad lobes and headlands, plus finer shoreline
-    // detail. The per-gulf phase keeps each bay's shoreline its own.
-    const broadWander = fbm(noise.cape, u * 3.4 + gulf.phase, v * 3.4 + gulf.phase, 2);
-    const fineWander = fbm(noise.cape, u * 11 + gulf.phase, v * 11 + gulf.phase, 2);
-    const wander = 1 + broadWander * gulf.roughness + fineWander * gulf.roughness * 0.45;
-    const radius = base * along * Math.max(0.22, wander);
-    if (radius > 0 && distance < radius) {
-      // Flat-topped profile: open water across the bay's authored width,
-      // feathering only near its shores. A profile that peaks solely at the
-      // centreline floods a fraction of the width and reads as a slit.
-      cut = Math.max(cut, shoreProfile(distance / radius) * gulf.flood);
-    }
-
-    // Drowned side valleys: short arms off the main axis, themselves
-    // tapering and wandering, which turn a smooth bay into flooded country.
-    for (const branch of gulf.branches ?? []) {
-      const rootIndex = Math.min(gulf.axis.length - 2, Math.floor(branch.at * (gulf.axis.length - 1)));
-      const root = gulf.axis[rootIndex], next = gulf.axis[rootIndex + 1];
-      const tangentX = next[0] - root[0], tangentY = next[1] - root[1];
-      const tangentLength = Math.max(1e-9, Math.hypot(tangentX, tangentY));
-      const normalX = -tangentY / tangentLength * branch.direction;
-      const normalY = tangentX / tangentLength * branch.direction;
-      const start: Vec2 = [
-        root[0] + tangentX * (branch.at * (gulf.axis.length - 1) - rootIndex),
-        root[1] + tangentY * (branch.at * (gulf.axis.length - 1) - rootIndex),
-      ];
-      // Bend the arm as it runs inland so it does not read as a spur.
-      const bend = 0.35;
-      const mid: Vec2 = [
-        start[0] + normalX * branch.length * 0.55 + tangentX / tangentLength * branch.length * bend * 0.5,
-        start[1] + normalY * branch.length * 0.55 + tangentY / tangentLength * branch.length * bend * 0.5,
-      ];
-      const tip: Vec2 = [
-        start[0] + normalX * branch.length + tangentX / tangentLength * branch.length * bend,
-        start[1] + normalY * branch.length + tangentY / tangentLength * branch.length * bend,
-      ];
-      const armAxis = [start, mid, tip];
-      const armLengths = [
-        Math.hypot(mid[0] - start[0], mid[1] - start[1]),
-        Math.hypot(tip[0] - mid[0], tip[1] - mid[1]),
-      ];
-      const armTotal = Math.max(1e-9, armLengths[0] + armLengths[1]);
-      const arm = polylineProjection(u, v, armAxis, armLengths, armTotal);
-      const armWander = 1 + fbm(noise.cape, u * 9 + gulf.phase * 1.7, v * 9 + gulf.phase * 1.7, 2) * 0.4;
-      const armRadius = branch.width * Math.pow(Math.max(0, 1 - arm.t * arm.t * arm.t), 0.45) * Math.max(0.25, armWander);
-      if (armRadius > 0 && arm.distance < armRadius) {
-        cut = Math.max(cut, shoreProfile(arm.distance / armRadius) * gulf.flood * 0.92);
-      }
-    }
-  }
-  return cut;
 }
 
 /** Bold headlands that keep a gulf-cut continent from reading as a bitten disc. */
@@ -385,9 +321,9 @@ interface ContinentGrain { angle: number; stretchAlong: number; stretchAcross: n
 
 const CONTINENT_GRAIN: Record<ContinentId, ContinentGrain> = {
   // A broad mainland lying on a north-east diagonal.
-  valora: { angle: -0.28, stretchAlong: 1.16, stretchAcross: 0.88 },
+  valora: { angle: -0.28, stretchAlong: 1.32, stretchAcross: 0.80 },
   // A taller, narrower crescent — deliberately not Valora's proportions.
-  seradia: { angle: 0.16, stretchAlong: 0.86, stretchAcross: 1.20 },
+  seradia: { angle: 0.16, stretchAlong: 0.78, stretchAcross: 1.34 },
 };
 
 function redesignBody(u: number, v: number, continent: ContinentId, zones: ZoneDesign[], reach: number): number {
