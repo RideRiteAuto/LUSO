@@ -33,6 +33,9 @@ The five-location corrective evidence is in
 - Streamed terrain tiles carry shallow edge skirts to conceal precision cracks
   at distant LOD boundaries. Strategic-altitude views do not render the
   near-water river strip through terrain too coarse to resolve its channel.
+- The camera-relative ocean surface spans 600 km—past the fully opaque
+  overview-fog horizon—so flight and overview cameras cannot expose a square
+  water-plane edge.
 - The viewer accepts exact reproducibility cameras through `reviewX`,
   `reviewY`, `reviewZ`, `reviewYaw`, and `reviewPitch` URL parameters.
 

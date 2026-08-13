@@ -45,6 +45,12 @@ interface LakeSurface {
 }
 
 export const NAVIGABLE_RIVER_WIDTH_M = 30;
+// Overview fog is fully opaque at 280 km. Keeping every edge of this
+// camera-relative plane beyond that distance makes the ocean meet the visual
+// horizon in ground, flight, and cartographic modes instead of exposing a
+// blue square. The mesh remains camera-centred, so this is coverage rather
+// than a second world-sized simulation.
+export const OCEAN_RENDER_EXTENT_M = 600_000;
 
 // A compact, deterministic deep-water spectrum. Rendering and gameplay use
 // the same coefficients so a hull pontoon, swimmer, fish, and visible crest
@@ -179,8 +185,8 @@ export class NavoraWaterSystem {
   constructor(private readonly world: WorldData, quality: "high" | "balanced" | "compatibility", _sunDirection: THREE.Vector3) {
     this.group.name = "navora-unified-water";
     this.riverGroup.name = "navora-river-surfaces";
-    const extent = quality === "compatibility" ? 30000 : quality === "balanced" ? 48000 : 70000;
-    const segments = quality === "compatibility" ? 64 : quality === "balanced" ? 96 : 128;
+    const extent = OCEAN_RENDER_EXTENT_M;
+    const segments = quality === "compatibility" ? 256 : quality === "balanced" ? 320 : 384;
     const oceanGeometry = new THREE.PlaneGeometry(extent, extent, segments, segments);
     oceanGeometry.rotateX(-Math.PI / 2);
     const oceanMaterial = new THREE.MeshStandardNodeMaterial();
@@ -197,18 +203,13 @@ export class NavoraWaterSystem {
     oceanMaterial.depthWrite = true;
     this.ocean = new THREE.Mesh(oceanGeometry, oceanMaterial);
     this.ocean.name = "camera-relative-gerstner-ocean";
-    // The camera-relative ocean spans tens of kilometres, so its geometry
-    // grid can only carry long swells. The former 4-34m frequencies were
-    // sampled on ~550m triangles and aliased into an enormous checkerboard.
-    // Short gameplay waves remain in sampleOceanWaves; distance-gated surface
-    // detail is a later water-presentation concern. These mesh-resolvable
-    // swells provide silhouette/parallax without facets.
+    // The horizon plane is deliberately enormous. Its grid carries only
+    // wavelengths that remain safely resolvable at this spacing; short
+    // gameplay waves remain in sampleOceanWaves and future near-water detail.
     oceanMaterial.positionNode = Fn(() => {
       const p = positionLocal.toVar();
-      const wave = sin(p.x.mul(0.00074).add(p.z.mul(0.00027)).add(time.mul(0.31))).mul(0.52)
-        .add(sin(p.x.mul(0.00116).add(p.z.mul(0.00111)).add(time.mul(0.43))).mul(0.27))
-        .add(sin(p.x.mul(-0.00054).add(p.z.mul(0.00293)).add(time.mul(0.57))).mul(0.14))
-        .add(sin(p.x.mul(0.00242).add(p.z.mul(-0.00440)).add(time.mul(0.71))).mul(0.07));
+      const wave = sin(p.x.mul(0.00052).add(p.z.mul(0.00019)).add(time.mul(0.31))).mul(0.48)
+        .add(sin(p.x.mul(-0.00028).add(p.z.mul(0.00043)).add(time.mul(0.43))).mul(0.22));
       return p.add(vec3(0, wave, 0));
     })();
     this.ocean.renderOrder = 1;
