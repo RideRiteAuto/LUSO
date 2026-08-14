@@ -252,7 +252,11 @@ async function boot() {
   };
   environmentDressing = await EnvironmentDressing.create(world, sampleDressingGround, qualityName);
   worldRoot.add(environmentDressing.group);
-  traversalBookmarks = buildTraversalBookmarks(world, (x, z) => collisionHeights!.sample(x, z));
+  traversalBookmarks = buildTraversalBookmarks(
+    world,
+    (x, z) => collisionHeights!.sample(x, z),
+    (x, z) => waterSystem!.sample(x, z) !== null,
+  );
   const reviewBookmark = traversalBookmarks.find((candidate) => candidate.id === "alvora-resource-review");
   resourceReviewYard = await ResourceReviewYard.create(sampleDressingGround);
   if (reviewBookmark) resourceReviewYard.setAnchor(reviewBookmark);

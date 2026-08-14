@@ -1,4 +1,5 @@
 import * as THREE from "three/webgpu";
+import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { buildResourceModel, disposeResourceModel, loadResourceTextureSources, type ResourceFamilyId } from "./resourceModels.js";
 
 interface YardAnchor { x: number; z: number }
@@ -33,7 +34,10 @@ export class ResourceReviewYard {
   private anchor: YardAnchor = { x: 0, z: 0 };
   private _stats: ResourceReviewStats = { variants: 0, triangles: 0, draws: 0 };
 
-  private constructor(private readonly sampleGround: (x: number, z: number) => number) {
+  private constructor(
+    private readonly sampleGround: (x: number, z: number) => number,
+    private readonly housePreview: THREE.Group | null,
+  ) {
     this.group.name = "alvora-resource-review-yard";
     this.group.visible = false;
     this.build();
@@ -41,7 +45,16 @@ export class ResourceReviewYard {
 
   static async create(sampleGround: (x: number, z: number) => number): Promise<ResourceReviewYard> {
     await loadResourceTextureSources();
-    return new ResourceReviewYard(sampleGround);
+    let housePreview: THREE.Group | null = null;
+    if (typeof document !== "undefined") {
+      try {
+        const gltf = await new GLTFLoader().loadAsync(new URL("assets/review/house-003.glb", document.baseURI).href);
+        housePreview = gltf.scene;
+      } catch (error) {
+        console.warn("House 003 review model was unavailable; continuing with resource families only.", error);
+      }
+    }
+    return new ResourceReviewYard(sampleGround, housePreview);
   }
 
   setAnchor(anchor: YardAnchor): void {
@@ -86,6 +99,21 @@ export class ResourceReviewYard {
         this.group.add(model.group); this.models.push(model.group);
         triangles += model.info.triangles; draws += model.info.materials; variants++;
       }
+    }
+    if (this.housePreview) {
+      this.housePreview.name = "house-003-review";
+      this.housePreview.position.set(0, 0, -80);
+      this.housePreview.rotation.y = Math.PI * 0.08;
+      this.housePreview.userData.reviewLabel = "CGTrader house 003 — neutral-material scale preview";
+      this.group.add(this.housePreview);
+      this.models.push(this.housePreview);
+      this.housePreview.traverse((object) => {
+        if (!(object as THREE.Mesh).isMesh) return;
+        const mesh = object as THREE.Mesh;
+        triangles += mesh.geometry.index ? mesh.geometry.index.count / 3 : mesh.geometry.attributes.position.count / 3;
+        draws += Array.isArray(mesh.material) ? mesh.material.length : 1;
+      });
+      variants++;
     }
     this._stats = { triangles, draws, variants };
   }
