@@ -1,5 +1,5 @@
 
-const CURRENT_CACHE = "navora-world-48291-2db448a586fb";
+const CURRENT_CACHE = "navora-world-48291-76147d18ff00";
 const CACHE_PREFIX = "navora-world-";
 self.addEventListener("install", () => self.skipWaiting());
 self.addEventListener("activate", event => event.waitUntil((async () => {

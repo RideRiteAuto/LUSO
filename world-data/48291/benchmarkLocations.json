@@ -1,0 +1,115 @@
+{
+  "schemaVersion": 1,
+  "goldenSeed": 48291,
+  "defaultLocationId": "alvora_starter_beach_spawn",
+  "locations": [
+    {
+      "id": "alvora_starter_beach_spawn",
+      "label": "Alvora Starter Beach",
+      "kind": "spawn",
+      "continent": "valora",
+      "zoneId": "alvora",
+      "positionUv": [
+        0.892473,
+        0.442815
+      ],
+      "lookAtUv": [
+        0.880743,
+        0.462366
+      ],
+      "eyeHeightM": 1.7,
+      "fovDegrees": 55,
+      "notes": "Verified beach-biome cell at 2.76 m elevation with open ocean one default-resolution cell to the northeast; faces inland toward coastal woodland."
+    },
+    {
+      "id": "alvora_beach_overlook",
+      "label": "Alvora Beach Overlook",
+      "kind": "viewpoint",
+      "continent": "valora",
+      "zoneId": "alvora",
+      "positionUv": [
+        0.893451,
+        0.477028
+      ],
+      "lookAtUv": [
+        0.892473,
+        0.442815
+      ],
+      "eyeHeightM": 1.7,
+      "fovDegrees": 55,
+      "notes": "Woodland rise roughly 2.2 km from the starter beach, looking back toward the coastal approach."
+    },
+    {
+      "id": "alvora_forest_edge",
+      "label": "Alvora Forest Edge",
+      "kind": "viewpoint",
+      "continent": "valora",
+      "zoneId": "alvora",
+      "positionUv": [
+        0.880743,
+        0.462366
+      ],
+      "lookAtUv": [
+        0.829912,
+        0.442815
+      ],
+      "eyeHeightM": 1.7,
+      "fovDegrees": 55,
+      "notes": "Verified temperate-woodland cell at the inland edge of the starter coastal corridor."
+    },
+    {
+      "id": "alvora_river_crossing",
+      "label": "Alvora Corridor River Crossing",
+      "kind": "viewpoint",
+      "continent": "valora",
+      "zoneId": "valedouro",
+      "positionUv": [
+        0.758553,
+        0.814272
+      ],
+      "lookAtUv": [
+        0.760508,
+        0.814272
+      ],
+      "eyeHeightM": 1.7,
+      "fovDegrees": 55,
+      "notes": "Nearest actual generated river on the Alvora-Valedouro validation corridor. No traced river currently reaches Alvora itself; retain this checkpoint for the later hydrology pass."
+    },
+    {
+      "id": "alvora_mountain_vista",
+      "label": "Alvora Mountain Vista",
+      "kind": "viewpoint",
+      "continent": "valora",
+      "zoneId": "alvora",
+      "positionUv": [
+        0.829912,
+        0.442815
+      ],
+      "lookAtUv": [
+        0.136852,
+        0.28739
+      ],
+      "eyeHeightM": 1.7,
+      "fovDegrees": 55,
+      "notes": "Low Alvora woodland viewpoint aimed toward the golden world's western Corvento high point for long-distance relief review."
+    },
+    {
+      "id": "alvora_coastal_waterline",
+      "label": "Alvora Coastal Waterline",
+      "kind": "viewpoint",
+      "continent": "valora",
+      "zoneId": "alvora",
+      "positionUv": [
+        0.904203,
+        0.454545
+      ],
+      "lookAtUv": [
+        0.94,
+        0.43
+      ],
+      "eyeHeightM": 1.7,
+      "fovDegrees": 55,
+      "notes": "Verified low beach cell facing seaward for coastline, water transition, and horizon comparisons."
+    }
+  ]
+}
