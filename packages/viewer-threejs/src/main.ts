@@ -20,6 +20,7 @@ import { TouchControls } from "./touchControls.js";
 const params = new URLSearchParams(location.search);
 const seed = Number(params.get("seed") ?? 48291);
 const streamTourRequested = params.get("streamTour") === "1";
+const autoResourceReview = params.get("review") === "resources";
 const requestedRenderer = params.get("renderer") === "webgl" ? "webgl" : "auto";
 const requestedQuality = params.get("quality");
 const suppliedReviewCamera = {
@@ -85,7 +86,8 @@ const renderer = new THREE.WebGPURenderer({
 renderer.setSize(window.innerWidth, window.innerHeight);
 let renderPixelRatio = Math.min(window.devicePixelRatio, quality.pixelRatioCap);
 renderer.setPixelRatio(renderPixelRatio);
-renderer.shadowMap.enabled = false;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 app.appendChild(renderer.domElement);
 
 type RendererBackend = { isWebGPUBackend?: boolean; compatibilityMode?: boolean };
@@ -133,6 +135,16 @@ const hemi = new THREE.HemisphereLight(0xbcd4ff, 0x1a2a1a, 0.9);
 scene.add(hemi);
 const sun = new THREE.DirectionalLight(0xfff2d8, 1.6);
 sun.position.set(-16000, 24000, 8000);
+sun.castShadow = true;
+sun.shadow.mapSize.set(qualityName === "high" ? 2048 : qualityName === "balanced" ? 1536 : 1024, qualityName === "high" ? 2048 : qualityName === "balanced" ? 1536 : 1024);
+sun.shadow.camera.left = -520;
+sun.shadow.camera.right = 520;
+sun.shadow.camera.top = 520;
+sun.shadow.camera.bottom = -520;
+sun.shadow.camera.near = 500;
+sun.shadow.camera.far = 42_000;
+sun.shadow.bias = -0.00008;
+sun.shadow.normalBias = 0.035;
 scene.add(sun);
 
 window.addEventListener("resize", () => {
@@ -365,6 +377,8 @@ async function boot() {
   // Reproducible visual-defect camera. This keeps user-supplied screenshot
   // coordinates and viewing angles stable across hot reloads/regeneration so
   // fixes are judged from the failing view rather than a flattering preset.
+  if (autoResourceReview) resourceReview.click();
+
   if (hasSuppliedReviewCamera && flight) {
     controls.enabled = false;
     flying = true;

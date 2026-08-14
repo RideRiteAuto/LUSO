@@ -413,7 +413,7 @@ function resolveBasins(
       (cell % width) / (width - 1), Math.floor(cell / width) / (fieldHeight - 1),
     ]));
     const expansionUv = isShallowPool ? SCENIC_RIVER_RULES.poolExpansionM / continentTileSize : 0;
-    const polygon = roundedExpandedPolygon(rawPolygon, expansionUv);
+    const polygon = roundedExpandedPolygon(rawPolygon, expansionUv, 14 / continentTileSize);
     const outlet: Vec2 = [(outletIndex % width) / (width - 1), Math.floor(outletIndex / width) / (fieldHeight - 1)];
     basins.push({
       cells: wetCells,
@@ -616,7 +616,7 @@ function distanceToPolygonBoundary(x: number, y: number, polygon: Vec2[]): numbe
   return nearest;
 }
 
-function roundedExpandedPolygon(polygon: Vec2[], expansionUv: number): Vec2[] {
+function roundedExpandedPolygon(polygon: Vec2[], expansionUv: number, organicEdgeUv: number): Vec2[] {
   if (polygon.length < 3) return polygon;
   const center: Vec2 = [polygon.reduce((sum, p) => sum + p[0], 0) / polygon.length, polygon.reduce((sum, p) => sum + p[1], 0) / polygon.length];
   let points = polygon.map((point, index) => {
@@ -638,6 +638,19 @@ function roundedExpandedPolygon(polygon: Vec2[], expansionUv: number): Vec2[] {
     }
     points = rounded;
   }
+  // Raster basins can contain a kilometre-long run of collinear cells. Extra
+  // subdivision alone cannot curve that run: Chaikin faithfully preserves a
+  // straight line. Apply a slow, deterministic radial displacement after
+  // rounding so the compiled shore, terrain carve, renderer, and water query
+  // all share the same natural-looking boundary. The two wavelengths are
+  // hundreds of metres long; this is shoreline shape, not saw-tooth noise.
+  points = points.map((point, index) => {
+    const dx = point[0] - center[0], dy = point[1] - center[1];
+    const length = Math.max(1e-6, Math.hypot(dx, dy));
+    const phase = center[0] * 37.1 + center[1] * 53.7;
+    const organic = Math.sin(index * 0.083 + phase) * 0.68 + Math.sin(index * 0.031 - phase * 1.7) * 0.32;
+    return [point[0] + dx / length * organicEdgeUv * organic, point[1] + dy / length * organicEdgeUv * organic] as Vec2;
+  });
   return points.map(([x, y]) => [Math.max(0, Math.min(1, x)), Math.max(0, Math.min(1, y))]);
 }
 
@@ -1053,7 +1066,7 @@ export function generateWaterData(height: HeightField, riverIdPrefix: string, co
         if (lobe.length < SCENIC_RIVER_RULES.minPondCells) continue;
         const traced = traceBasinShoreline(lobe, width, fieldHeight);
         if (traced.length < 3) continue;
-        const polygon = roundedExpandedPolygon(traced, 0);
+        const polygon = roundedExpandedPolygon(traced, 0, 12 / continentTileSize);
         let deepest = spill;
         for (const wet of lobe) deepest = Math.min(deepest, data[wet]);
         for (const wet of lobe) lakeCellMask[wet] = 1;
