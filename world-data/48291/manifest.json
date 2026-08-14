@@ -1,7 +1,7 @@
 {
   "seed": 48291,
   "generatorVersion": "0.4.0",
-  "generatedAt": "2026-08-13T19:05:54.818Z",
+  "generatedAt": "2026-08-14T00:10:25.401Z",
   "worldScale": {
     "continentTileSize": 65536,
     "heightmapResolution": 1024
@@ -19,17 +19,17 @@
     },
     "seradia": {
       "worldOffset": [
-        131072,
+        95536,
         0
       ]
     }
   },
   "worldHeightmap": {
-    "width": 3584,
+    "width": 3029,
     "height": 1536,
     "bounds": {
       "minX": -16384,
-      "maxX": 212992,
+      "maxX": 177456,
       "minZ": -16384,
       "maxZ": 81920
     }

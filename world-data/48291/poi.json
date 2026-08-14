@@ -31,8 +31,8 @@
       "type": "maritime",
       "reason": "Coastal district: coastal access and fishing grounds",
       "position": [
-        0.8142717497556208,
-        0.436950146627566
+        0.8181818181818182,
+        0.4340175953079179
       ],
       "zoneId": "alvora"
     },
@@ -163,7 +163,7 @@
       "type": "merchant",
       "reason": "Harbor-edge merchant district: protected water access + trade route intersection",
       "position": [
-        0.7135874877810362,
+        0.7282502443792767,
         0.25513196480938416
       ],
       "zoneId": "cavora"
@@ -187,8 +187,8 @@
       "type": "settlement",
       "reason": "generic placement pending design pass (docs/03 §6)",
       "position": [
-        0.44868035190615835,
-        0.3812316715542522
+        0.45356793743890517,
+        0.38220918866080156
       ],
       "zoneId": "azurama"
     },
@@ -199,8 +199,8 @@
       "type": "settlement",
       "reason": "generic placement pending design pass (docs/03 §6)",
       "position": [
-        0.23558162267839688,
-        0.6666666666666666
+        0.2209188660801564,
+        0.6324535679374389
       ],
       "zoneId": "montemoura"
     },
@@ -211,8 +211,8 @@
       "type": "settlement",
       "reason": "generic placement pending design pass (docs/03 §6)",
       "position": [
-        0.17008797653958943,
-        0.27956989247311825
+        0.2013685239491691,
+        0.24731182795698925
       ],
       "zoneId": "corvento"
     },
@@ -223,8 +223,8 @@
       "type": "settlement",
       "reason": "generic placement pending design pass (docs/03 §6)",
       "position": [
-        0.09775171065493646,
-        0.46236559139784944
+        0.09481915933528837,
+        0.43792766373411535
       ],
       "zoneId": "lumevara"
     },
@@ -260,7 +260,7 @@
       "reason": "Riverfront district: protected water access + trade route intersection",
       "position": [
         0.11143695014662756,
-        0.43010752688172044
+        0.4359726295210166
       ],
       "zoneId": "fonteira"
     },
@@ -391,8 +391,8 @@
       "type": "merchant",
       "reason": "Upland merchant district: protected water access + trade route intersection",
       "position": [
-        0.11900000000000001,
-        0.75
+        0.13098729227761485,
+        0.7497556207233627
       ],
       "zoneId": "solmara"
     },
@@ -403,8 +403,8 @@
       "type": "merchant",
       "reason": "Estuary waterfront district: protected water access + trade route intersection",
       "position": [
-        0.20821114369501467,
-        0.6520039100684262
+        0.21407624633431085,
+        0.6588465298142717
       ],
       "zoneId": "solmara"
     },
@@ -415,8 +415,8 @@
       "type": "settlement",
       "reason": "generic placement pending design pass (docs/03 §6)",
       "position": [
-        0.541544477028348,
-        0.23264907135874877
+        0.5141739980449658,
+        0.30303030303030304
       ],
       "zoneId": "vidrala"
     },
@@ -427,8 +427,8 @@
       "type": "settlement",
       "reason": "generic placement pending design pass (docs/03 §6)",
       "position": [
-        0.6510263929618768,
-        0.5161290322580645
+        0.656891495601173,
+        0.5083088954056696
       ],
       "zoneId": "altavera"
     },
@@ -439,8 +439,8 @@
       "type": "settlement",
       "reason": "generic placement pending design pass (docs/03 §6)",
       "position": [
-        0.6871945259042033,
-        0.7605083088954057
+        0.7761485826001955,
+        0.6852394916911045
       ],
       "zoneId": "fendoura"
     },
@@ -451,8 +451,8 @@
       "type": "settlement",
       "reason": "generic placement pending design pass (docs/03 §6)",
       "position": [
-        0.782991202346041,
-        0.2991202346041056
+        0.8563049853372434,
+        0.4291300097751711
       ],
       "zoneId": "lumeira"
     }
