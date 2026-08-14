@@ -1,5 +1,5 @@
 import * as THREE from "three/webgpu";
-import { attribute, cameraPosition, color, float, Fn, mix, mx_noise_float, normalWorld, positionLocal, positionWorld, sin, smoothstep, time, vec3 } from "three/tsl";
+import { attribute, cameraPosition, color, float, mix, mx_noise_float, normalMap, normalWorld, positionWorld, sin, smoothstep, texture, time, vec2 } from "three/tsl";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import { sampleWorldHeight } from "./terrain.js";
 import { uvToWorld } from "./layout.js";
@@ -63,6 +63,32 @@ export const OCEAN_RENDER_EXTENT_M = 600_000;
 /** Above the complete ocean wave envelope, an elevated reach takes over.
  * Below this elevation the global ocean itself fills the carved estuary. */
 export const OCEAN_RIVER_HANDOFF_M = 1.35;
+
+function buildWaterNormalTexture(size = 128): THREE.DataTexture {
+  const heights = new Float32Array(size * size);
+  const at = (x: number, y: number): number => heights[((y % size + size) % size) * size + ((x % size + size) % size)];
+  for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
+    heights[y * size + x] = Math.sin(x * 0.31 + y * 0.11) * 0.46
+      + Math.sin(x * -0.13 + y * 0.37) * 0.31
+      + Math.sin(x * 0.71 + y * -0.53) * 0.12;
+  }
+  const pixels = new Uint8Array(size * size * 4);
+  for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
+    const dx = at(x + 1, y) - at(x - 1, y), dz = at(x, y + 1) - at(x, y - 1);
+    const normal = new THREE.Vector3(-dx * 0.72, 1, -dz * 0.72).normalize();
+    const offset = (y * size + x) * 4;
+    pixels[offset] = Math.round((normal.x * 0.5 + 0.5) * 255);
+    pixels[offset + 1] = Math.round((normal.z * 0.5 + 0.5) * 255);
+    pixels[offset + 2] = Math.round((normal.y * 0.5 + 0.5) * 255);
+    pixels[offset + 3] = 255;
+  }
+  const result = new THREE.DataTexture(pixels, size, size, THREE.RGBAFormat);
+  result.wrapS = result.wrapT = THREE.RepeatWrapping;
+  result.colorSpace = THREE.NoColorSpace;
+  result.needsUpdate = true;
+  result.name = "navora-layered-water-normal";
+  return result;
+}
 
 // A compact, deterministic deep-water spectrum. Rendering and gameplay use
 // the same coefficients so a hull pontoon, swimmer, fish, and visible crest
@@ -247,6 +273,7 @@ export class NavoraWaterSystem {
   private readonly lakeMesh: THREE.Mesh | null;
   private readonly reviewCraft: THREE.Group | null;
   private readonly reviewCraftSegment: RiverSegment | null;
+  private readonly waterNormalTexture: THREE.DataTexture;
   private elapsed = 0;
 
   constructor(private readonly world: WorldData, quality: "high" | "balanced" | "compatibility", _sunDirection: THREE.Vector3) {
@@ -270,6 +297,7 @@ export class NavoraWaterSystem {
     // attributes select ocean swell versus downstream reach motion, allowing
     // elevated river surfaces without creating a second kind of water.
     const waterMaterial = new THREE.MeshPhysicalNodeMaterial();
+    this.waterNormalTexture = buildWaterNormalTexture(quality === "compatibility" ? 64 : 128);
     const oceanMacro = mx_noise_float(positionWorld.xz.mul(0.00018)).mul(0.5).add(0.5);
     const oceanColor = mix(color(0x052b3d), color(0x0b5368), oceanMacro.mul(0.42));
     const waterMode = smoothstep(0, 1, attribute("waterMode", "float"));
@@ -281,28 +309,22 @@ export class NavoraWaterSystem {
     const reachPulse = sin(flowPhase).mul(0.5).add(0.5);
     const reachColor = mix(color(0x073646), color(0x17677a), reachMacro.mul(0.25).add(reachPulse.mul(0.07)));
     waterMaterial.colorNode = mix(mix(oceanColor, reachColor, movingReach), color(0x7894a5), waterFresnel.mul(0.5));
-    waterMaterial.roughnessNode = mix(float(quality === "compatibility" ? 0.30 : 0.20), float(0.15), movingReach);
-    waterMaterial.metalnessNode = float(0.02);
-    waterMaterial.positionNode = Fn(() => {
-      const point = positionLocal.toVar();
-      const oceanSwell = sin(time.mul(0.92)).mul(0.22);
-      const reachRipple = sin(flowPhase).mul(0.075).add(sin(flowPhase.mul(0.53).add(positionWorld.x.mul(0.009))).mul(0.035));
-      return point.add(vec3(0, mix(oceanSwell, reachRipple, movingReach), 0));
-    })();
-    // River mouths overlap the receiving ocean by design. Alpha-sorting two
-    // moving transparent surfaces exposes triangle order as dark shards, so
-    // the shared deep-water surface is depth-stable and opaque. Shallows are
-    // communicated by the carved bed/material boundary rather than a second
-    // composited sheet.
-    waterMaterial.transparent = false;
-    waterMaterial.opacity = 1;
+    waterMaterial.roughnessNode = mix(float(quality === "compatibility" ? 0.22 : 0.12), float(0.18), movingReach);
+    waterMaterial.metalnessNode = float(0);
+    const normalUv = positionWorld.xz.mul(0.032).add(vec2(time.mul(0.018), time.mul(-0.011)));
+    waterMaterial.normalNode = normalMap(texture(this.waterNormalTexture, normalUv), vec2(quality === "compatibility" ? 0.28 : 0.42));
+    // Geometry remains at its authored level. Moving normal detail produces
+    // ripples and sun highlights without making the shoreline breathe over
+    // land or exposing the polygon boundary every few seconds.
+    waterMaterial.transparent = true;
+    waterMaterial.opacity = quality === "compatibility" ? 0.74 : 0.68;
     waterMaterial.depthWrite = true;
     waterMaterial.side = THREE.DoubleSide;
     waterMaterial.ior = 1.333;
-    waterMaterial.transmission = 0;
-    waterMaterial.thickness = 0;
-    waterMaterial.clearcoat = 0.72;
-    waterMaterial.clearcoatRoughness = 0.12;
+    waterMaterial.transmission = quality === "compatibility" ? 0 : 0.08;
+    waterMaterial.thickness = 0.45;
+    waterMaterial.clearcoat = 0.94;
+    waterMaterial.clearcoatRoughness = 0.07;
     this.waterMaterial = waterMaterial;
     // Same node graph and optical constants, separate raster state: reaches
     // are drawn after the global ocean and receive a small depth bias where
@@ -312,6 +334,7 @@ export class NavoraWaterSystem {
     reachMaterial.polygonOffsetFactor = -2;
     reachMaterial.polygonOffsetUnits = -2;
     this.reachMaterial = reachMaterial;
+    this.reachMaterial.opacity = quality === "compatibility" ? 0.70 : 0.64;
     this.ocean = new THREE.Mesh(oceanGeometry, waterMaterial);
     this.ocean.name = "camera-relative-gerstner-ocean";
     this.ocean.renderOrder = 1;
@@ -492,6 +515,7 @@ export class NavoraWaterSystem {
     if (this.lakeMesh) this.lakeMesh.geometry.dispose();
     this.waterMaterial.dispose();
     this.reachMaterial.dispose();
+    this.waterNormalTexture.dispose();
     this.reviewCraft?.traverse((child) => {
       if (!(child instanceof THREE.Mesh)) return;
       child.geometry.dispose();

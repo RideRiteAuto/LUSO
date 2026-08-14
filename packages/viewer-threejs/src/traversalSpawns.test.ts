@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { buildTraversalBookmarks, findSafeTraversalPoint, findZoneShoreBookmark } from "./traversalSpawns.js";
+import { buildTraversalBookmarks, findSafeReviewYardPoint, findSafeTraversalPoint, findZoneShoreBookmark } from "./traversalSpawns.js";
 
 test("safe traversal selection rejects water and steep terrain", () => {
   const sample = (x: number, z: number) => x < 50 ? -2 : 12 + Math.sin(z * 0.001);
@@ -22,6 +22,21 @@ test("resource review yard is deterministic and adjacent to Alvora", () => {
   assert.deepEqual(first, second);
   assert.ok(review.label.includes("Resource Review Yard"));
   assert.ok(Math.hypot(review.x - alvora.x, review.z - alvora.z) < 500);
+});
+
+test("resource review yard keeps the house footprint flat and every exhibit sample out of water", () => {
+  const sample = (x: number, z: number) => {
+    const houseArea = x > 115 && x < 155 && z > -5 && z < 35;
+    return houseArea ? 12 + (x - 135) * 0.02 : 18;
+  };
+  const isWater = (x: number, z: number) => x < 90 || (z < -55 && x < 170);
+  const point = findSafeReviewYardPoint(sample, isWater, 100, 100, 700);
+  for (let z = -92; z <= 8; z += 10) for (let x = -36; x <= 46; x += 10) {
+    assert.equal(isWater(point.x + x, point.z + z), false, `wet review sample at ${x},${z}`);
+    assert.ok(sample(point.x + x, point.z + z) >= 5, `submerged review sample at ${x},${z}`);
+  }
+  const houseHeights = [-10, 0, 10].flatMap((x) => [-90, -80, -70].map((z) => sample(point.x + x, point.z + z)));
+  assert.ok(Math.max(...houseHeights) - Math.min(...houseHeights) <= 1.35);
 });
 
 test("shore bookmark selects low, flat, compiler-authored zone coastline", () => {

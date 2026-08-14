@@ -1,4 +1,6 @@
 import * as THREE from "three/webgpu";
+import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import { color, float, mix, mx_noise_float, positionLocal, vec3 } from "three/tsl";
 import { buildResourceModel, disposeResourceModel, loadResourceTextureSources, type ResourceFamilyId } from "./resourceModels.js";
 
 interface YardAnchor { x: number; z: number }
@@ -21,6 +23,35 @@ export interface ResourceReviewStats {
   draws: number;
 }
 
+function houseSurfaceMaterial(surface: string): THREE.MeshStandardNodeMaterial {
+  const material = new THREE.MeshStandardNodeMaterial();
+  material.name = `house-003-${surface}-procedural`;
+  const broad = mx_noise_float(positionLocal.mul(0.38)).mul(0.5).add(0.5);
+  if (surface === "metal") {
+    const forged = mx_noise_float(positionLocal.mul(7.5)).mul(0.5).add(0.5);
+    material.colorNode = mix(color(0x202629), color(0x4a5051), forged.mul(0.34).add(broad.mul(0.12)));
+    material.roughnessNode = mix(float(0.34), float(0.58), forged);
+    material.metalnessNode = float(0.82);
+  } else if (surface === "wall") {
+    const plaster = mx_noise_float(positionLocal.mul(vec3(1.8, 2.4, 1.8))).mul(0.5).add(0.5);
+    material.colorNode = mix(color(0x6c4a2e), color(0xb08b5d), plaster.mul(0.42).add(broad.mul(0.18)));
+    material.roughnessNode = mix(float(0.84), float(0.98), plaster);
+    material.metalnessNode = float(0);
+  } else if (surface === "roof") {
+    const shakes = mx_noise_float(positionLocal.mul(vec3(3.2, 0.7, 3.2))).mul(0.5).add(0.5);
+    material.colorNode = mix(color(0x241d19), color(0x554438), shakes.mul(0.48).add(broad.mul(0.12)));
+    material.roughnessNode = mix(float(0.82), float(0.98), shakes);
+    material.metalnessNode = float(0);
+  } else {
+    const grain = mx_noise_float(positionLocal.mul(vec3(0.65, 7.8, 0.65))).mul(0.5).add(0.5);
+    const pores = mx_noise_float(positionLocal.mul(vec3(3.6, 18, 3.6))).mul(0.5).add(0.5);
+    material.colorNode = mix(color(0x2f1b11), color(0x765039), grain.mul(0.55).add(pores.mul(0.12)).add(broad.mul(0.12)));
+    material.roughnessNode = mix(float(0.68), float(0.92), pores);
+    material.metalnessNode = float(0);
+  }
+  return material;
+}
+
 /**
  * Fixed starter-resource review arrangement. It is intentionally authored rather than
  * procedurally scattered so scale, silhouettes, and family differences are
@@ -33,7 +64,10 @@ export class ResourceReviewYard {
   private anchor: YardAnchor = { x: 0, z: 0 };
   private _stats: ResourceReviewStats = { variants: 0, triangles: 0, draws: 0 };
 
-  private constructor(private readonly sampleGround: (x: number, z: number) => number) {
+  private constructor(
+    private readonly sampleGround: (x: number, z: number) => number,
+    private readonly housePreview: THREE.Group | null,
+  ) {
     this.group.name = "alvora-resource-review-yard";
     this.group.visible = false;
     this.build();
@@ -41,7 +75,26 @@ export class ResourceReviewYard {
 
   static async create(sampleGround: (x: number, z: number) => number): Promise<ResourceReviewYard> {
     await loadResourceTextureSources();
-    return new ResourceReviewYard(sampleGround);
+    let housePreview: THREE.Group | null = null;
+    if (typeof document !== "undefined") {
+      try {
+        const gltf = await new GLTFLoader().loadAsync(new URL("assets/review/house-003.glb", document.baseURI).href);
+        housePreview = gltf.scene;
+        housePreview.traverse((object) => {
+          if (!(object as THREE.Mesh).isMesh) return;
+          const mesh = object as THREE.Mesh;
+          const surface = String(mesh.userData.surface ?? mesh.name.replace("house-003-", ""));
+          const oldMaterials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+          mesh.material = houseSurfaceMaterial(surface);
+          oldMaterials.forEach((material) => material.dispose());
+          mesh.castShadow = true;
+          mesh.receiveShadow = true;
+        });
+      } catch (error) {
+        console.warn("House 003 review model was unavailable; continuing with resource families only.", error);
+      }
+    }
+    return new ResourceReviewYard(sampleGround, housePreview);
   }
 
   setAnchor(anchor: YardAnchor): void {
@@ -87,6 +140,29 @@ export class ResourceReviewYard {
         triangles += model.info.triangles; draws += model.info.materials; variants++;
       }
     }
+    if (this.housePreview) {
+      this.housePreview.name = "house-003-review";
+      this.housePreview.position.set(0, 0, -80);
+      this.housePreview.rotation.y = Math.PI * 0.08;
+      this.housePreview.userData.reviewLabel = "CGTrader house 003 — reconstructed PBR material preview";
+      this.group.add(this.housePreview);
+      this.models.push(this.housePreview);
+      this.housePreview.traverse((object) => {
+        if (!(object as THREE.Mesh).isMesh) return;
+        const mesh = object as THREE.Mesh;
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
+        triangles += mesh.geometry.index ? mesh.geometry.index.count / 3 : mesh.geometry.attributes.position.count / 3;
+        draws += Array.isArray(mesh.material) ? mesh.material.length : 1;
+      });
+      variants++;
+    }
+    this.group.traverse((object) => {
+      if (!(object as THREE.Mesh).isMesh) return;
+      const mesh = object as THREE.Mesh;
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+    });
     this._stats = { triangles, draws, variants };
   }
 

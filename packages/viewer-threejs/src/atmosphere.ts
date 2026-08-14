@@ -1,5 +1,5 @@
 import * as THREE from "three/webgpu";
-import { color, exponentialHeightFogFactor, fog, rangeFogFactor } from "three/tsl";
+import { color, exponentialHeightFogFactor, float, fog, mix, positionWorldDirection, rangeFogFactor, smoothstep, vec3 } from "three/tsl";
 
 export type ViewMode = "ground" | "flight" | "overview";
 export type AtmosphereQuality = "high" | "balanced" | "compatibility";
@@ -20,6 +20,13 @@ export class NavoraAtmosphere {
     private readonly quality: AtmosphereQuality = "balanced",
   ) {
     scene.background = FOG_COLOR.clone().multiplyScalar(0.72);
+    const skyHeight = smoothstep(float(-0.08), float(0.82), positionWorldDirection.y);
+    const horizonBand = smoothstep(float(-0.04), float(0.16), positionWorldDirection.y);
+    const baseSky = mix(color(0xb9c7c8), color(0x527da0), skyHeight);
+    const warmHorizon = mix(color(0xd8b78e), baseSky, horizonBand);
+    const sunDirection = vec3(-0.5345, 0.8018, 0.2673).normalize();
+    const sunHalo = smoothstep(float(0.965), float(0.9995), positionWorldDirection.dot(sunDirection));
+    scene.backgroundNode = mix(warmHorizon, color(0xffe5b1), sunHalo.mul(float(0.82)));
     const distance = rangeFogFactor(6500, 22000);
     const lowHaze = exponentialHeightFogFactor(0.000004, 90);
     scene.fogNode = fog(color(FOG_COLOR), distance.max(lowHaze.mul(0.72)));

@@ -56,7 +56,16 @@ cpSync(dist, staging, { recursive: true });
 // The built entry becomes viewer.html; index.html is the preloader shell.
 cpSync(path.join(staging, "index.html"), path.join(staging, "viewer.html"));
 rmSync(path.join(staging, "index.html"));
-cpSync(output, path.join(staging, "world-data", seed), { recursive: true });
+const stagedWorld = path.join(staging, "world-data", seed);
+mkdirSync(stagedWorld, { recursive: true });
+// output/<seed> can also contain local scale-comparison bakes. They are useful
+// production evidence, not viewer runtime dependencies, and preloading them
+// would silently add roughly 100 MB to every Pages visit. Publish only the
+// current seed contract at the directory root.
+for (const entry of readdirSync(output, { withFileTypes: true })) {
+  if (!entry.isFile()) continue;
+  cpSync(path.join(output, entry.name), path.join(stagedWorld, entry.name));
+}
 writeFileSync(path.join(staging, ".nojekyll"), "");
 
 // Carry the preloader and service worker across from the published branch:

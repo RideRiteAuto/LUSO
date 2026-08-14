@@ -49,6 +49,62 @@ export function findSafeTraversalPoint(
   return best ? { x: best.x, z: best.z } : { x: centerX, z: centerZ };
 }
 
+// The review exhibit extends well behind its teleport anchor: the imported
+// house is centered 80 m forward and has a roughly 19 m square footprint.
+// Validate the whole exhibit, not only the player's arrival point, whenever a
+// new compiler pass reshapes Alvora.
+const REVIEW_YARD_OFFSETS = (() => {
+  const offsets: Array<{ x: number; z: number }> = [];
+  for (let z = -92; z <= 8; z += 10) {
+    for (let x = -36; x <= 46; x += 10) offsets.push({ x, z });
+  }
+  return offsets;
+})();
+
+const REVIEW_HOUSE_OFFSETS = [
+  { x: -10, z: -90 }, { x: 0, z: -90 }, { x: 10, z: -90 },
+  { x: -10, z: -80 }, { x: 0, z: -80 }, { x: 10, z: -80 },
+  { x: -10, z: -70 }, { x: 0, z: -70 }, { x: 10, z: -70 },
+];
+
+export function findSafeReviewYardPoint(
+  sampleHeight: (x: number, z: number) => number,
+  isWater: (x: number, z: number) => boolean,
+  centerX: number,
+  centerZ: number,
+  searchRadius = 2400,
+): { x: number; z: number } {
+  let best: { x: number; z: number; score: number } | null = null;
+  const goldenAngle = Math.PI * (3 - Math.sqrt(5));
+  for (let i = 0; i < 1800; i++) {
+    const radius = searchRadius * Math.sqrt(i / 1799);
+    if (best && radius > best.score) break;
+    const angle = i * goldenAngle;
+    const x = centerX + Math.cos(angle) * radius;
+    const z = centerZ + Math.sin(angle) * radius;
+    let wet = false;
+    let minHeight = Number.POSITIVE_INFINITY;
+    let maxHeight = Number.NEGATIVE_INFINITY;
+    for (const offset of REVIEW_YARD_OFFSETS) {
+      const sampleX = x + offset.x, sampleZ = z + offset.z;
+      const height = sampleHeight(sampleX, sampleZ);
+      if (height < 5 || isWater(sampleX, sampleZ)) { wet = true; break; }
+      minHeight = Math.min(minHeight, height);
+      maxHeight = Math.max(maxHeight, height);
+    }
+    if (wet) continue;
+    const houseHeights = REVIEW_HOUSE_OFFSETS.map((offset) => sampleHeight(x + offset.x, z + offset.z));
+    const houseRelief = Math.max(...houseHeights) - Math.min(...houseHeights);
+    if (houseRelief > 1.35) continue;
+    const arrivalSlope = slopeDegrees(sampleHeight, x, z);
+    if (arrivalSlope > 10) continue;
+    const score = radius + houseRelief * 260 + arrivalSlope * 22 + (maxHeight - minHeight) * 2;
+    if (!best || score < best.score) best = { x, z, score };
+  }
+  if (!best) throw new Error("No fully dry, flat Alvora resource-review footprint was found");
+  return { x: best.x, z: best.z };
+}
+
 export function findZoneShoreBookmark(world: WorldData, zoneId: string): TraversalBookmark | null {
   const zone = world.zones.find((candidate) => candidate.id === zoneId);
   const continent = zone ? world.continents?.[zone.continent] : null;
@@ -97,7 +153,11 @@ export function findZoneShoreBookmark(world: WorldData, zoneId: string): Travers
   };
 }
 
-export function buildTraversalBookmarks(world: WorldData, sampleHeight: (x: number, z: number) => number): TraversalBookmark[] {
+export function buildTraversalBookmarks(
+  world: WorldData,
+  sampleHeight: (x: number, z: number) => number,
+  isWater: (x: number, z: number) => boolean = () => false,
+): TraversalBookmark[] {
   const preferred = ["alvora", "valedouro", "serravela", "cavora", "solmara"];
   const bookmarks: TraversalBookmark[] = [];
   for (const id of preferred) {
@@ -150,7 +210,7 @@ export function buildTraversalBookmarks(world: WorldData, sampleHeight: (x: numb
   }
   const alvora = bookmarks.find((bookmark) => bookmark.id === "alvora");
   if (alvora) {
-    const review = findSafeTraversalPoint(sampleHeight, alvora.x + 180, alvora.z + 120, 240);
+    const review = findSafeReviewYardPoint(sampleHeight, isWater, alvora.x + 180, alvora.z + 120);
     bookmarks.push({
       id: "alvora-resource-review",
       label: "Alvora — Resource Review Yard",
