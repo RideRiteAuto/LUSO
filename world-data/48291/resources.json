@@ -34,7 +34,7 @@
         },
         {
           "position": [
-            0.8963831867057673,
+            0.8973607038123167,
             0.6529814271749755
           ],
           "zoneId": "alvora",
@@ -43,7 +43,7 @@
         },
         {
           "position": [
-            0.8758553274682307,
+            0.8768328445747801,
             0.520039100684262
           ],
           "zoneId": "alvora",
@@ -52,29 +52,29 @@
         },
         {
           "position": [
-            0.8778103616813294,
+            0.8787878787878788,
             0.5542521994134897
           ],
           "zoneId": "alvora",
-          "elevationM": 38,
+          "elevationM": 30,
           "density": "medium"
         },
         {
           "position": [
-            0.8729227761485826,
+            0.873900293255132,
             0.5034213098729228
           ],
           "zoneId": "alvora",
-          "elevationM": 7,
+          "elevationM": 6,
           "density": "medium"
         },
         {
           "position": [
-            0.8543499511241447,
+            0.855327468230694,
             0.45161290322580644
           ],
           "zoneId": "alvora",
-          "elevationM": 49,
+          "elevationM": 60,
           "density": "medium"
         },
         {
@@ -88,20 +88,20 @@
         },
         {
           "position": [
-            0.8220918866080157,
+            0.823069403714565,
             0.45943304007820135
           ],
           "zoneId": "alvora",
-          "elevationM": 88,
+          "elevationM": 80,
           "density": "medium"
         },
         {
           "position": [
-            0.7653958944281525,
+            0.7663734115347018,
             0.6207233626588465
           ],
           "zoneId": "alvora",
-          "elevationM": 249,
+          "elevationM": 251,
           "density": "medium"
         },
         {
@@ -115,11 +115,11 @@
         },
         {
           "position": [
-            0.7927663734115347,
+            0.793743890518084,
             0.6070381231671554
           ],
           "zoneId": "alvora",
-          "elevationM": 67,
+          "elevationM": 91,
           "density": "medium"
         },
         {
@@ -160,11 +160,11 @@
         },
         {
           "position": [
-            0.6373411534701857,
+            0.6383186705767351,
             0.5141739980449658
           ],
           "zoneId": "valedouro",
-          "elevationM": 315,
+          "elevationM": 338,
           "density": "medium"
         },
         {
@@ -196,47 +196,47 @@
         },
         {
           "position": [
-            0.6520039100684262,
+            0.6510263929618768,
             0.4682306940371456
           ],
           "zoneId": "valedouro",
-          "elevationM": 260,
+          "elevationM": 282,
           "density": "medium"
         },
         {
           "position": [
-            0.6363636363636364,
+            0.635386119257087,
             0.41642228739002934
           ],
           "zoneId": "valedouro",
-          "elevationM": 299,
+          "elevationM": 298,
           "density": "medium"
         },
         {
           "position": [
-            0.5689149560117303,
-            0.47116324535679377
+            0.7272727272727273,
+            0.4701857282502444
           ],
           "zoneId": "valedouro",
-          "elevationM": 500,
+          "elevationM": 288,
           "density": "medium"
         },
         {
           "position": [
-            0.6901270772238515,
+            0.6891495601173021,
             0.4780058651026393
           ],
           "zoneId": "valedouro",
-          "elevationM": 286,
+          "elevationM": 310,
           "density": "medium"
         },
         {
           "position": [
-            0.6764418377321603,
+            0.6774193548387096,
             0.5591397849462365
           ],
           "zoneId": "valedouro",
-          "elevationM": 462,
+          "elevationM": 460,
           "density": "medium"
         },
         {
@@ -250,11 +250,11 @@
         },
         {
           "position": [
-            0.5630498533724341,
+            0.5640273704789834,
             0.48289345063538613
           ],
           "zoneId": "valedouro",
-          "elevationM": 379,
+          "elevationM": 378,
           "density": "medium"
         }
       ]
@@ -275,7 +275,7 @@
         },
         {
           "position": [
-            0.7947214076246334,
+            0.7956989247311828,
             0.5982404692082112
           ],
           "zoneId": "alvora",
@@ -284,11 +284,11 @@
         },
         {
           "position": [
-            0.7673509286412512,
+            0.7683284457478006,
             0.5767350928641252
           ],
           "zoneId": "alvora",
-          "elevationM": 135,
+          "elevationM": 132,
           "density": "dense"
         },
         {
@@ -302,20 +302,20 @@
         },
         {
           "position": [
-            0.8260019550342131,
+            0.8269794721407625,
             0.5777126099706745
           ],
           "zoneId": "alvora",
-          "elevationM": 79,
+          "elevationM": 67,
           "density": "dense"
         },
         {
           "position": [
-            0.8729227761485826,
+            0.873900293255132,
             0.44868035190615835
           ],
           "zoneId": "alvora",
-          "elevationM": 1,
+          "elevationM": 15,
           "density": "dense"
         },
         {
@@ -329,29 +329,29 @@
         },
         {
           "position": [
-            0.8035190615835777,
+            0.804496578690127,
             0.6001955034213099
           ],
           "zoneId": "alvora",
-          "elevationM": 153,
+          "elevationM": 147,
           "density": "dense"
         },
         {
           "position": [
-            0.8748778103616813,
+            0.8758553274682307,
             0.5171065493646139
           ],
           "zoneId": "alvora",
-          "elevationM": 113,
+          "elevationM": 117,
           "density": "dense"
         },
         {
           "position": [
-            0.8602150537634409,
+            0.8611925708699902,
             0.5992179863147605
           ],
           "zoneId": "alvora",
-          "elevationM": 67,
+          "elevationM": 74,
           "density": "dense"
         },
         {
@@ -365,29 +365,29 @@
         },
         {
           "position": [
-            0.895405669599218,
+            0.8963831867057673,
             0.520039100684262
           ],
           "zoneId": "alvora",
-          "elevationM": 113,
+          "elevationM": 100,
           "density": "dense"
         },
         {
           "position": [
-            0.8475073313782991,
+            0.8484848484848485,
             0.6520039100684262
           ],
           "zoneId": "alvora",
-          "elevationM": 65,
+          "elevationM": 66,
           "density": "dense"
         },
         {
           "position": [
-            0.7996089931573802,
+            0.8005865102639296,
             0.5405669599217986
           ],
           "zoneId": "alvora",
-          "elevationM": 165,
+          "elevationM": 163,
           "density": "dense"
         },
         {
@@ -464,11 +464,11 @@
         },
         {
           "position": [
-            0.8670576735092864,
+            0.8680351906158358,
             0.5640273704789834
           ],
           "zoneId": "alvora",
-          "elevationM": 40,
+          "elevationM": 41,
           "density": "dense"
         },
         {
@@ -482,11 +482,11 @@
         },
         {
           "position": [
-            0.782991202346041,
+            0.7820136852394917,
             0.49364613880742914
           ],
           "zoneId": "alvora",
-          "elevationM": 107,
+          "elevationM": 126,
           "density": "dense"
         },
         {
@@ -648,7 +648,7 @@
             0.40860215053763443
           ],
           "zoneId": "valedouro",
-          "elevationM": 187,
+          "elevationM": 191,
           "density": "dense"
         },
         {
@@ -657,7 +657,7 @@
             0.38220918866080156
           ],
           "zoneId": "valedouro",
-          "elevationM": 271,
+          "elevationM": 270,
           "density": "dense"
         },
         {
@@ -720,7 +720,7 @@
             0.5024437927663734
           ],
           "zoneId": "valedouro",
-          "elevationM": 347,
+          "elevationM": 345,
           "density": "dense"
         },
         {
@@ -819,7 +819,7 @@
             0.512218963831867
           ],
           "zoneId": "serravela",
-          "elevationM": 456,
+          "elevationM": 457,
           "density": "dense"
         },
         {
@@ -975,56 +975,56 @@
       "instances": [
         {
           "position": [
-            0.7693059628543499,
+            0.7683284457478006,
             0.48289345063538613
           ],
           "zoneId": "alvora",
-          "elevationM": 158,
+          "elevationM": 160,
           "density": "medium"
         },
         {
           "position": [
-            0.8054740957966764,
+            0.8035190615835777,
             0.5513196480938416
           ],
           "zoneId": "alvora",
-          "elevationM": 180,
+          "elevationM": 185,
           "density": "medium"
         },
         {
           "position": [
-            0.7732160312805474,
+            0.772238514173998,
             0.5141739980449658
           ],
           "zoneId": "alvora",
-          "elevationM": 105,
+          "elevationM": 106,
           "density": "medium"
         },
         {
           "position": [
-            0.7908113391984359,
+            0.7898338220918866,
             0.46236559139784944
           ],
           "zoneId": "alvora",
-          "elevationM": 97,
+          "elevationM": 106,
           "density": "medium"
         },
         {
           "position": [
-            0.7331378299120235,
+            0.7321603128054741,
             0.47116324535679377
           ],
           "zoneId": "alvora",
-          "elevationM": 221,
+          "elevationM": 232,
           "density": "medium"
         },
         {
           "position": [
-            0.8611925708699902,
+            0.8582600195503421,
             0.5982404692082112
           ],
           "zoneId": "alvora",
-          "elevationM": 63,
+          "elevationM": 53,
           "density": "medium"
         },
         {
@@ -1038,7 +1038,7 @@
         },
         {
           "position": [
-            0.8406647116324536,
+            0.8396871945259042,
             0.6275659824046921
           ],
           "zoneId": "alvora",
@@ -1047,65 +1047,65 @@
         },
         {
           "position": [
-            0.7526881720430108,
-            0.5542521994134897
+            0.8768328445747801,
+            0.5532746823069403
           ],
           "zoneId": "alvora",
-          "elevationM": 335,
+          "elevationM": 59,
           "density": "medium"
         },
         {
           "position": [
-            0.8172043010752689,
+            0.8142717497556208,
             0.6060606060606061
           ],
           "zoneId": "alvora",
-          "elevationM": 81,
-          "density": "medium"
-        },
-        {
-          "position": [
-            0.8269794721407625,
-            0.5083088954056696
-          ],
-          "zoneId": "alvora",
-          "elevationM": 82,
-          "density": "medium"
-        },
-        {
-          "position": [
-            0.7800586510263929,
-            0.40860215053763443
-          ],
-          "zoneId": "alvora",
-          "elevationM": 174,
+          "elevationM": 91,
           "density": "medium"
         },
         {
           "position": [
             0.8260019550342131,
+            0.5083088954056696
+          ],
+          "zoneId": "alvora",
+          "elevationM": 75,
+          "density": "medium"
+        },
+        {
+          "position": [
+            0.7790811339198436,
+            0.40860215053763443
+          ],
+          "zoneId": "alvora",
+          "elevationM": 165,
+          "density": "medium"
+        },
+        {
+          "position": [
+            0.8240469208211144,
             0.6041055718475073
           ],
           "zoneId": "alvora",
-          "elevationM": 61,
+          "elevationM": 65,
           "density": "medium"
         },
         {
           "position": [
-            0.8211143695014663,
+            0.8191593352883676,
             0.6021505376344086
           ],
           "zoneId": "alvora",
-          "elevationM": 85,
+          "elevationM": 95,
           "density": "medium"
         },
         {
           "position": [
-            0.7262952101661779,
+            0.7380254154447703,
             0.5738025415444771
           ],
           "zoneId": "valedouro",
-          "elevationM": 554,
+          "elevationM": 480,
           "density": "medium"
         },
         {
@@ -1119,70 +1119,70 @@
         },
         {
           "position": [
-            0.7370478983382209,
+            0.7458455522971652,
             0.5347018572825024
           ],
           "zoneId": "valedouro",
-          "elevationM": 472,
+          "elevationM": 373,
           "density": "medium"
         },
         {
           "position": [
-            0.6344086021505376,
+            0.6383186705767351,
             0.45356793743890517
           ],
           "zoneId": "valedouro",
-          "elevationM": 431,
+          "elevationM": 357,
           "density": "medium"
         },
         {
           "position": [
-            0.729227761485826,
+            0.7370478983382209,
             0.5024437927663734
           ],
           "zoneId": "valedouro",
-          "elevationM": 358,
+          "elevationM": 243,
           "density": "medium"
         },
         {
           "position": [
-            0.6813294232649071,
+            0.6959921798631477,
             0.6539589442815249
           ],
           "zoneId": "valedouro",
-          "elevationM": 133,
+          "elevationM": 214,
           "density": "medium"
         },
         {
           "position": [
-            0.7067448680351907,
+            0.7096774193548387,
             0.44868035190615835
           ],
           "zoneId": "valedouro",
-          "elevationM": 285,
+          "elevationM": 317,
           "density": "medium"
         },
         {
           "position": [
-            0.6989247311827957,
+            0.7106549364613881,
             0.5806451612903226
           ],
           "zoneId": "valedouro",
-          "elevationM": 535,
+          "elevationM": 438,
           "density": "medium"
         },
         {
           "position": [
-            0.6158357771260997,
+            0.624633431085044,
             0.5171065493646139
           ],
           "zoneId": "valedouro",
-          "elevationM": 386,
+          "elevationM": 380,
           "density": "medium"
         },
         {
           "position": [
-            0.6999022482893451,
+            0.7028347996089932,
             0.4447702834799609
           ],
           "zoneId": "valedouro",
@@ -1191,38 +1191,38 @@
         },
         {
           "position": [
-            0.6334310850439883,
+            0.6402737047898338,
             0.48191593352883677
           ],
           "zoneId": "valedouro",
-          "elevationM": 384,
+          "elevationM": 398,
           "density": "medium"
         },
         {
           "position": [
-            0.6412512218963832,
+            0.6549364613880743,
             0.64613880742913
           ],
           "zoneId": "valedouro",
-          "elevationM": 472,
+          "elevationM": 374,
           "density": "medium"
         },
         {
           "position": [
-            0.6891495601173021,
+            0.6959921798631477,
             0.4701857282502444
           ],
           "zoneId": "valedouro",
-          "elevationM": 400,
+          "elevationM": 433,
           "density": "medium"
         },
         {
           "position": [
-            0.6295210166177908,
+            0.6324535679374389,
             0.4389051808406647
           ],
           "zoneId": "valedouro",
-          "elevationM": 420,
+          "elevationM": 371,
           "density": "medium"
         }
       ]
@@ -1234,29 +1234,29 @@
       "instances": [
         {
           "position": [
-            0.5738025415444771,
+            0.5659824046920822,
             0.3782991202346041
           ],
           "zoneId": "valedouro",
-          "elevationM": 494,
+          "elevationM": 540,
           "density": "medium"
         },
         {
           "position": [
-            0.6832844574780058,
+            0.6715542521994134,
             0.501466275659824
           ],
           "zoneId": "valedouro",
-          "elevationM": 448,
+          "elevationM": 388,
           "density": "medium"
         },
         {
           "position": [
-            0.7360703812316716,
+            0.7243401759530792,
             0.4995112414467253
           ],
           "zoneId": "valedouro",
-          "elevationM": 272,
+          "elevationM": 324,
           "density": "medium"
         },
         {
@@ -1270,92 +1270,92 @@
         },
         {
           "position": [
-            0.6803519061583577,
+            0.6744868035190615,
             0.592375366568915
           ],
           "zoneId": "valedouro",
-          "elevationM": 378,
+          "elevationM": 372,
           "density": "medium"
         },
         {
           "position": [
-            0.6950146627565983,
+            0.6920821114369502,
             0.6373411534701857
           ],
           "zoneId": "valedouro",
-          "elevationM": 369,
+          "elevationM": 385,
           "density": "medium"
         },
         {
           "position": [
-            0.5806451612903226,
+            0.5620723362658846,
             0.4203323558162268
           ],
           "zoneId": "valedouro",
-          "elevationM": 447,
+          "elevationM": 269,
           "density": "medium"
         },
         {
           "position": [
-            0.6314760508308895,
+            0.6217008797653959,
             0.5562072336265884
           ],
           "zoneId": "valedouro",
-          "elevationM": 451,
+          "elevationM": 531,
           "density": "medium"
         },
         {
           "position": [
-            0.7155425219941349,
+            0.7135874877810362,
             0.6412512218963832
           ],
           "zoneId": "valedouro",
-          "elevationM": 305,
+          "elevationM": 306,
           "density": "medium"
         },
         {
           "position": [
-            0.6236559139784946,
+            0.6187683284457478,
             0.6021505376344086
           ],
           "zoneId": "valedouro",
-          "elevationM": 472,
+          "elevationM": 566,
           "density": "medium"
         },
         {
           "position": [
-            0.7165200391006843,
+            0.7145650048875856,
             0.6480938416422287
           ],
           "zoneId": "valedouro",
-          "elevationM": 258,
+          "elevationM": 255,
           "density": "medium"
         },
         {
           "position": [
-            0.6529814271749755,
+            0.6441837732160313,
             0.5591397849462365
           ],
           "zoneId": "valedouro",
-          "elevationM": 488,
+          "elevationM": 439,
           "density": "medium"
         },
         {
           "position": [
-            0.6695992179863147,
+            0.6617790811339198,
             0.570869990224829
           ],
           "zoneId": "valedouro",
-          "elevationM": 505,
+          "elevationM": 435,
           "density": "medium"
         },
         {
           "position": [
-            0.7341153470185728,
+            0.7262952101661779,
             0.5757575757575758
           ],
           "zoneId": "valedouro",
-          "elevationM": 454,
+          "elevationM": 522,
           "density": "medium"
         },
         {
@@ -1563,11 +1563,11 @@
         },
         {
           "position": [
-            0.8396871945259042,
+            0.8387096774193549,
             0.4613880742913001
           ],
           "zoneId": "alvora",
-          "elevationM": 70,
+          "elevationM": 78,
           "density": "dense"
         },
         {
@@ -1581,11 +1581,11 @@
         },
         {
           "position": [
-            0.9090909090909091,
+            0.9110459433040078,
             0.6314760508308895
           ],
           "zoneId": "alvora",
-          "elevationM": 28,
+          "elevationM": 19,
           "density": "dense"
         },
         {
@@ -1617,11 +1617,11 @@
         },
         {
           "position": [
-            0.8885630498533724,
+            0.8905180840664711,
             0.4965786901270772
           ],
           "zoneId": "alvora",
-          "elevationM": 50,
+          "elevationM": 64,
           "density": "dense"
         },
         {
@@ -1644,38 +1644,38 @@
         },
         {
           "position": [
-            0.8357771260997068,
+            0.8367546432062561,
             0.6539589442815249
           ],
           "zoneId": "alvora",
-          "elevationM": 37,
+          "elevationM": 38,
           "density": "dense"
         },
         {
           "position": [
-            0.8670576735092864,
+            0.8680351906158358,
             0.6177908113391984
           ],
           "zoneId": "alvora",
-          "elevationM": 22,
+          "elevationM": 36,
           "density": "dense"
         },
         {
           "position": [
-            0.7536656891495601,
+            0.7546432062561095,
             0.5356793743890518
           ],
           "zoneId": "alvora",
-          "elevationM": 298,
+          "elevationM": 286,
           "density": "dense"
         },
         {
           "position": [
-            0.8406647116324536,
+            0.8396871945259042,
             0.4555229716520039
           ],
           "zoneId": "alvora",
-          "elevationM": 101,
+          "elevationM": 104,
           "density": "dense"
         },
         {
@@ -1698,11 +1698,11 @@
         },
         {
           "position": [
-            0.7116324535679375,
+            0.7106549364613881,
             0.4203323558162268
           ],
           "zoneId": "alvora",
-          "elevationM": 214,
+          "elevationM": 237,
           "density": "dense"
         },
         {
@@ -1716,11 +1716,11 @@
         },
         {
           "position": [
-            0.8709677419354839,
+            0.8719452590420332,
             0.5102639296187683
           ],
           "zoneId": "alvora",
-          "elevationM": 132,
+          "elevationM": 145,
           "density": "dense"
         },
         {
@@ -1734,11 +1734,11 @@
         },
         {
           "position": [
-            0.8035190615835777,
+            0.804496578690127,
             0.5601173020527859
           ],
           "zoneId": "alvora",
-          "elevationM": 142,
+          "elevationM": 137,
           "density": "dense"
         },
         {
@@ -1752,11 +1752,11 @@
         },
         {
           "position": [
-            0.8211143695014663,
+            0.8240469208211144,
             0.6295210166177908
           ],
           "zoneId": "alvora",
-          "elevationM": 72,
+          "elevationM": 70,
           "density": "dense"
         },
         {
@@ -1779,44 +1779,62 @@
         },
         {
           "position": [
-            0.7282502443792767,
+            0.7272727272727273,
             0.43304007820136853
           ],
           "zoneId": "alvora",
-          "elevationM": 164,
+          "elevationM": 159,
           "density": "dense"
         },
         {
           "position": [
-            0.6803519061583577,
+            0.678396871945259,
             0.6744868035190615
           ],
           "zoneId": "valedouro",
-          "elevationM": 53,
+          "elevationM": 15,
           "density": "dense"
         },
         {
           "position": [
-            0.7194525904203324,
+            0.718475073313783,
             0.6813294232649071
           ],
           "zoneId": "valedouro",
-          "elevationM": 34,
+          "elevationM": 36,
           "density": "dense"
         },
         {
           "position": [
-            0.6705767350928641,
+            0.6686217008797654,
             0.6754643206256109
           ],
           "zoneId": "valedouro",
-          "elevationM": 74,
+          "elevationM": 70,
           "density": "dense"
         },
         {
           "position": [
-            0.6793743890518084,
+            0.678396871945259,
             0.6764418377321603
+          ],
+          "zoneId": "valedouro",
+          "elevationM": 22,
+          "density": "dense"
+        },
+        {
+          "position": [
+            0.5210166177908113,
+            0.4506353861192571
+          ],
+          "zoneId": "valedouro",
+          "elevationM": 962,
+          "density": "dense"
+        },
+        {
+          "position": [
+            0.7057673509286413,
+            0.6862170087976539
           ],
           "zoneId": "valedouro",
           "elevationM": 28,
@@ -1824,56 +1842,38 @@
         },
         {
           "position": [
-            0.512218963831867,
-            0.45161290322580644
-          ],
-          "zoneId": "valedouro",
-          "elevationM": 937,
-          "density": "dense"
-        },
-        {
-          "position": [
-            0.7067448680351907,
-            0.6862170087976539
-          ],
-          "zoneId": "valedouro",
-          "elevationM": 31,
-          "density": "dense"
-        },
-        {
-          "position": [
-            0.6803519061583577,
+            0.6774193548387096,
             0.6637341153470185
           ],
           "zoneId": "valedouro",
-          "elevationM": 40,
+          "elevationM": 57,
           "density": "dense"
         },
         {
           "position": [
-            0.6119257086999023,
+            0.5386119257086999,
             0.39100684261974583
           ],
           "zoneId": "valedouro",
-          "elevationM": 84,
+          "elevationM": 904,
           "density": "dense"
         },
         {
           "position": [
-            0.7605083088954057,
+            0.7585532746823069,
             0.6637341153470185
           ],
           "zoneId": "valedouro",
-          "elevationM": 29,
+          "elevationM": 32,
           "density": "dense"
         },
         {
           "position": [
-            0.6813294232649071,
+            0.678396871945259,
             0.6647116324535679
           ],
           "zoneId": "valedouro",
-          "elevationM": 45,
+          "elevationM": 48,
           "density": "dense"
         },
         {
@@ -1882,70 +1882,70 @@
             0.375366568914956
           ],
           "zoneId": "valedouro",
-          "elevationM": 94,
+          "elevationM": 95,
           "density": "dense"
         },
         {
           "position": [
-            0.6168132942326491,
+            0.5933528836754643,
             0.3919843597262952
           ],
           "zoneId": "valedouro",
-          "elevationM": 83,
+          "elevationM": 99,
           "density": "dense"
         },
         {
           "position": [
-            0.7478005865102639,
+            0.7458455522971652,
             0.6637341153470185
           ],
           "zoneId": "valedouro",
-          "elevationM": 56,
+          "elevationM": 60,
           "density": "dense"
         },
         {
           "position": [
-            0.5141739980449658,
+            0.5043988269794721,
             0.4868035190615836
           ],
           "zoneId": "valedouro",
-          "elevationM": 946,
+          "elevationM": 1080,
           "density": "dense"
         },
         {
           "position": [
-            0.7605083088954057,
+            0.7556207233626588,
             0.6588465298142717
           ],
           "zoneId": "valedouro",
-          "elevationM": 77,
+          "elevationM": 76,
           "density": "dense"
         },
         {
           "position": [
-            0.6823069403714564,
+            0.6813294232649071,
             0.6891495601173021
           ],
           "zoneId": "valedouro",
-          "elevationM": 40,
+          "elevationM": 44,
           "density": "dense"
         },
         {
           "position": [
-            0.613880742913001,
+            0.6089931573802542,
             0.39100684261974583
           ],
           "zoneId": "valedouro",
-          "elevationM": 83,
+          "elevationM": 98,
           "density": "dense"
         },
         {
           "position": [
-            0.6950146627565983,
+            0.6901270772238515,
             0.6608015640273704
           ],
           "zoneId": "valedouro",
-          "elevationM": 45,
+          "elevationM": 33,
           "density": "dense"
         },
         {
@@ -1959,11 +1959,11 @@
         },
         {
           "position": [
-            0.7624633431085044,
+            0.7605083088954057,
             0.6647116324535679
           ],
           "zoneId": "valedouro",
-          "elevationM": 18,
+          "elevationM": 24,
           "density": "dense"
         },
         {
@@ -1977,20 +1977,20 @@
         },
         {
           "position": [
-            0.5405669599217986,
-            0.5474095796676441
+            0.5434995112414467,
+            0.5425219941348973
           ],
           "zoneId": "valedouro",
-          "elevationM": 968,
+          "elevationM": 900,
           "density": "dense"
         },
         {
           "position": [
-            0.7116324535679375,
+            0.7106549364613881,
             0.6754643206256109
           ],
           "zoneId": "valedouro",
-          "elevationM": 75,
+          "elevationM": 82,
           "density": "dense"
         },
         {
@@ -2004,20 +2004,20 @@
         },
         {
           "position": [
-            0.7086999022482894,
+            0.70772238514174,
             0.6735092864125122
           ],
           "zoneId": "valedouro",
-          "elevationM": 96,
+          "elevationM": 93,
           "density": "dense"
         },
         {
           "position": [
-            0.7018572825024438,
+            0.7008797653958945,
             0.6793743890518084
           ],
           "zoneId": "valedouro",
-          "elevationM": 51,
+          "elevationM": 46,
           "density": "dense"
         }
       ]
@@ -2029,43 +2029,43 @@
       "instances": [
         {
           "position": [
-            0.7741935483870968,
+            0.7751710654936461,
             0.6226783968719453
           ],
           "zoneId": "alvora",
-          "elevationM": 252,
+          "elevationM": 240,
           "density": "medium"
         },
         {
           "position": [
-            0.820136852394917,
+            0.8220918866080157,
             0.5171065493646139
           ],
           "zoneId": "alvora",
-          "elevationM": 134,
+          "elevationM": 118,
           "density": "medium"
         },
         {
           "position": [
-            0.7478005865102639,
+            0.7497556207233627,
             0.5102639296187683
           ],
           "zoneId": "alvora",
-          "elevationM": 223,
+          "elevationM": 199,
           "density": "medium"
         },
         {
           "position": [
-            0.8944281524926686,
+            0.8934506353861192,
             0.4868035190615836
           ],
           "zoneId": "alvora",
-          "elevationM": 79,
+          "elevationM": 78,
           "density": "medium"
         },
         {
           "position": [
-            0.8093841642228738,
+            0.8113391984359726,
             0.5259042033235581
           ],
           "zoneId": "alvora",
@@ -2083,38 +2083,38 @@
         },
         {
           "position": [
-            0.7839687194525904,
+            0.7849462365591398,
             0.5796676441837733
           ],
           "zoneId": "alvora",
-          "elevationM": 189,
+          "elevationM": 191,
           "density": "medium"
         },
         {
           "position": [
-            0.7585532746823069,
+            0.7575757575757576,
             0.42717497556207235
           ],
           "zoneId": "alvora",
-          "elevationM": 176,
+          "elevationM": 167,
           "density": "medium"
         },
         {
           "position": [
-            0.7712609970674487,
+            0.772238514173998,
             0.6168132942326491
           ],
           "zoneId": "alvora",
-          "elevationM": 263,
+          "elevationM": 251,
           "density": "medium"
         },
         {
           "position": [
-            0.8054740957966764,
+            0.8074291300097751,
             0.5904203323558163
           ],
           "zoneId": "alvora",
-          "elevationM": 86,
+          "elevationM": 89,
           "density": "medium"
         },
         {
@@ -2128,16 +2128,16 @@
         },
         {
           "position": [
-            0.7624633431085044,
+            0.7644183773216031,
             0.6080156402737048
           ],
           "zoneId": "alvora",
-          "elevationM": 164,
+          "elevationM": 131,
           "density": "medium"
         },
         {
           "position": [
-            0.7956989247311828,
+            0.7966764418377321,
             0.5767350928641252
           ],
           "zoneId": "alvora",
@@ -2146,38 +2146,38 @@
         },
         {
           "position": [
-            0.8181818181818182,
+            0.820136852394917,
             0.5689149560117303
           ],
           "zoneId": "alvora",
-          "elevationM": 146,
+          "elevationM": 165,
           "density": "medium"
         },
         {
           "position": [
-            0.6197458455522972,
+            0.6119257086999023,
             0.43304007820136853
           ],
           "zoneId": "valedouro",
-          "elevationM": 441,
+          "elevationM": 489,
           "density": "medium"
         },
         {
           "position": [
-            0.7106549364613881,
+            0.7028347996089932,
             0.43010752688172044
           ],
           "zoneId": "valedouro",
-          "elevationM": 355,
+          "elevationM": 353,
           "density": "medium"
         },
         {
           "position": [
-            0.6197458455522972,
+            0.5933528836754643,
             0.447702834799609
           ],
           "zoneId": "valedouro",
-          "elevationM": 475,
+          "elevationM": 409,
           "density": "medium"
         },
         {
@@ -2191,11 +2191,11 @@
         },
         {
           "position": [
-            0.6539589442815249,
+            0.656891495601173,
             0.6656891495601173
           ],
           "zoneId": "valedouro",
-          "elevationM": 186,
+          "elevationM": 188,
           "density": "medium"
         },
         {
@@ -2209,11 +2209,11 @@
         },
         {
           "position": [
-            0.6070381231671554,
+            0.6050830889540567,
             0.5376344086021505
           ],
           "zoneId": "valedouro",
-          "elevationM": 415,
+          "elevationM": 421,
           "density": "medium"
         },
         {
@@ -2227,38 +2227,38 @@
         },
         {
           "position": [
-            0.592375366568915,
+            0.5933528836754643,
             0.49853372434017595
           ],
           "zoneId": "valedouro",
-          "elevationM": 380,
+          "elevationM": 385,
           "density": "medium"
         },
         {
           "position": [
-            0.7478005865102639,
+            0.7536656891495601,
             0.6324535679374389
           ],
           "zoneId": "valedouro",
-          "elevationM": 395,
+          "elevationM": 235,
           "density": "medium"
         },
         {
           "position": [
-            0.7311827956989247,
+            0.739980449657869,
             0.64613880742913
           ],
           "zoneId": "valedouro",
-          "elevationM": 274,
+          "elevationM": 301,
           "density": "medium"
         },
         {
           "position": [
-            0.6637341153470185,
+            0.6627565982404692,
             0.49266862170087977
           ],
           "zoneId": "valedouro",
-          "elevationM": 366,
+          "elevationM": 392,
           "density": "medium"
         },
         {
@@ -2272,11 +2272,11 @@
         },
         {
           "position": [
-            0.7018572825024438,
+            0.6940371456500489,
             0.4046920821114369
           ],
           "zoneId": "valedouro",
-          "elevationM": 202,
+          "elevationM": 333,
           "density": "medium"
         }
       ]
@@ -2288,29 +2288,29 @@
       "instances": [
         {
           "position": [
-            0.6725317693059628,
+            0.6666666666666666,
             0.3919843597262952
           ],
           "zoneId": "valedouro",
-          "elevationM": 430,
+          "elevationM": 352,
           "density": "medium"
         },
         {
           "position": [
-            0.6637341153470185,
+            0.6647116324535679,
             0.6129032258064516
           ],
           "zoneId": "valedouro",
-          "elevationM": 316,
+          "elevationM": 318,
           "density": "medium"
         },
         {
           "position": [
-            0.5640273704789834,
-            0.4232649071358749
+            0.7096774193548387,
+            0.4222873900293255
           ],
           "zoneId": "valedouro",
-          "elevationM": 242,
+          "elevationM": 291,
           "density": "medium"
         },
         {
@@ -2324,20 +2324,20 @@
         },
         {
           "position": [
-            0.6764418377321603,
+            0.678396871945259,
             0.6177908113391984
           ],
           "zoneId": "valedouro",
-          "elevationM": 293,
+          "elevationM": 307,
           "density": "medium"
         },
         {
           "position": [
-            0.6392961876832844,
+            0.6373411534701857,
             0.5043988269794721
           ],
           "zoneId": "valedouro",
-          "elevationM": 361,
+          "elevationM": 347,
           "density": "medium"
         },
         {
@@ -2351,7 +2351,7 @@
         },
         {
           "position": [
-            0.6285434995112414,
+            0.6295210166177908,
             0.49266862170087977
           ],
           "zoneId": "valedouro",
@@ -2360,20 +2360,20 @@
         },
         {
           "position": [
-            0.6285434995112414,
+            0.6304985337243402,
             0.5259042033235581
           ],
           "zoneId": "valedouro",
-          "elevationM": 411,
+          "elevationM": 376,
           "density": "medium"
         },
         {
           "position": [
-            0.5259042033235581,
+            0.5249266862170088,
             0.5063538611925709
           ],
           "zoneId": "valedouro",
-          "elevationM": 946,
+          "elevationM": 949,
           "density": "medium"
         },
         {
@@ -2387,20 +2387,20 @@
         },
         {
           "position": [
-            0.6891495601173021,
+            0.6901270772238515,
             0.6119257086999023
           ],
           "zoneId": "valedouro",
-          "elevationM": 334,
+          "elevationM": 327,
           "density": "medium"
         },
         {
           "position": [
-            0.6520039100684262,
+            0.64613880742913,
             0.396871945259042
           ],
           "zoneId": "valedouro",
-          "elevationM": 355,
+          "elevationM": 322,
           "density": "medium"
         },
         {
@@ -2432,11 +2432,11 @@
         },
         {
           "position": [
-            0.45161290322580644,
+            0.4525904203323558,
             0.5366568914956011
           ],
           "zoneId": "serravela",
-          "elevationM": 1068,
+          "elevationM": 1021,
           "density": "medium"
         },
         {
@@ -2450,29 +2450,29 @@
         },
         {
           "position": [
-            0.40175953079178883,
+            0.4056695992179863,
             0.5542521994134897
           ],
           "zoneId": "serravela",
-          "elevationM": 1038,
+          "elevationM": 1111,
           "density": "medium"
         },
         {
           "position": [
-            0.3675464320625611,
+            0.36852394916911047,
             0.6608015640273704
           ],
           "zoneId": "serravela",
-          "elevationM": 675,
+          "elevationM": 926,
           "density": "medium"
         },
         {
           "position": [
-            0.581622678396872,
-            0.6109481915933529
+            0.4232649071358749,
+            0.6119257086999023
           ],
           "zoneId": "serravela",
-          "elevationM": 997,
+          "elevationM": 1178,
           "density": "medium"
         },
         {
@@ -2486,11 +2486,11 @@
         },
         {
           "position": [
-            0.41055718475073316,
+            0.4115347018572825,
             0.5425219941348973
           ],
           "zoneId": "serravela",
-          "elevationM": 927,
+          "elevationM": 909,
           "density": "medium"
         },
         {
@@ -2504,29 +2504,29 @@
         },
         {
           "position": [
-            0.48778103616813295,
+            0.4887585532746823,
             0.5542521994134897
           ],
           "zoneId": "serravela",
-          "elevationM": 1139,
+          "elevationM": 1146,
           "density": "medium"
         },
         {
           "position": [
-            0.49364613880742914,
+            0.4946236559139785,
             0.5219941348973607
           ],
           "zoneId": "serravela",
-          "elevationM": 992,
+          "elevationM": 995,
           "density": "medium"
         },
         {
           "position": [
-            0.3919843597262952,
+            0.39296187683284456,
             0.5610948191593352
           ],
           "zoneId": "serravela",
-          "elevationM": 983,
+          "elevationM": 968,
           "density": "medium"
         },
         {
@@ -2556,11 +2556,11 @@
         },
         {
           "position": [
-            0.6999022482893451,
+            0.6930596285434996,
             0.44086021505376344
           ],
           "zoneId": "valedouro",
-          "elevationM": 273,
+          "elevationM": 321,
           "density": "sparse"
         },
         {
@@ -2574,29 +2574,29 @@
         },
         {
           "position": [
-            0.6373411534701857,
+            0.6334310850439883,
             0.40175953079178883
           ],
           "zoneId": "valedouro",
-          "elevationM": 331,
+          "elevationM": 314,
           "density": "sparse"
         },
         {
           "position": [
-            0.6441837732160313,
+            0.64613880742913,
             0.6363636363636364
           ],
           "zoneId": "valedouro",
-          "elevationM": 363,
+          "elevationM": 347,
           "density": "sparse"
         },
         {
           "position": [
-            0.6959921798631477,
+            0.6911045943304008,
             0.43304007820136853
           ],
           "zoneId": "valedouro",
-          "elevationM": 347,
+          "elevationM": 358,
           "density": "sparse"
         },
         {
@@ -2671,47 +2671,47 @@
         },
         {
           "position": [
-            0.198435972629521,
+            0.19745845552297164,
             0.44868035190615835
           ],
           "zoneId": "fonteira",
-          "elevationM": 132,
+          "elevationM": 165,
           "density": "medium"
         },
         {
           "position": [
-            0.13098729227761485,
+            0.1300097751710655,
             0.49560117302052786
           ],
           "zoneId": "fonteira",
-          "elevationM": 56,
+          "elevationM": 49,
           "density": "medium"
         },
         {
           "position": [
-            0.1798631476050831,
+            0.17888563049853373,
             0.458455522971652
           ],
           "zoneId": "fonteira",
-          "elevationM": 212,
+          "elevationM": 197,
           "density": "medium"
         },
         {
           "position": [
-            0.08797653958944282,
+            0.08699902248289346,
             0.5865102639296188
           ],
           "zoneId": "fonteira",
-          "elevationM": 21,
+          "elevationM": 31,
           "density": "medium"
         },
         {
           "position": [
-            0.12903225806451613,
+            0.12805474095796676,
             0.2932551319648094
           ],
           "zoneId": "fonteira",
-          "elevationM": 89,
+          "elevationM": 98,
           "density": "medium"
         },
         {
@@ -2725,16 +2725,16 @@
         },
         {
           "position": [
-            0.22971652003910067,
+            0.2287390029325513,
             0.5004887585532747
           ],
           "zoneId": "fonteira",
-          "elevationM": 147,
+          "elevationM": 157,
           "density": "medium"
         },
         {
           "position": [
-            0.030303030303030304,
+            0.02932551319648094,
             0.46236559139784944
           ],
           "zoneId": "fonteira",
@@ -2743,11 +2743,11 @@
         },
         {
           "position": [
-            0.14076246334310852,
+            0.13978494623655913,
             0.5698924731182796
           ],
           "zoneId": "fonteira",
-          "elevationM": 49,
+          "elevationM": 56,
           "density": "medium"
         },
         {
@@ -2761,11 +2761,11 @@
         },
         {
           "position": [
-            0.20430107526881722,
+            0.20234604105571846,
             0.5933528836754643
           ],
           "zoneId": "fonteira",
-          "elevationM": 67,
+          "elevationM": 46,
           "density": "medium"
         },
         {
@@ -2774,16 +2774,16 @@
             0.30498533724340177
           ],
           "zoneId": "fonteira",
-          "elevationM": 66,
+          "elevationM": 65,
           "density": "medium"
         },
         {
           "position": [
-            0.2590420332355816,
+            0.25806451612903225,
             0.5826001955034213
           ],
           "zoneId": "fonteira",
-          "elevationM": 41,
+          "elevationM": 46,
           "density": "medium"
         },
         {
@@ -2930,38 +2930,38 @@
         },
         {
           "position": [
-            0.15640273704789834,
+            0.15542521994134897,
             0.33528836754643204
           ],
           "zoneId": "fonteira",
-          "elevationM": 96,
+          "elevationM": 92,
           "density": "dense"
         },
         {
           "position": [
-            0.15151515151515152,
+            0.15053763440860216,
             0.37145650048875856
           ],
           "zoneId": "fonteira",
-          "elevationM": 6,
+          "elevationM": 4,
           "density": "dense"
         },
         {
           "position": [
-            0.11925708699902249,
+            0.11827956989247312,
             0.45943304007820135
           ],
           "zoneId": "fonteira",
-          "elevationM": 86,
+          "elevationM": 67,
           "density": "dense"
         },
         {
           "position": [
-            0.19257086999022482,
+            0.1906158357771261,
             0.5112414467253177
           ],
           "zoneId": "fonteira",
-          "elevationM": 121,
+          "elevationM": 138,
           "density": "dense"
         },
         {
@@ -2975,47 +2975,47 @@
         },
         {
           "position": [
-            0.1300097751710655,
+            0.12903225806451613,
             0.47116324535679377
           ],
           "zoneId": "fonteira",
-          "elevationM": 103,
+          "elevationM": 94,
           "density": "dense"
         },
         {
           "position": [
-            0.2434017595307918,
+            0.24144672531769307,
             0.5786901270772239
           ],
           "zoneId": "fonteira",
-          "elevationM": 88,
+          "elevationM": 92,
           "density": "dense"
         },
         {
           "position": [
-            0.05767350928641251,
+            0.05571847507331378,
             0.5738025415444771
           ],
           "zoneId": "fonteira",
-          "elevationM": 7,
+          "elevationM": 5,
           "density": "dense"
         },
         {
           "position": [
-            0.10557184750733138,
+            0.10459433040078202,
             0.5650048875855328
           ],
           "zoneId": "fonteira",
-          "elevationM": 67,
+          "elevationM": 65,
           "density": "dense"
         },
         {
           "position": [
-            0.1739980449657869,
+            0.17302052785923755,
             0.23949169110459434
           ],
           "zoneId": "fonteira",
-          "elevationM": 55,
+          "elevationM": 51,
           "density": "dense"
         },
         {
@@ -3047,11 +3047,11 @@
         },
         {
           "position": [
-            0.12805474095796676,
+            0.12609970674486803,
             0.5962854349951124
           ],
           "zoneId": "fonteira",
-          "elevationM": 58,
+          "elevationM": 53,
           "density": "dense"
         },
         {
@@ -3065,34 +3065,34 @@
         },
         {
           "position": [
-            0.18670576735092864,
+            0.18572825024437928,
             0.4046920821114369
           ],
           "zoneId": "fonteira",
-          "elevationM": 35,
+          "elevationM": 29,
           "density": "dense"
         },
         {
           "position": [
-            0.25219941348973607,
+            0.2512218963831867,
             0.5386119257086999
           ],
           "zoneId": "fonteira",
-          "elevationM": 144,
+          "elevationM": 145,
           "density": "dense"
         },
         {
           "position": [
-            0.19550342130987292,
+            0.19452590420332355,
             0.40371456500488756
           ],
           "zoneId": "fonteira",
-          "elevationM": 62,
+          "elevationM": 65,
           "density": "dense"
         },
         {
           "position": [
-            0.187683284457478,
+            0.18670576735092864,
             0.552297165200391
           ],
           "zoneId": "fonteira",
@@ -3101,20 +3101,20 @@
         },
         {
           "position": [
-            0.17204301075268819,
+            0.1710654936461388,
             0.4115347018572825
           ],
           "zoneId": "fonteira",
-          "elevationM": 26,
+          "elevationM": 20,
           "density": "dense"
         },
         {
           "position": [
-            0.2678396871945259,
+            0.26588465298142716,
             0.5874877810361682
           ],
           "zoneId": "fonteira",
-          "elevationM": 43,
+          "elevationM": 35,
           "density": "dense"
         },
         {
@@ -3128,7 +3128,7 @@
         },
         {
           "position": [
-            0.12316715542521994,
+            0.12121212121212122,
             0.5405669599217986
           ],
           "zoneId": "fonteira",
@@ -3137,20 +3137,20 @@
         },
         {
           "position": [
-            0.25024437927663734,
+            0.2482893450635386,
             0.5894428152492669
           ],
           "zoneId": "fonteira",
-          "elevationM": 53,
+          "elevationM": 49,
           "density": "dense"
         },
         {
           "position": [
-            0.19257086999022482,
+            0.19159335288367546,
             0.4809384164222874
           ],
           "zoneId": "fonteira",
-          "elevationM": 149,
+          "elevationM": 150,
           "density": "dense"
         },
         {
@@ -3204,7 +3204,7 @@
             0.386119257086999
           ],
           "zoneId": "riveira",
-          "elevationM": 8,
+          "elevationM": 9,
           "density": "dense"
         },
         {
@@ -3276,7 +3276,7 @@
             0.592375366568915
           ],
           "zoneId": "riveira",
-          "elevationM": 48,
+          "elevationM": 123,
           "density": "dense"
         },
         {
@@ -3630,38 +3630,38 @@
       "instances": [
         {
           "position": [
-            0.2130987292277615,
+            0.21603128054740958,
             0.41837732160312807
           ],
           "zoneId": "fonteira",
-          "elevationM": 110,
+          "elevationM": 93,
           "density": "medium"
         },
         {
           "position": [
-            0.16324535679374388,
+            0.1652003910068426,
             0.2913000977517107
           ],
           "zoneId": "fonteira",
-          "elevationM": 114,
+          "elevationM": 123,
           "density": "medium"
         },
         {
           "position": [
-            0.1906158357771261,
+            0.1935483870967742,
             0.4056695992179863
           ],
           "zoneId": "fonteira",
-          "elevationM": 69,
+          "elevationM": 77,
           "density": "medium"
         },
         {
           "position": [
-            0.14858260019550343,
+            0.16226783968719452,
             0.5581622678396871
           ],
           "zoneId": "fonteira",
-          "elevationM": 68,
+          "elevationM": 59,
           "density": "medium"
         },
         {
@@ -3675,20 +3675,20 @@
         },
         {
           "position": [
-            0.17497556207233628,
+            0.17595307917888564,
             0.2541544477028348
           ],
           "zoneId": "fonteira",
-          "elevationM": 120,
+          "elevationM": 122,
           "density": "medium"
         },
         {
           "position": [
-            0.16226783968719452,
+            0.16422287390029325,
             0.29716520039100686
           ],
           "zoneId": "fonteira",
-          "elevationM": 106,
+          "elevationM": 80,
           "density": "medium"
         },
         {
@@ -3702,35 +3702,17 @@
         },
         {
           "position": [
-            0.2561094819159335,
-            0.5366568914956011
+            0.10654936461388075,
+            0.5376344086021505
           ],
           "zoneId": "fonteira",
-          "elevationM": 87,
+          "elevationM": 77,
           "density": "medium"
         },
         {
           "position": [
-            0.2316715542521994,
-            0.4555229716520039
-          ],
-          "zoneId": "fonteira",
-          "elevationM": 70,
-          "density": "medium"
-        },
-        {
-          "position": [
-            0.1739980449657869,
-            0.5259042033235581
-          ],
-          "zoneId": "fonteira",
-          "elevationM": 100,
-          "density": "medium"
-        },
-        {
-          "position": [
-            0.14467253176930597,
-            0.5806451612903226
+            0.11632453567937438,
+            0.45650048875855326
           ],
           "zoneId": "fonteira",
           "elevationM": 55,
@@ -3738,71 +3720,44 @@
         },
         {
           "position": [
-            0.16226783968719452,
+            0.1798631476050831,
+            0.5259042033235581
+          ],
+          "zoneId": "fonteira",
+          "elevationM": 103,
+          "density": "medium"
+        },
+        {
+          "position": [
+            0.15249266862170088,
+            0.5806451612903226
+          ],
+          "zoneId": "fonteira",
+          "elevationM": 105,
+          "density": "medium"
+        },
+        {
+          "position": [
+            0.16422287390029325,
             0.3196480938416422
           ],
           "zoneId": "fonteira",
-          "elevationM": 94,
+          "elevationM": 102,
           "density": "medium"
         },
         {
           "position": [
-            0.11143695014662756,
+            0.11534701857282502,
             0.5884652981427175
           ],
           "zoneId": "fonteira",
-          "elevationM": 67,
+          "elevationM": 75,
           "density": "medium"
         },
         {
           "position": [
-            0.260019550342131,
+            0.27663734115347016,
             0.3978494623655914
-          ],
-          "zoneId": "riveira",
-          "elevationM": 82,
-          "density": "medium"
-        },
-        {
-          "position": [
-            0.32746823069403713,
-            0.5845552297165201
-          ],
-          "zoneId": "riveira",
-          "elevationM": 66,
-          "density": "medium"
-        },
-        {
-          "position": [
-            0.3919843597262952,
-            0.36363636363636365
-          ],
-          "zoneId": "riveira",
-          "elevationM": 167,
-          "density": "medium"
-        },
-        {
-          "position": [
-            0.34995112414467255,
-            0.49560117302052786
-          ],
-          "zoneId": "riveira",
-          "elevationM": 124,
-          "density": "medium"
-        },
-        {
-          "position": [
-            0.3597262952101662,
-            0.3978494623655914
-          ],
-          "zoneId": "riveira",
-          "elevationM": 175,
-          "density": "medium"
-        },
-        {
-          "position": [
-            0.32942326490713586,
-            0.5591397849462365
           ],
           "zoneId": "riveira",
           "elevationM": 91,
@@ -3810,74 +3765,119 @@
         },
         {
           "position": [
-            0.28934506353861195,
+            0.34017595307917886,
+            0.5845552297165201
+          ],
+          "zoneId": "riveira",
+          "elevationM": 248,
+          "density": "medium"
+        },
+        {
+          "position": [
+            0.3998044965786901,
+            0.36363636363636365
+          ],
+          "zoneId": "riveira",
+          "elevationM": 207,
+          "density": "medium"
+        },
+        {
+          "position": [
+            0.3919843597262952,
+            0.49560117302052786
+          ],
+          "zoneId": "riveira",
+          "elevationM": 65,
+          "density": "medium"
+        },
+        {
+          "position": [
+            0.36852394916911047,
+            0.3978494623655914
+          ],
+          "zoneId": "riveira",
+          "elevationM": 135,
+          "density": "medium"
+        },
+        {
+          "position": [
+            0.3587487781036168,
+            0.5591397849462365
+          ],
+          "zoneId": "riveira",
+          "elevationM": 95,
+          "density": "medium"
+        },
+        {
+          "position": [
+            0.3088954056695992,
             0.5962854349951124
           ],
           "zoneId": "riveira",
-          "elevationM": 94,
+          "elevationM": 136,
           "density": "medium"
         },
         {
           "position": [
-            0.2130987292277615,
+            0.21505376344086022,
             0.20332355816226785
           ],
           "zoneId": "riveira",
-          "elevationM": 131,
+          "elevationM": 128,
           "density": "medium"
         },
         {
           "position": [
-            0.27468230694037143,
+            0.2785923753665689,
             0.2619745845552297
           ],
           "zoneId": "riveira",
-          "elevationM": 124,
+          "elevationM": 102,
           "density": "medium"
         },
         {
           "position": [
-            0.36363636363636365,
+            0.3704789833822092,
             0.33822091886608013
           ],
           "zoneId": "riveira",
-          "elevationM": 79,
+          "elevationM": 212,
           "density": "medium"
         },
         {
           "position": [
-            0.2375366568914956,
+            0.24535679374389052,
             0.3548387096774194
           ],
           "zoneId": "riveira",
-          "elevationM": 176,
+          "elevationM": 157,
           "density": "medium"
         },
         {
           "position": [
-            0.3098729227761486,
+            0.3196480938416422,
             0.5904203323558163
           ],
           "zoneId": "riveira",
-          "elevationM": 164,
+          "elevationM": 120,
           "density": "medium"
         },
         {
           "position": [
-            0.31671554252199413,
+            0.32942326490713586,
             0.5151515151515151
           ],
           "zoneId": "riveira",
-          "elevationM": 105,
+          "elevationM": 112,
           "density": "medium"
         },
         {
           "position": [
-            0.36656891495601174,
+            0.3704789833822092,
             0.2756598240469208
           ],
           "zoneId": "riveira",
-          "elevationM": 224,
+          "elevationM": 211,
           "density": "medium"
         }
       ]
@@ -3889,8 +3889,62 @@
       "instances": [
         {
           "position": [
-            0.3147605083088954,
+            0.32453567937438904,
             0.5161290322580645
+          ],
+          "zoneId": "riveira",
+          "elevationM": 166,
+          "density": "medium"
+        },
+        {
+          "position": [
+            0.3939393939393939,
+            0.36852394916911047
+          ],
+          "zoneId": "riveira",
+          "elevationM": 155,
+          "density": "medium"
+        },
+        {
+          "position": [
+            0.32942326490713586,
+            0.34701857282502446
+          ],
+          "zoneId": "riveira",
+          "elevationM": 190,
+          "density": "medium"
+        },
+        {
+          "position": [
+            0.38514173998044965,
+            0.3255131964809384
+          ],
+          "zoneId": "riveira",
+          "elevationM": 213,
+          "density": "medium"
+        },
+        {
+          "position": [
+            0.2482893450635386,
+            0.3489736070381232
+          ],
+          "zoneId": "riveira",
+          "elevationM": 161,
+          "density": "medium"
+        },
+        {
+          "position": [
+            0.4467253176930596,
+            0.3939393939393939
+          ],
+          "zoneId": "riveira",
+          "elevationM": 252,
+          "density": "medium"
+        },
+        {
+          "position": [
+            0.3548387096774194,
+            0.40860215053763443
           ],
           "zoneId": "riveira",
           "elevationM": 170,
@@ -3898,8 +3952,8 @@
         },
         {
           "position": [
-            0.3704789833822092,
-            0.36852394916911047
+            0.2991202346041056,
+            0.5219941348973607
           ],
           "zoneId": "riveira",
           "elevationM": 202,
@@ -3907,61 +3961,7 @@
         },
         {
           "position": [
-            0.3255131964809384,
-            0.34701857282502446
-          ],
-          "zoneId": "riveira",
-          "elevationM": 179,
-          "density": "medium"
-        },
-        {
-          "position": [
-            0.3812316715542522,
-            0.3255131964809384
-          ],
-          "zoneId": "riveira",
-          "elevationM": 231,
-          "density": "medium"
-        },
-        {
-          "position": [
-            0.2404692082111437,
-            0.3489736070381232
-          ],
-          "zoneId": "riveira",
-          "elevationM": 168,
-          "density": "medium"
-        },
-        {
-          "position": [
-            0.4418377321603128,
-            0.3939393939393939
-          ],
-          "zoneId": "riveira",
-          "elevationM": 171,
-          "density": "medium"
-        },
-        {
-          "position": [
-            0.3489736070381232,
-            0.40860215053763443
-          ],
-          "zoneId": "riveira",
-          "elevationM": 165,
-          "density": "medium"
-        },
-        {
-          "position": [
-            0.2932551319648094,
-            0.5219941348973607
-          ],
-          "zoneId": "riveira",
-          "elevationM": 183,
-          "density": "medium"
-        },
-        {
-          "position": [
-            0.3489736070381232,
+            0.34995112414467255,
             0.24242424242424243
           ],
           "zoneId": "riveira",
@@ -3970,38 +3970,38 @@
         },
         {
           "position": [
-            0.2991202346041056,
+            0.30009775171065495,
             0.1652003910068426
           ],
           "zoneId": "riveira",
-          "elevationM": 168,
+          "elevationM": 161,
           "density": "medium"
         },
         {
           "position": [
-            0.2756598240469208,
+            0.2825024437927664,
             0.5190615835777126
           ],
           "zoneId": "riveira",
-          "elevationM": 184,
+          "elevationM": 188,
           "density": "medium"
         },
         {
           "position": [
-            0.23460410557184752,
+            0.2570869990224829,
             0.33528836754643204
           ],
           "zoneId": "riveira",
-          "elevationM": 150,
+          "elevationM": 155,
           "density": "medium"
         },
         {
           "position": [
-            0.34017595307917886,
+            0.34506353861192574,
             0.3998044965786901
           ],
           "zoneId": "riveira",
-          "elevationM": 150,
+          "elevationM": 200,
           "density": "medium"
         },
         {
@@ -4015,38 +4015,38 @@
         },
         {
           "position": [
-            0.36852394916911047,
+            0.3597262952101662,
             0.603128054740958
           ],
           "zoneId": "vermara",
-          "elevationM": 224,
+          "elevationM": 193,
           "density": "medium"
         },
         {
           "position": [
-            0.5366568914956011,
+            0.5376344086021505,
             0.7644183773216031
           ],
           "zoneId": "vermara",
-          "elevationM": 776,
+          "elevationM": 826,
           "density": "medium"
         },
         {
           "position": [
-            0.44379276637341153,
+            0.44574780058651026,
             0.7546432062561095
           ],
           "zoneId": "vermara",
-          "elevationM": 271,
+          "elevationM": 229,
           "density": "medium"
         },
         {
           "position": [
-            0.46432062561094817,
+            0.4633431085043988,
             0.45161290322580644
           ],
           "zoneId": "vermara",
-          "elevationM": 380,
+          "elevationM": 369,
           "density": "medium"
         },
         {
@@ -4060,83 +4060,83 @@
         },
         {
           "position": [
-            0.5425219941348973,
+            0.5395894428152492,
             0.520039100684262
           ],
           "zoneId": "vermara",
-          "elevationM": 360,
+          "elevationM": 340,
           "density": "medium"
         },
         {
           "position": [
-            0.5131964809384164,
+            0.5180840664711632,
             0.6803519061583577
           ],
           "zoneId": "vermara",
-          "elevationM": 288,
+          "elevationM": 321,
           "density": "medium"
         },
         {
           "position": [
-            0.44281524926686217,
+            0.4398826979472141,
             0.5151515151515151
           ],
           "zoneId": "vermara",
-          "elevationM": 338,
+          "elevationM": 321,
           "density": "medium"
         },
         {
           "position": [
-            0.592375366568915,
+            0.5943304007820137,
             0.70772238514174
           ],
           "zoneId": "vermara",
-          "elevationM": 879,
+          "elevationM": 926,
           "density": "medium"
         },
         {
           "position": [
-            0.552297165200391,
+            0.5434995112414467,
             0.5904203323558163
           ],
           "zoneId": "vermara",
-          "elevationM": 409,
+          "elevationM": 476,
           "density": "medium"
         },
         {
           "position": [
-            0.4310850439882698,
+            0.43304007820136853,
             0.6471163245356794
           ],
           "zoneId": "vermara",
-          "elevationM": 291,
+          "elevationM": 277,
           "density": "medium"
         },
         {
           "position": [
-            0.47409579667644186,
+            0.46725317693059626,
             0.6080156402737048
           ],
           "zoneId": "vermara",
-          "elevationM": 485,
+          "elevationM": 534,
           "density": "medium"
         },
         {
           "position": [
-            0.4359726295210166,
+            0.43792766373411535,
             0.7282502443792767
           ],
           "zoneId": "vermara",
-          "elevationM": 280,
+          "elevationM": 277,
           "density": "medium"
         },
         {
           "position": [
-            0.4144672531769306,
+            0.4173998044965787,
             0.7047898338220919
           ],
           "zoneId": "vermara",
-          "elevationM": 210,
+          "elevationM": 190,
           "density": "medium"
         }
       ]
@@ -4148,56 +4148,56 @@
       "instances": [
         {
           "position": [
-            0.5698924731182796,
+            0.5874877810361682,
             0.4946236559139785
           ],
           "zoneId": "vermara",
-          "elevationM": 564,
+          "elevationM": 1044,
           "density": "sparse"
         },
         {
           "position": [
-            0.41935483870967744,
+            0.4887585532746823,
             0.5806451612903226
           ],
           "zoneId": "vermara",
-          "elevationM": 309,
+          "elevationM": 343,
           "density": "sparse"
         },
         {
           "position": [
-            0.5327468230694037,
+            0.5112414467253177,
             0.7018572825024438
           ],
           "zoneId": "vermara",
-          "elevationM": 580,
+          "elevationM": 573,
           "density": "sparse"
         },
         {
           "position": [
-            0.49853372434017595,
+            0.5043988269794721,
             0.4467253176930596
           ],
           "zoneId": "vermara",
-          "elevationM": 433,
+          "elevationM": 406,
           "density": "sparse"
         },
         {
           "position": [
-            0.4496578690127077,
-            0.7086999022482894
+            0.6089931573802542,
+            0.70772238514174
           ],
           "zoneId": "vermara",
-          "elevationM": 401,
+          "elevationM": 994,
           "density": "sparse"
         },
         {
           "position": [
-            0.43010752688172044,
+            0.458455522971652,
             0.5278592375366569
           ],
           "zoneId": "vermara",
-          "elevationM": 329,
+          "elevationM": 371,
           "density": "sparse"
         }
       ]
@@ -4218,56 +4218,56 @@
         },
         {
           "position": [
-            0.17302052785923755,
+            0.17790811339198437,
             0.436950146627566
           ],
           "zoneId": "fonteira",
-          "elevationM": 66,
+          "elevationM": 64,
           "density": "dense"
         },
         {
           "position": [
-            0.25219941348973607,
-            0.5288367546432062
+            0.10166177908113393,
+            0.5298142717497556
           ],
           "zoneId": "fonteira",
-          "elevationM": 98,
+          "elevationM": 5,
           "density": "dense"
         },
         {
           "position": [
-            0.13098729227761485,
+            0.13391984359726294,
             0.49266862170087977
           ],
           "zoneId": "fonteira",
-          "elevationM": 60,
+          "elevationM": 32,
           "density": "dense"
         },
         {
           "position": [
-            0.15542521994134897,
+            0.16324535679374388,
             0.3284457478005865
           ],
           "zoneId": "fonteira",
-          "elevationM": 73,
+          "elevationM": 77,
           "density": "dense"
         },
         {
           "position": [
-            0.12023460410557185,
+            0.12512218963831867,
             0.47214076246334313
           ],
           "zoneId": "fonteira",
-          "elevationM": 46,
+          "elevationM": 97,
           "density": "dense"
         },
         {
           "position": [
-            0.24437927663734116,
-            0.5024437927663734
+            0.08699902248289346,
+            0.5034213098729228
           ],
           "zoneId": "fonteira",
-          "elevationM": 171,
+          "elevationM": 10,
           "density": "dense"
         },
         {
@@ -4281,43 +4281,43 @@
         },
         {
           "position": [
-            0.10557184750733138,
+            0.10752688172043011,
             0.581622678396872
           ],
           "zoneId": "fonteira",
-          "elevationM": 65,
+          "elevationM": 51,
           "density": "dense"
         },
         {
           "position": [
-            0.12512218963831867,
+            0.1241446725317693,
             0.20234604105571846
           ],
           "zoneId": "fonteira",
-          "elevationM": 7,
+          "elevationM": 10,
           "density": "dense"
         },
         {
           "position": [
-            0.19648093841642228,
+            0.19941348973607037,
             0.48191593352883677
           ],
           "zoneId": "fonteira",
-          "elevationM": 142,
+          "elevationM": 154,
           "density": "dense"
         },
         {
           "position": [
-            0.10654936461388075,
+            0.10752688172043011,
             0.2825024437927664
           ],
           "zoneId": "fonteira",
-          "elevationM": 22,
+          "elevationM": 27,
           "density": "dense"
         },
         {
           "position": [
-            0.18181818181818182,
+            0.1906158357771261,
             0.5405669599217986
           ],
           "zoneId": "fonteira",
@@ -4326,71 +4326,8 @@
         },
         {
           "position": [
-            0.20918866080156404,
+            0.21994134897360704,
             0.4281524926686217
-          ],
-          "zoneId": "fonteira",
-          "elevationM": 69,
-          "density": "dense"
-        },
-        {
-          "position": [
-            0.14760508308895406,
-            0.44868035190615835
-          ],
-          "zoneId": "fonteira",
-          "elevationM": 55,
-          "density": "dense"
-        },
-        {
-          "position": [
-            0.18866080156402737,
-            0.6001955034213099
-          ],
-          "zoneId": "fonteira",
-          "elevationM": 34,
-          "density": "dense"
-        },
-        {
-          "position": [
-            0.1798631476050831,
-            0.4858260019550342
-          ],
-          "zoneId": "fonteira",
-          "elevationM": 104,
-          "density": "dense"
-        },
-        {
-          "position": [
-            0.20918866080156404,
-            0.4750733137829912
-          ],
-          "zoneId": "fonteira",
-          "elevationM": 178,
-          "density": "dense"
-        },
-        {
-          "position": [
-            0.11632453567937438,
-            0.541544477028348
-          ],
-          "zoneId": "fonteira",
-          "elevationM": 33,
-          "density": "dense"
-        },
-        {
-          "position": [
-            0.18572825024437928,
-            0.5884652981427175
-          ],
-          "zoneId": "fonteira",
-          "elevationM": 40,
-          "density": "dense"
-        },
-        {
-          "position": [
-            0.17497556207233628,
-            0.5464320625610948
           ],
           "zoneId": "fonteira",
           "elevationM": 71,
@@ -4398,11 +4335,74 @@
         },
         {
           "position": [
-            0.1798631476050831,
+            0.15151515151515152,
+            0.44868035190615835
+          ],
+          "zoneId": "fonteira",
+          "elevationM": 90,
+          "density": "dense"
+        },
+        {
+          "position": [
+            0.187683284457478,
+            0.6001955034213099
+          ],
+          "zoneId": "fonteira",
+          "elevationM": 41,
+          "density": "dense"
+        },
+        {
+          "position": [
+            0.1827956989247312,
+            0.4858260019550342
+          ],
+          "zoneId": "fonteira",
+          "elevationM": 107,
+          "density": "dense"
+        },
+        {
+          "position": [
+            0.2130987292277615,
+            0.4750733137829912
+          ],
+          "zoneId": "fonteira",
+          "elevationM": 157,
+          "density": "dense"
+        },
+        {
+          "position": [
+            0.11925708699902249,
+            0.541544477028348
+          ],
+          "zoneId": "fonteira",
+          "elevationM": 23,
+          "density": "dense"
+        },
+        {
+          "position": [
+            0.18670576735092864,
+            0.5884652981427175
+          ],
+          "zoneId": "fonteira",
+          "elevationM": 41,
+          "density": "dense"
+        },
+        {
+          "position": [
+            0.17790811339198437,
+            0.5464320625610948
+          ],
+          "zoneId": "fonteira",
+          "elevationM": 61,
+          "density": "dense"
+        },
+        {
+          "position": [
+            0.17888563049853373,
             0.22189638318670576
           ],
           "zoneId": "fonteira",
-          "elevationM": 31,
+          "elevationM": 21,
           "density": "dense"
         },
         {
@@ -4411,7 +4411,7 @@
             0.27174975562072334
           ],
           "zoneId": "fonteira",
-          "elevationM": 55,
+          "elevationM": 54,
           "density": "dense"
         },
         {
@@ -4425,65 +4425,65 @@
         },
         {
           "position": [
-            0.0967741935483871,
+            0.09872922776148582,
             0.5571847507331378
           ],
           "zoneId": "fonteira",
-          "elevationM": 19,
+          "elevationM": 26,
           "density": "dense"
         },
         {
           "position": [
-            0.19648093841642228,
+            0.2013685239491691,
             0.3734115347018573
           ],
           "zoneId": "fonteira",
-          "elevationM": 43,
+          "elevationM": 52,
           "density": "dense"
         },
         {
           "position": [
-            0.3020527859237537,
+            0.27663734115347016,
             0.41935483870967744
           ],
           "zoneId": "riveira",
-          "elevationM": 21,
+          "elevationM": 56,
           "density": "dense"
         },
         {
           "position": [
-            0.2570869990224829,
+            0.2482893450635386,
             0.24731182795698925
           ],
           "zoneId": "riveira",
-          "elevationM": 114,
+          "elevationM": 124,
           "density": "dense"
         },
         {
           "position": [
-            0.2913000977517107,
+            0.28641251221896386,
             0.603128054740958
           ],
           "zoneId": "riveira",
-          "elevationM": 47,
+          "elevationM": 28,
           "density": "dense"
         },
         {
           "position": [
-            0.20039100684261973,
+            0.19745845552297164,
             0.1935483870967742
           ],
           "zoneId": "riveira",
-          "elevationM": 44,
+          "elevationM": 50,
           "density": "dense"
         },
         {
           "position": [
-            0.3098729227761486,
+            0.3010752688172043,
             0.23949169110459434
           ],
           "zoneId": "riveira",
-          "elevationM": 169,
+          "elevationM": 131,
           "density": "dense"
         },
         {
@@ -4497,98 +4497,35 @@
         },
         {
           "position": [
-            0.3128054740957967,
+            0.2961876832844575,
             0.3010752688172043
           ],
           "zoneId": "riveira",
-          "elevationM": 195,
+          "elevationM": 146,
           "density": "dense"
         },
         {
           "position": [
-            0.37927663734115347,
+            0.30791788856304986,
             0.49853372434017595
           ],
           "zoneId": "riveira",
-          "elevationM": 32,
+          "elevationM": 52,
           "density": "dense"
         },
         {
           "position": [
-            0.29227761485826004,
+            0.2825024437927664,
             0.24535679374389052
           ],
           "zoneId": "riveira",
-          "elevationM": 120,
+          "elevationM": 41,
           "density": "dense"
         },
         {
           "position": [
-            0.3304007820136852,
+            0.32649071358748777,
             0.6109481915933529
-          ],
-          "zoneId": "riveira",
-          "elevationM": 28,
-          "density": "dense"
-        },
-        {
-          "position": [
-            0.39296187683284456,
-            0.3724340175953079
-          ],
-          "zoneId": "riveira",
-          "elevationM": 157,
-          "density": "dense"
-        },
-        {
-          "position": [
-            0.2903225806451613,
-            0.46236559139784944
-          ],
-          "zoneId": "riveira",
-          "elevationM": 39,
-          "density": "dense"
-        },
-        {
-          "position": [
-            0.30498533724340177,
-            0.3675464320625611
-          ],
-          "zoneId": "riveira",
-          "elevationM": 98,
-          "density": "dense"
-        },
-        {
-          "position": [
-            0.4340175953079179,
-            0.40371456500488756
-          ],
-          "zoneId": "riveira",
-          "elevationM": 157,
-          "density": "dense"
-        },
-        {
-          "position": [
-            0.24437927663734116,
-            0.2981427174975562
-          ],
-          "zoneId": "riveira",
-          "elevationM": 83,
-          "density": "dense"
-        },
-        {
-          "position": [
-            0.2179863147605083,
-            0.2404692082111437
-          ],
-          "zoneId": "riveira",
-          "elevationM": 81,
-          "density": "dense"
-        },
-        {
-          "position": [
-            0.31671554252199413,
-            0.541544477028348
           ],
           "zoneId": "riveira",
           "elevationM": 91,
@@ -4596,83 +4533,146 @@
         },
         {
           "position": [
-            0.2883675464320626,
+            0.2785923753665689,
+            0.3724340175953079
+          ],
+          "zoneId": "riveira",
+          "elevationM": 94,
+          "density": "dense"
+        },
+        {
+          "position": [
+            0.2434017595307918,
+            0.46236559139784944
+          ],
+          "zoneId": "riveira",
+          "elevationM": 41,
+          "density": "dense"
+        },
+        {
+          "position": [
+            0.3890518084066471,
+            0.36656891495601174
+          ],
+          "zoneId": "riveira",
+          "elevationM": 95,
+          "density": "dense"
+        },
+        {
+          "position": [
+            0.4115347018572825,
+            0.40371456500488756
+          ],
+          "zoneId": "riveira",
+          "elevationM": 108,
+          "density": "dense"
+        },
+        {
+          "position": [
+            0.21603128054740958,
+            0.2981427174975562
+          ],
+          "zoneId": "riveira",
+          "elevationM": 32,
+          "density": "dense"
+        },
+        {
+          "position": [
+            0.2101661779081134,
+            0.2404692082111437
+          ],
+          "zoneId": "riveira",
+          "elevationM": 79,
+          "density": "dense"
+        },
+        {
+          "position": [
+            0.26295210166177907,
+            0.541544477028348
+          ],
+          "zoneId": "riveira",
+          "elevationM": 89,
+          "density": "dense"
+        },
+        {
+          "position": [
+            0.2668621700879765,
             0.3812316715542522
           ],
           "zoneId": "riveira",
-          "elevationM": 96,
+          "elevationM": 44,
           "density": "dense"
         },
         {
           "position": [
-            0.31085043988269795,
-            0.4574780058651026
+            0.3391984359726295,
+            0.45650048875855326
           ],
           "zoneId": "riveira",
-          "elevationM": 33,
+          "elevationM": 38,
           "density": "dense"
         },
         {
           "position": [
-            0.21994134897360704,
-            0.3870967741935484
+            0.42130987292277616,
+            0.386119257086999
           ],
           "zoneId": "riveira",
-          "elevationM": 70,
+          "elevationM": 160,
           "density": "dense"
         },
         {
           "position": [
-            0.2785923753665689,
+            0.2727272727272727,
             0.2238514173998045
           ],
           "zoneId": "riveira",
-          "elevationM": 87,
+          "elevationM": 114,
           "density": "dense"
         },
         {
           "position": [
-            0.2932551319648094,
-            0.5513196480938416
+            0.3597262952101662,
+            0.5503421309872922
           ],
           "zoneId": "riveira",
-          "elevationM": 90,
+          "elevationM": 78,
           "density": "dense"
         },
         {
           "position": [
-            0.4281524926686217,
+            0.4066471163245357,
             0.3831867057673509
           ],
           "zoneId": "riveira",
-          "elevationM": 145,
+          "elevationM": 150,
           "density": "dense"
         },
         {
           "position": [
-            0.28641251221896386,
+            0.27956989247311825,
             0.2316715542521994
           ],
           "zoneId": "riveira",
-          "elevationM": 81,
+          "elevationM": 43,
           "density": "dense"
         },
         {
           "position": [
-            0.2570869990224829,
-            0.4144672531769306
+            0.4496578690127077,
+            0.41348973607038125
           ],
           "zoneId": "riveira",
-          "elevationM": 59,
+          "elevationM": 105,
           "density": "dense"
         },
         {
           "position": [
-            0.426197458455523,
+            0.39589442815249265,
             0.3734115347018573
           ],
           "zoneId": "riveira",
-          "elevationM": 161,
+          "elevationM": 152,
           "density": "dense"
         }
       ]
@@ -4685,16 +4685,34 @@
         {
           "position": [
             0.18963831867057673,
-            0.40371456500488756
+            0.4056695992179863
           ],
           "zoneId": "fonteira",
-          "elevationM": 62,
+          "elevationM": 61,
           "density": "medium"
         },
         {
           "position": [
-            0.16129032258064516,
+            0.1827956989247312,
             0.5278592375366569
+          ],
+          "zoneId": "fonteira",
+          "elevationM": 113,
+          "density": "medium"
+        },
+        {
+          "position": [
+            0.1710654936461388,
+            0.48289345063538613
+          ],
+          "zoneId": "fonteira",
+          "elevationM": 84,
+          "density": "medium"
+        },
+        {
+          "position": [
+            0.13294232649071358,
+            0.6099706744868035
           ],
           "zoneId": "fonteira",
           "elevationM": 54,
@@ -4702,128 +4720,110 @@
         },
         {
           "position": [
-            0.1348973607038123,
-            0.48289345063538613
-          ],
-          "zoneId": "fonteira",
-          "elevationM": 62,
-          "density": "medium"
-        },
-        {
-          "position": [
-            0.13196480938416422,
-            0.6099706744868035
-          ],
-          "zoneId": "fonteira",
-          "elevationM": 49,
-          "density": "medium"
-        },
-        {
-          "position": [
-            0.21603128054740958,
+            0.23069403714565004,
             0.4809384164222874
           ],
           "zoneId": "fonteira",
-          "elevationM": 260,
+          "elevationM": 237,
           "density": "medium"
         },
         {
           "position": [
-            0.12121212121212122,
+            0.1378299120234604,
             0.47702834799608995
           ],
           "zoneId": "fonteira",
-          "elevationM": 74,
+          "elevationM": 39,
           "density": "medium"
         },
         {
           "position": [
-            0.11436950146627566,
+            0.1348973607038123,
             0.5601173020527859
           ],
           "zoneId": "fonteira",
-          "elevationM": 109,
+          "elevationM": 60,
           "density": "medium"
         },
         {
           "position": [
-            0.23851417399804498,
-            0.5112414467253177
+            0.16911045943304007,
+            0.512218963831867
           ],
           "zoneId": "fonteira",
-          "elevationM": 116,
+          "elevationM": 79,
           "density": "medium"
         },
         {
           "position": [
-            0.22776148582600195,
+            0.24144672531769307,
             0.5434995112414467
           ],
           "zoneId": "fonteira",
-          "elevationM": 138,
+          "elevationM": 157,
           "density": "medium"
         },
         {
           "position": [
-            0.17790811339198437,
-            0.3616813294232649
+            0.1652003910068426,
+            0.3626588465298143
           ],
           "zoneId": "fonteira",
-          "elevationM": 95,
+          "elevationM": 68,
           "density": "medium"
         },
         {
           "position": [
-            0.1739980449657869,
+            0.15835777126099707,
             0.28152492668621704
           ],
           "zoneId": "fonteira",
-          "elevationM": 83,
+          "elevationM": 103,
           "density": "medium"
         },
         {
           "position": [
-            0.19745845552297164,
+            0.2101661779081134,
             0.5347018572825024
           ],
           "zoneId": "fonteira",
-          "elevationM": 59,
+          "elevationM": 61,
           "density": "medium"
         },
         {
           "position": [
-            0.2619745845552297,
-            0.5698924731182796
+            0.09775171065493646,
+            0.570869990224829
           ],
           "zoneId": "fonteira",
-          "elevationM": 88,
+          "elevationM": 54,
           "density": "medium"
         },
         {
           "position": [
-            0.18572825024437928,
+            0.1300097751710655,
             0.30498533724340177
           ],
           "zoneId": "fonteira",
-          "elevationM": 93,
+          "elevationM": 70,
           "density": "medium"
         },
         {
           "position": [
-            0.30791788856304986,
+            0.3069403714565005,
             0.17302052785923755
           ],
           "zoneId": "riveira",
-          "elevationM": 78,
+          "elevationM": 76,
           "density": "medium"
         },
         {
           "position": [
-            0.20527859237536658,
-            0.3069403714565005
+            0.3675464320625611,
+            0.30596285434995113
           ],
           "zoneId": "riveira",
-          "elevationM": 60,
+          "elevationM": 134,
           "density": "medium"
         },
         {
@@ -4837,35 +4837,26 @@
         },
         {
           "position": [
-            0.34995112414467255,
+            0.33724340175953077,
             0.2619745845552297
           ],
           "zoneId": "riveira",
-          "elevationM": 164,
+          "elevationM": 166,
           "density": "medium"
         },
         {
           "position": [
-            0.28641251221896386,
-            0.2649071358748778
+            0.3704789833822092,
+            0.26392961876832843
           ],
           "zoneId": "riveira",
-          "elevationM": 95,
+          "elevationM": 218,
           "density": "medium"
         },
         {
           "position": [
-            0.27956989247311825,
+            0.2238514173998045,
             0.29227761485826004
-          ],
-          "zoneId": "riveira",
-          "elevationM": 72,
-          "density": "medium"
-        },
-        {
-          "position": [
-            0.3235581622678397,
-            0.52297165200391
           ],
           "zoneId": "riveira",
           "elevationM": 65,
@@ -4873,65 +4864,74 @@
         },
         {
           "position": [
-            0.3489736070381232,
+            0.35288367546432065,
+            0.5219941348973607
+          ],
+          "zoneId": "riveira",
+          "elevationM": 97,
+          "density": "medium"
+        },
+        {
+          "position": [
+            0.34506353861192574,
             0.5698924731182796
           ],
           "zoneId": "riveira",
-          "elevationM": 91,
+          "elevationM": 89,
           "density": "medium"
         },
         {
           "position": [
-            0.25513196480938416,
+            0.2482893450635386,
             0.23362658846529813
           ],
           "zoneId": "riveira",
-          "elevationM": 118,
+          "elevationM": 147,
           "density": "medium"
         },
         {
           "position": [
-            0.2785923753665689,
+            0.20332355816226785,
             0.2697947214076246
           ],
           "zoneId": "riveira",
-          "elevationM": 108,
+          "elevationM": 100,
           "density": "medium"
         },
         {
           "position": [
-            0.27468230694037143,
+            0.26588465298142716,
             0.31085043988269795
           ],
           "zoneId": "riveira",
-          "elevationM": 96,
+          "elevationM": 84,
           "density": "medium"
         },
         {
           "position": [
-            0.36852394916911047,
+            0.3616813294232649,
             0.3284457478005865
           ],
           "zoneId": "riveira",
-          "elevationM": 155,
+          "elevationM": 99,
           "density": "medium"
         },
         {
           "position": [
-            0.41348973607038125,
+            0.3206256109481916,
             0.4056695992179863
           ],
           "zoneId": "riveira",
-          "elevationM": 138,
+          "elevationM": 90,
           "density": "medium"
         },
         {
           "position": [
-            0.2873900293255132,
+            0.2570869990224829,
             0.2013685239491691
           ],
           "zoneId": "riveira",
-          "elevationM": 173,
+          "elevationM": 93,
           "density": "medium"
         }
       ]
@@ -5085,11 +5085,11 @@
         },
         {
           "position": [
-            0.3949169110459433,
+            0.39589442815249265,
             0.45356793743890517
           ],
           "zoneId": "riveira",
-          "elevationM": 16,
+          "elevationM": 19,
           "density": "sparse"
         },
         {
@@ -5112,20 +5112,20 @@
         },
         {
           "position": [
-            0.3626588465298143,
+            0.3616813294232649,
             0.2649071358748778
           ],
           "zoneId": "riveira",
-          "elevationM": 208,
+          "elevationM": 203,
           "density": "sparse"
         },
         {
           "position": [
-            0.31085043988269795,
+            0.3176930596285435,
             0.4389051808406647
           ],
           "zoneId": "riveira",
-          "elevationM": 13,
+          "elevationM": 20,
           "density": "sparse"
         }
       ]
